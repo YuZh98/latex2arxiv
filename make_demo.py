@@ -24,7 +24,7 @@ files['main.tex'] = r"""\documentclass[12pt]{article}
 Submitting a paper to arXiv requires cleaning up your LaTeX project:
 removing draft annotations, stripping comments, pruning unused files,
 and normalizing references.
-\texttt{latex2arxiv} automates all of these steps.
+\texttt{latex2arxiv} automates all of these steps~\cite{arxiv_submission}.
 This document is itself a demo input --- run the converter on it and
 inspect the output to see what changes are made.
 \end{abstract}

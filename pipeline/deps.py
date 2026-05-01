@@ -26,12 +26,13 @@ def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
     return found
 
 
-def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root: Path) -> set:
+def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Path) -> set:
     """Return set of absolute paths for images referenced by \\includegraphics or \\begin{overpic}.
 
-    Paths are relative to the including .tex file's directory.
+    LaTeX resolves image paths relative to the compilation root (main file's directory),
+    except in \\subfile documents which have their own root. We try both the file's own
+    directory and the project root to handle both cases.
     """
-    # Matches \includegraphics[...]{path} and \begin{overpic}[...]{path}
     _IMAGE_RE = re.compile(
         r'\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}'
         r'|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}'
@@ -43,11 +44,17 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root: Path) -
             ref = (m.group(1) or m.group(2)).strip()
             used_refs.add(ref)
             candidates = [Path(ref)] + [Path(ref + ext) for ext in ('.pdf', '.png', '.jpg', '.jpeg', '.eps')]
+            # Try root dir first (correct for \input'd files), then tex_dir (for \subfile)
+            search_dirs = [root_dir, tex_dir] if tex_dir != root_dir else [root_dir]
             for c in candidates:
-                full = (tex_dir / c).resolve()
-                if full.exists():
-                    used_paths.add(full)
-                    break
+                for base in search_dirs:
+                    full = (base / c).resolve()
+                    if full.exists():
+                        used_paths.add(full)
+                        break
+                else:
+                    continue
+                break
     return used_paths, used_refs
 
 
