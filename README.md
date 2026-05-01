@@ -44,6 +44,13 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 pip install latex2arxiv
 ```
 
+On macOS, if you get an `externally-managed-environment` error, use [`pipx`](https://pipx.pypa.io/) instead:
+
+```bash
+brew install pipx
+pipx install latex2arxiv
+```
+
 Or from source:
 
 ```bash
