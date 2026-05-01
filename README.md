@@ -11,6 +11,18 @@ latex2arxiv paper.zip --main main.tex --compile
 
 Works with any LaTeX `.zip` — including projects exported directly from Overleaf.
 
+---
+
+> 🚀 **Try it in 30 seconds** — a self-documenting demo is included:
+> ```bash
+> pip install latex2arxiv
+> latex2arxiv demo_project.zip --compile
+> ```
+> This opens a PDF that explains exactly what the converter does and shows the cleaned output.
+
+---
+
+
 ## What it does
 
 | Stage | Action |
@@ -73,16 +85,6 @@ latex2arxiv paper.zip arxiv_ready.zip --main main.tex --compile
 # Resize large images to stay under arXiv's 50MB limit
 latex2arxiv paper.zip --resize 1600 --compile
 ```
-
-## Try the demo
-
-A self-documenting demo project is included:
-
-```bash
-latex2arxiv demo_project.zip --compile
-```
-
-This produces `demo_project_arxiv.zip` and opens a PDF showing exactly what was removed and cleaned.
 
 ## Caveats
 
