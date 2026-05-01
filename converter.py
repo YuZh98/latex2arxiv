@@ -3,11 +3,12 @@
 latex_arxiv_converter — convert a LaTeX .zip to an arXiv-ready .zip
 
 Usage:
-    python converter.py input.zip [output.zip]
+    python3 converter.py input.zip [output.zip] [--main MAIN_TEX]
 """
 
 import re
 import sys
+import argparse
 import zipfile
 import tempfile
 import shutil
@@ -17,25 +18,10 @@ from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_
 from pipeline.bibtex import normalize_bibtex
 from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files
 
-# Files/dirs to always remove
-_JUNK_PATTERNS = {
-    '.DS_Store', 'Thumbs.db',
-    '.aux', '.log', '.out', '.toc', '.lof', '.lot', '.bbl', '.blg',
-    '.synctex.gz', '.fls', '.fdb_latexmk', '.nav', '.snm', '.vrb',
-}
-_JUNK_DIRS = {'.vscode', '.idea', '__pycache__', '.git'}
-
 IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
 
-
-def is_junk(path: Path) -> bool:
-    if path.name in _JUNK_PATTERNS:
-        return True
-    if path.suffix in _JUNK_PATTERNS:
-        return True
-    if any(part in _JUNK_DIRS for part in path.parts):
-        return True
-    return False
+# Non-tex support files arXiv may need
+SUPPORT_EXTS = {'.cls', '.sty', '.bst', '.ind', '.gls', '.nls', '.bbl'}
 
 
 def find_main_tex(root: Path) -> Path | None:
@@ -50,7 +36,7 @@ def find_main_tex(root: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def convert(input_zip: Path, output_zip: Path):
+def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None):
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
 
@@ -64,7 +50,13 @@ def convert(input_zip: Path, output_zip: Path):
             root = entries[0]
 
         # 2. Find main .tex and all included .tex files
-        main_tex = find_main_tex(root)
+        if main_hint:
+            main_tex = next((p for p in root.rglob('*.tex') if p.name == main_hint), None)
+            if main_tex is None:
+                print(f"ERROR: --main '{main_hint}' not found in archive")
+                sys.exit(1)
+        else:
+            main_tex = find_main_tex(root)
         if main_tex is None:
             print("ERROR: no .tex file found in archive")
             sys.exit(1)
@@ -72,53 +64,53 @@ def convert(input_zip: Path, output_zip: Path):
 
         all_tex_files = {main_tex}
         main_source = main_tex.read_text(encoding='utf-8', errors='replace')
-        all_tex_files |= find_included_tex(main_source, main_tex.parent, {main_tex})
+        all_tex_files |= find_included_tex(main_source, main_tex.parent, root, {main_tex})
 
-        # Collect all tex sources for dependency analysis
-        all_sources = []
-        for p in all_tex_files:
-            if p.exists():
-                all_sources.append(p.read_text(encoding='utf-8', errors='replace'))
+        # Collect sources + their directories for image resolution
+        tex_files_list = [p for p in all_tex_files if p.exists()]
+        all_sources = [p.read_text(encoding='utf-8', errors='replace') for p in tex_files_list]
+        tex_dirs = [p.parent for p in tex_files_list]
 
-        used_images = find_used_images(all_sources)
+        used_image_paths, used_image_refs = find_used_images(all_sources, tex_dirs, root)
         used_bib_files = find_used_bib_files(all_sources)
+
+        # Build whitelist of resolved absolute paths to keep
+        whitelist = {p.resolve() for p in all_tex_files if p.exists()}
+        whitelist |= used_image_paths
+        # Add .bib files
+        for path in root.rglob('*.bib'):
+            if path.name in used_bib_files:
+                whitelist.add(path.resolve())
+        # Add support files (.cls, .sty, .bst, .ind, .gls, .nls, .bbl)
+        for path in root.rglob('*'):
+            if path.is_file() and path.suffix.lower() in SUPPORT_EXTS:
+                whitelist.add(path.resolve())
 
         # 3. Process each file
         for path in list(root.rglob('*')):
             if not path.is_file():
                 continue
             rel = path.relative_to(root)
+            resolved = path.resolve()
 
-            # Remove junk files
-            if is_junk(rel):
-                print(f"  remove junk: {rel}")
-                path.unlink()
-                continue
-
-            # Remove unused .tex files
-            if path.suffix == '.tex' and path not in all_tex_files:
-                print(f"  remove unused tex: {rel}")
-                path.unlink()
-                continue
-
-            # Remove unused .bib files
-            if path.suffix == '.bib' and path.name not in used_bib_files:
-                print(f"  remove unused bib: {rel}")
-                path.unlink()
-                continue
-
-            # Remove unused images
-            if path.suffix.lower() in IMAGE_EXTS:
-                stem = path.stem
-                name = path.name
-                # Match by full name or stem (\\includegraphics may omit extension)
-                if name not in used_images and stem not in used_images:
-                    print(f"  remove unused image: {rel}")
+            # Keep only whitelisted files; delete everything else
+            if resolved not in whitelist:
+                # Second chance for images: match by stem/name in case path resolution failed
+                if path.suffix.lower() in IMAGE_EXTS:
+                    name, stem = path.name, path.stem
+                    if name in used_image_refs or stem in used_image_refs:
+                        pass  # keep it
+                    else:
+                        print(f"  remove: {rel}")
+                        path.unlink()
+                        continue
+                else:
+                    print(f"  remove: {rel}")
                     path.unlink()
                     continue
 
             # Process .tex files
-            if path.suffix == '.tex' and path in all_tex_files:
+            if path.suffix == '.tex' and path.resolve() in {p.resolve() for p in all_tex_files}:
                 src = path.read_text(encoding='utf-8', errors='replace')
                 src = strip_comments(src)
                 src = remove_draft_annotations(src)
@@ -143,11 +135,13 @@ def convert(input_zip: Path, output_zip: Path):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description='Convert LaTeX zip to arXiv-ready zip')
+    parser.add_argument('input', help='Input .zip file')
+    parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
+    parser.add_argument('--main', help='Filename of the main .tex file (e.g. JASA_main.tex)')
+    args = parser.parse_args()
 
-    inp = Path(sys.argv[1])
-    out = Path(sys.argv[2]) if len(sys.argv) > 2 else inp.with_stem(inp.stem + '_arxiv')
+    inp = Path(args.input)
+    out = Path(args.output) if args.output else inp.with_stem(inp.stem + '_arxiv')
     print(f"Converting {inp} → {out}\n")
-    convert(inp, out)
+    convert(inp, out, main_hint=args.main)

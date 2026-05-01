@@ -2,29 +2,44 @@ import re
 from pathlib import Path
 
 
-def find_included_tex(source: str, base: Path, visited: set) -> set:
-    """Recursively find all .tex files reachable via \\input / \\include."""
+def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
+    """Recursively find all .tex files reachable via \\input, \\include, \\subfile."""
     found = set()
-    for cmd in re.findall(r'\\(?:input|include)\{([^}]+)\}', source):
+    for cmd in re.findall(r'\\(?:input|include|subfile)\{([^}]+)\}', source):
         p = Path(cmd) if cmd.endswith('.tex') else Path(cmd + '.tex')
-        full = base / p
+        # subfile paths are relative to the including file's directory
+        full = (base / p).resolve()
         if full in visited:
             continue
         visited.add(full)
         found.add(full)
         if full.exists():
             child_source = full.read_text(encoding='utf-8', errors='replace')
-            found |= find_included_tex(child_source, full.parent, visited)
+            found |= find_included_tex(child_source, full.parent, root, visited)
     return found
 
 
-def find_used_images(tex_sources: list[str]) -> set:
-    """Return set of image basenames referenced by \\includegraphics."""
-    used = set()
-    for src in tex_sources:
+def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root: Path) -> set:
+    """Return set of absolute paths for images referenced by \\includegraphics.
+
+    \\includegraphics paths are relative to the including .tex file's directory.
+    We resolve each against each tex_dir and return whichever exists.
+    Also stores the raw reference string for extension-less matching.
+    """
+    used_paths = set()
+    used_refs = set()
+    for src, tex_dir in zip(tex_sources, tex_dirs):
         for m in re.finditer(r'\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}', src):
-            used.add(m.group(1))  # may or may not have extension
-    return used
+            ref = m.group(1).strip()
+            used_refs.add(ref)
+            # Try resolving with and without common extensions
+            candidates = [Path(ref)] + [Path(ref + ext) for ext in ('.pdf', '.png', '.jpg', '.jpeg', '.eps')]
+            for c in candidates:
+                full = (tex_dir / c).resolve()
+                if full.exists():
+                    used_paths.add(full)
+                    break
+    return used_paths, used_refs
 
 
 def find_used_bib_files(tex_sources: list[str]) -> set:
