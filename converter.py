@@ -17,13 +17,10 @@ from pathlib import Path
 
 from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
 from pipeline.bibtex import normalize_bibtex
-from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files
+from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files, find_used_style_files
 from pipeline.images import resize_image, DEFAULT_MAX_PX
 
 IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
-
-# Non-tex support files arXiv may need
-SUPPORT_EXTS = {'.cls', '.sty', '.bst', '.ind', '.gls', '.nls', '.bbl'}
 
 
 def find_main_tex(root: Path) -> Path | None:
@@ -52,7 +49,7 @@ def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path):
     # Custom style/class files included
     for path in root.rglob('*'):
         if path.suffix.lower() in {'.cls', '.sty'}:
-            print(f"  [warn] custom style file included: {path.relative_to(root)} — "
+            print(f"  [warn] custom style file kept: {path.relative_to(root)} — "
                   "verify this is not already provided by TeX Live")
 
     # \today in \date
@@ -103,6 +100,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
 
         used_image_paths, used_image_refs = find_used_images(all_sources, tex_dirs, root)
         used_bib_files = find_used_bib_files(all_sources)
+        used_style_files = find_used_style_files(all_sources)
 
         # Build whitelist of resolved absolute paths to keep
         whitelist = {p.resolve() for p in all_tex_files if p.exists()}
@@ -111,10 +109,13 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         for path in root.rglob('*.bib'):
             if path.name in used_bib_files:
                 whitelist.add(path.resolve())
-        # Add support files (.cls, .sty, .bst, .ind, .gls, .nls, .bbl)
+        # Add used support files (.cls, .sty) and always-keep types (.bst, .ind, .gls, .nls, .bbl)
         for path in root.rglob('*'):
-            if path.is_file() and path.suffix.lower() in SUPPORT_EXTS:
-                whitelist.add(path.resolve())
+            if path.is_file():
+                if path.suffix.lower() in {'.bst', '.ind', '.gls', '.nls', '.bbl'}:
+                    whitelist.add(path.resolve())
+                elif path.suffix.lower() in {'.cls', '.sty'} and path.name in used_style_files:
+                    whitelist.add(path.resolve())
 
         # 3. Process each file
         for path in list(root.rglob('*')):

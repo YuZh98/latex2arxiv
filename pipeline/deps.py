@@ -58,6 +58,19 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
     return used_paths, used_refs
 
 
+def find_used_style_files(tex_sources: list[str]) -> set:
+    """Return set of .sty/.cls basenames referenced by \\usepackage or \\documentclass."""
+    used = set()
+    for src in tex_sources:
+        src = _strip_comments(src)
+        for m in re.finditer(r'\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}', src):
+            for name in m.group(1).split(','):
+                used.add(name.strip() + '.sty')
+        for m in re.finditer(r'\\documentclass(?:\[[^\]]*\])?\{([^}]+)\}', src):
+            used.add(m.group(1).strip() + '.cls')
+    return used
+
+
 def find_used_bib_files(tex_sources: list[str]) -> set:
     """Return set of .bib filenames referenced by \\bibliography or \\addbibresource."""
     used = set()
