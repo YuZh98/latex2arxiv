@@ -1,21 +1,24 @@
 [build-system]
 requires = ["setuptools>=61"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "latex2arxiv"
 version = "0.1.0"
-description = "Convert an Overleaf/LaTeX .zip project into an arXiv-ready .zip"
+description = "Convert a LaTeX .zip project into an arXiv-ready .zip"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
-    "bibtexparser>=2.0",
+    "bibtexparser>=1.4",
     "Pillow>=10.0",
 ]
 
 [project.scripts]
 latex2arxiv = "converter:main"
+
+[tool.setuptools]
+py-modules = ["converter"]
 
 [tool.setuptools.packages.find]
 where = ["."]
