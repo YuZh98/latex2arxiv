@@ -1,6 +1,7 @@
 # latex2arxiv
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![PyPI](https://img.shields.io/pypi/v/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 A command-line tool that converts a LaTeX `.zip` project into an arXiv-ready `.zip` in one command.
