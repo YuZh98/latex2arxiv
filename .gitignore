@@ -7,6 +7,5 @@ venv/
 dist/
 build/
 .DS_Store
-*.zip
 test_input/
 test_output/
