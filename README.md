@@ -3,14 +3,13 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A command-line tool that converts an Overleaf/LaTeX `.zip` project into an arXiv-ready `.zip` in one command.
+A command-line tool that converts a LaTeX `.zip` project into an arXiv-ready `.zip` in one command.
 
 ```bash
 latex2arxiv paper.zip --main main.tex --compile
 ```
 
-> **Why not Google's [arxiv-latex-cleaner](https://github.com/google-research/arxiv-latex-cleaner)?**
-> That tool works on a local folder. `latex2arxiv` works directly on the `.zip` you download from Overleaf — no extraction needed.
+Works with any LaTeX `.zip` — including projects exported directly from Overleaf.
 
 ## What it does
 
