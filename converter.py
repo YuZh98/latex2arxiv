@@ -197,7 +197,7 @@ def _compile(output_zip: Path, main_hint: str | None):
             print("  [compile] PDF not produced")
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Convert LaTeX zip to arXiv-ready zip')
     parser.add_argument('input', help='Input .zip file')
     parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
@@ -209,3 +209,7 @@ if __name__ == '__main__':
     out = Path(args.output) if args.output else inp.with_stem(inp.stem + '_arxiv')
     print(f"Converting {inp} → {out}\n")
     convert(inp, out, main_hint=args.main, compile_pdf=args.compile)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "latex2arxiv"
+version = "0.1.0"
+description = "Convert an Overleaf/LaTeX .zip project into an arXiv-ready .zip"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "bibtexparser>=2.0",
+]
+
+[project.scripts]
+latex2arxiv = "converter:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pipeline*"]

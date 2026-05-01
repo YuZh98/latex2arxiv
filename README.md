@@ -1,4 +1,4 @@
-# latex-arxiv-converter
+# latex2arxiv
 
 A command-line tool that converts an Overleaf/LaTeX `.zip` project into an arXiv-ready `.zip`.
 
@@ -18,12 +18,26 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 ## Installation
 
 ```bash
-pip install -r requirements.txt
+pip install latex2arxiv
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/YuZh98/latex2arxiv
+cd latex2arxiv
+pip install .
 ```
 
 `pdflatex` is required only for the `--compile` flag (install via [TeX Live](https://tug.org/texlive/) or [MacTeX](https://tug.org/mactex/)).
 
 ## Usage
+
+```bash
+latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--compile]
+```
+
+Or without installing:
 
 ```bash
 python3 converter.py input.zip [output.zip] [--main MAIN_TEX] [--compile]
@@ -40,11 +54,35 @@ python3 converter.py input.zip [output.zip] [--main MAIN_TEX] [--compile]
 
 ```bash
 # Basic conversion (auto-detect main file)
-python3 converter.py paper.zip
+latex2arxiv paper.zip
 
 # Specify main file and compile for review
-python3 converter.py paper.zip arxiv_ready.zip --main main.tex --compile
+latex2arxiv paper.zip arxiv_ready.zip --main main.tex --compile
 ```
+
+## Try the demo
+
+A self-documenting demo project is included:
+
+```bash
+latex2arxiv demo_project.zip --compile
+```
+
+This produces `demo_project_arxiv.zip` and opens a PDF showing exactly what was removed and cleaned.
+
+## Caveats
+
+**Dynamically constructed filenames** — if your code uses a macro for an image path (e.g. `\includegraphics{\figpath/fig1}`), the tool cannot resolve it statically and will delete the image. Expand macros before running the converter.
+
+**Custom verbatim environments** — comments inside standard `verbatim`, `lstlisting`, and `minted` blocks are preserved. Non-standard verbatim-like environments may not be protected.
+
+**`\subfile` vs `\input` path resolution** — image paths in `\input`/`\include`d files are resolved relative to the project root (how LaTeX works). Paths in `\subfile` documents are resolved relative to the subfile's own directory. Unusual nested path setups may cause images to be incorrectly pruned; use `--compile` to verify.
+
+**BibTeX normalization requires `bibtexparser`** — install with `pip install bibtexparser`. If not installed, the `.bib` file is passed through unchanged.
+
+**`--compile` is a local sanity check** — a successful local compile does not guarantee arXiv will compile it. arXiv uses specific TeX Live versions with fixed package sets. Always check the [arXiv submission preview](https://arxiv.org/help/submit) after uploading.
+
+**`\begin{comment}` blocks are not removed** — the tool strips `%` line comments but does not remove `\begin{comment}...\end{comment}` environments. Remove these manually before submitting.
 
 ## Project structure
 
