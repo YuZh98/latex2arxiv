@@ -161,7 +161,7 @@ def _compile(output_zip: Path, main_hint: str | None):
         print(f"\nCompiling {main_tex.name} ...")
         cmd = ['pdflatex', '-interaction=nonstopmode', main_tex.name]
         for _ in range(2):  # run twice for cross-references
-            result = subprocess.run(cmd, cwd=compile_dir, capture_output=True, text=True)
+            result = subprocess.run(cmd, cwd=main_tex.parent, capture_output=True, text=True)
             # pdflatex returns non-zero even on warnings; check for actual fatal errors
             if '! Fatal error' in result.stdout or ('! ' in result.stdout and 'Output written' not in result.stdout):
                 log_lines = result.stdout.splitlines()
@@ -170,7 +170,7 @@ def _compile(output_zip: Path, main_hint: str | None):
                 print('\n'.join(errors[:10]))
                 return
 
-        pdf = compile_dir / main_tex.with_suffix('.pdf').name
+        pdf = main_tex.with_suffix('.pdf')
         if pdf.exists():
             out_pdf = output_zip.with_suffix('.pdf')
             shutil.copy(pdf, out_pdf)
