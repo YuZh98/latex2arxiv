@@ -12,6 +12,7 @@ import argparse
 import zipfile
 import tempfile
 import shutil
+import subprocess
 from pathlib import Path
 
 from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, ensure_pdfoutput
@@ -36,7 +37,7 @@ def find_main_tex(root: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None):
+def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None, compile_pdf: bool = False):
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
 
@@ -133,15 +134,61 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None):
 
         print(f"\nDone → {output_zip}")
 
+    if compile_pdf:
+        _compile(output_zip, main_hint)
+
+
+def _compile(output_zip: Path, main_hint: str | None):
+    """Extract output zip, run pdflatex twice, and open the resulting PDF."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        compile_dir = Path(tmpdir)
+        with zipfile.ZipFile(output_zip) as zf:
+            zf.extractall(compile_dir)
+
+        # Find main tex
+        if main_hint:
+            main_tex = next((p for p in compile_dir.rglob('*.tex') if p.name == main_hint), None)
+        else:
+            main_tex = next(
+                (p for p in compile_dir.rglob('*.tex')
+                 if r'\documentclass' in p.read_text(encoding='utf-8', errors='replace')),
+                None
+            )
+        if main_tex is None:
+            print("  [compile] ERROR: could not find main .tex in output zip")
+            return
+
+        print(f"\nCompiling {main_tex.name} ...")
+        cmd = ['pdflatex', '-interaction=nonstopmode', main_tex.name]
+        for _ in range(2):  # run twice for cross-references
+            result = subprocess.run(cmd, cwd=compile_dir, capture_output=True, text=True)
+            # pdflatex returns non-zero even on warnings; check for actual fatal errors
+            if '! Fatal error' in result.stdout or ('! ' in result.stdout and 'Output written' not in result.stdout):
+                log_lines = result.stdout.splitlines()
+                errors = [l for l in log_lines if l.startswith('!')]
+                print("  [compile] pdflatex errors:")
+                print('\n'.join(errors[:10]))
+                return
+
+        pdf = compile_dir / main_tex.with_suffix('.pdf').name
+        if pdf.exists():
+            out_pdf = output_zip.with_suffix('.pdf')
+            shutil.copy(pdf, out_pdf)
+            print(f"  PDF → {out_pdf}")
+            subprocess.run(['open', str(out_pdf)])  # macOS
+        else:
+            print("  [compile] PDF not produced")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert LaTeX zip to arXiv-ready zip')
     parser.add_argument('input', help='Input .zip file')
     parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
     parser.add_argument('--main', help='Filename of the main .tex file (e.g. JASA_main.tex)')
+    parser.add_argument('--compile', action='store_true', help='Compile output with pdflatex and open PDF')
     args = parser.parse_args()
 
     inp = Path(args.input)
     out = Path(args.output) if args.output else inp.with_stem(inp.stem + '_arxiv')
     print(f"Converting {inp} → {out}\n")
-    convert(inp, out, main_hint=args.main)
+    convert(inp, out, main_hint=args.main, compile_pdf=args.compile)

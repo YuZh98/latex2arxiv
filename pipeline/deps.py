@@ -20,19 +20,21 @@ def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
 
 
 def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root: Path) -> set:
-    """Return set of absolute paths for images referenced by \\includegraphics.
+    """Return set of absolute paths for images referenced by \\includegraphics or \\begin{overpic}.
 
-    \\includegraphics paths are relative to the including .tex file's directory.
-    We resolve each against each tex_dir and return whichever exists.
-    Also stores the raw reference string for extension-less matching.
+    Paths are relative to the including .tex file's directory.
     """
+    # Matches \includegraphics[...]{path} and \begin{overpic}[...]{path}
+    _IMAGE_RE = re.compile(
+        r'\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}'
+        r'|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}'
+    )
     used_paths = set()
     used_refs = set()
     for src, tex_dir in zip(tex_sources, tex_dirs):
-        for m in re.finditer(r'\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}', src):
-            ref = m.group(1).strip()
+        for m in _IMAGE_RE.finditer(src):
+            ref = (m.group(1) or m.group(2)).strip()
             used_refs.add(ref)
-            # Try resolving with and without common extensions
             candidates = [Path(ref)] + [Path(ref + ext) for ext in ('.pdf', '.png', '.jpg', '.jpeg', '.eps')]
             for c in candidates:
                 full = (tex_dir / c).resolve()
