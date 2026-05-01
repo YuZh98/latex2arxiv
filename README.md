@@ -8,9 +8,10 @@ A command-line tool that converts an Overleaf/LaTeX `.zip` project into an arXiv
 |---|---|
 | File pruning | Removes unused `.tex`, `.bib`, image, and all non-essential files (build artifacts, editor files, cover letters, etc.) |
 | Comment stripping | Removes `% ...` comments from all `.tex` files |
-| Draft cleanup | Removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}`, `\begin{comment}` blocks, and draft-only packages |
+| Draft cleanup | Removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}`, `\begin{comment}` blocks, `\iffalse...\fi` blocks, and draft-only packages |
 | BibTeX normalization | Canonical field ordering, deduplication, private field removal |
 | `\pdfoutput=1` | Injected before `\documentclass` if missing (required by arXiv) |
+| Image resizing | Optional: resize images so longest side ≤ N pixels (helps stay under arXiv's 50MB limit) |
 | Compile check | Optional: compiles with `pdflatex` and opens the PDF for review |
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\begin{overpic}`, and `\bibliography`. Commented-out commands are ignored.
@@ -48,6 +49,7 @@ python3 converter.py input.zip [output.zip] [--main MAIN_TEX] [--compile]
 | Flag | Description |
 |---|---|
 | `--main FILENAME` | Specify the main `.tex` file (e.g. `JASA_main.tex`). Auto-detected via `\documentclass` if omitted. |
+| `--resize PX` | Resize images so longest side ≤ PX pixels (e.g. `--resize 1600`). Requires `Pillow`. |
 | `--compile` | Run `pdflatex` on the output and open the resulting PDF. |
 
 **Examples**

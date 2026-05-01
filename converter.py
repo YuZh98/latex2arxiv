@@ -18,6 +18,7 @@ from pathlib import Path
 from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
 from pipeline.bibtex import normalize_bibtex
 from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files
+from pipeline.images import resize_image, DEFAULT_MAX_PX
 
 IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
 
@@ -37,7 +38,8 @@ def find_main_tex(root: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None, compile_pdf: bool = False):
+def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
+            compile_pdf: bool = False, resize: int | None = None):
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
 
@@ -109,6 +111,11 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None, com
                     print(f"  remove: {rel}")
                     path.unlink()
                     continue
+
+            # Resize images if requested
+            if resize and path.suffix.lower() in IMAGE_EXTS:
+                if resize_image(path, max_px=resize):
+                    print(f"  resized: {rel}")
 
             # Process .tex files
             if path.suffix == '.tex' and path.resolve() in {p.resolve() for p in all_tex_files}:
@@ -204,12 +211,15 @@ def main():
     parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
     parser.add_argument('--main', help='Filename of the main .tex file (e.g. JASA_main.tex)')
     parser.add_argument('--compile', action='store_true', help='Compile output with pdflatex and open PDF')
+    parser.add_argument('--resize', type=int, metavar='PX',
+                        help=f'Resize images so longest side <= PX pixels (default: {DEFAULT_MAX_PX} if flag given)')
     args = parser.parse_args()
 
     inp = Path(args.input)
     out = Path(args.output) if args.output else inp.with_stem(inp.stem + '_arxiv')
+    resize = args.resize if args.resize is not None else (DEFAULT_MAX_PX if hasattr(args, 'resize') and args.resize == 0 else args.resize)
     print(f"Converting {inp} → {out}\n")
-    convert(inp, out, main_hint=args.main, compile_pdf=args.compile)
+    convert(inp, out, main_hint=args.main, compile_pdf=args.compile, resize=args.resize)
 
 
 if __name__ == '__main__':

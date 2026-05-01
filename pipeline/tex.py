@@ -40,7 +40,7 @@ def remove_draft_annotations(source: str) -> str:
 
 def remove_draft_packages(source: str) -> str:
     """Remove usepackage lines for draft-only packages."""
-    draft_pkgs = {'todonotes', 'changes', 'trackchanges', 'easy-todo'}
+    draft_pkgs = {'todonotes', 'changes', 'trackchanges', 'easy-todo', 'comment'}
     lines = source.splitlines(keepends=True)
     result = []
     for line in lines:
@@ -54,8 +54,10 @@ def remove_draft_packages(source: str) -> str:
 
 
 def remove_comment_environments(source: str) -> str:
-    """Remove \\begin{comment}...\\end{comment} blocks (from the comment package)."""
-    return re.sub(r'\\begin\{comment\}.*?\\end\{comment\}', '', source, flags=re.DOTALL)
+    """Remove \\begin{comment}...\\end{comment} blocks and \\iffalse...\\fi blocks."""
+    source = re.sub(r'\\begin\{comment\}.*?\\end\{comment\}', '', source, flags=re.DOTALL)
+    source = re.sub(r'\\iffalse\b.*?\\fi\b', '', source, flags=re.DOTALL)
+    return source
 
 
 def ensure_pdfoutput(source: str) -> str:

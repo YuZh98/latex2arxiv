@@ -1,2 +1,2 @@
 bibtexparser>=2.0
-pylatexenc
+Pillow>=10.0
