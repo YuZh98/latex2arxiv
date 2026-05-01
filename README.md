@@ -1,6 +1,16 @@
 # latex2arxiv
 
-A command-line tool that converts an Overleaf/LaTeX `.zip` project into an arXiv-ready `.zip`.
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+A command-line tool that converts an Overleaf/LaTeX `.zip` project into an arXiv-ready `.zip` in one command.
+
+```bash
+latex2arxiv paper.zip --main main.tex --compile
+```
+
+> **Why not Google's [arxiv-latex-cleaner](https://github.com/google-research/arxiv-latex-cleaner)?**
+> That tool works on a local folder. `latex2arxiv` works directly on the `.zip` you download from Overleaf — no extraction needed.
 
 ## What it does
 
@@ -35,13 +45,13 @@ pip install .
 ## Usage
 
 ```bash
-latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--compile]
+latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--compile]
 ```
 
 Or without installing:
 
 ```bash
-python3 converter.py input.zip [output.zip] [--main MAIN_TEX] [--compile]
+python3 converter.py input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--compile]
 ```
 
 **Options**
@@ -60,6 +70,9 @@ latex2arxiv paper.zip
 
 # Specify main file and compile for review
 latex2arxiv paper.zip arxiv_ready.zip --main main.tex --compile
+
+# Resize large images to stay under arXiv's 50MB limit
+latex2arxiv paper.zip --resize 1600 --compile
 ```
 
 ## Try the demo
@@ -98,4 +111,5 @@ pipeline/
     tex.py          # Comment stripping, draft annotation removal
     bibtex.py       # BibTeX normalization
     deps.py         # Dependency graph (tex includes, images, bib files)
+    images.py       # Image resizing
 ```
