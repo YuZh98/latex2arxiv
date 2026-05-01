@@ -159,16 +159,33 @@ def _compile(output_zip: Path, main_hint: str | None):
             return
 
         print(f"\nCompiling {main_tex.name} ...")
-        cmd = ['pdflatex', '-interaction=nonstopmode', main_tex.name]
-        for _ in range(2):  # run twice for cross-references
-            result = subprocess.run(cmd, cwd=main_tex.parent, capture_output=True, text=True)
-            # pdflatex returns non-zero even on warnings; check for actual fatal errors
+        run_dir = main_tex.parent
+        tex_name = main_tex.name
+        bib_stem = main_tex.stem
+
+        def run_pdflatex():
+            result = subprocess.run(
+                ['pdflatex', '-interaction=nonstopmode', tex_name],
+                cwd=run_dir, capture_output=True, text=True
+            )
             if '! Fatal error' in result.stdout or ('! ' in result.stdout and 'Output written' not in result.stdout):
-                log_lines = result.stdout.splitlines()
-                errors = [l for l in log_lines if l.startswith('!')]
+                errors = [l for l in result.stdout.splitlines() if l.startswith('!')]
                 print("  [compile] pdflatex errors:")
                 print('\n'.join(errors[:10]))
-                return
+                return False
+            return True
+
+        if not run_pdflatex():
+            return
+
+        # Run bibtex if a .bib file is present
+        bib_files = list(run_dir.glob('*.bib'))
+        if bib_files:
+            subprocess.run(['bibtex', bib_stem], cwd=run_dir, capture_output=True)
+
+        # Second and third pass to resolve references
+        run_pdflatex()
+        run_pdflatex()
 
         pdf = main_tex.with_suffix('.pdf')
         if pdf.exists():

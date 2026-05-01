@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """Generate demo_project.zip for testing latex2arxiv converter."""
-import struct
-import zlib
 import zipfile
 
 files = {}
@@ -79,14 +77,22 @@ files['refs.bib'] = r"""@article{smith2020,
 """
 
 
-def _make_png() -> bytes:
-    """Create a minimal valid 1x1 white PNG."""
+def _make_png(width=200, height=150) -> bytes:
+    """Create a simple gray gradient PNG for demo purposes."""
+    import struct, zlib
     def chunk(name, data):
         c = struct.pack('>I', len(data)) + name + data
         return c + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
+    # Build raw image: gray gradient left-to-right
+    raw = b''
+    for y in range(height):
+        raw += b'\x00'  # filter type: None
+        for x in range(width):
+            v = int(80 + 120 * x / width)
+            raw += bytes([v, v, v])
     sig = b'\x89PNG\r\n\x1a\n'
-    ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0))
-    idat = chunk(b'IDAT', zlib.compress(b'\x00\xff\xff\xff'))
+    ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+    idat = chunk(b'IDAT', zlib.compress(raw))
     iend = chunk(b'IEND', b'')
     return sig + ihdr + idat + iend
 
