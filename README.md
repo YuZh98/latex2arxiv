@@ -8,7 +8,7 @@ A command-line tool that converts an Overleaf/LaTeX `.zip` project into an arXiv
 |---|---|
 | File pruning | Removes unused `.tex`, `.bib`, image, and all non-essential files (build artifacts, editor files, cover letters, etc.) |
 | Comment stripping | Removes `% ...` comments from all `.tex` files |
-| Draft cleanup | Removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}` and draft-only packages |
+| Draft cleanup | Removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}`, `\begin{comment}` blocks, and draft-only packages |
 | BibTeX normalization | Canonical field ordering, deduplication, private field removal |
 | `\pdfoutput=1` | Injected before `\documentclass` if missing (required by arXiv) |
 | Compile check | Optional: compiles with `pdflatex` and opens the PDF for review |
@@ -81,8 +81,6 @@ This produces `demo_project_arxiv.zip` and opens a PDF showing exactly what was 
 **BibTeX normalization requires `bibtexparser`** — install with `pip install bibtexparser`. If not installed, the `.bib` file is passed through unchanged.
 
 **`--compile` is a local sanity check** — a successful local compile does not guarantee arXiv will compile it. arXiv uses specific TeX Live versions with fixed package sets. Always check the [arXiv submission preview](https://arxiv.org/help/submit) after uploading.
-
-**`\begin{comment}` blocks are not removed** — the tool strips `%` line comments but does not remove `\begin{comment}...\end{comment}` environments. Remove these manually before submitting.
 
 ## Project structure
 

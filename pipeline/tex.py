@@ -53,7 +53,16 @@ def remove_draft_packages(source: str) -> str:
     return ''.join(result)
 
 
+def remove_comment_environments(source: str) -> str:
+    """Remove \\begin{comment}...\\end{comment} blocks (from the comment package)."""
+    return re.sub(r'\\begin\{comment\}.*?\\end\{comment\}', '', source, flags=re.DOTALL)
+
+
 def ensure_pdfoutput(source: str) -> str:
+    """Ensure \\pdfoutput=1 appears before \\documentclass."""
+    if r'\pdfoutput=1' in source:
+        return source
+    return r'\pdfoutput=1' + '\n' + source
     """Ensure \\pdfoutput=1 appears before \\documentclass."""
     if r'\pdfoutput=1' in source:
         return source

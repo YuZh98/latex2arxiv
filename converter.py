@@ -15,7 +15,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, ensure_pdfoutput
+from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
 from pipeline.bibtex import normalize_bibtex
 from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files
 
@@ -114,6 +114,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None, com
             if path.suffix == '.tex' and path.resolve() in {p.resolve() for p in all_tex_files}:
                 src = path.read_text(encoding='utf-8', errors='replace')
                 src = strip_comments(src)
+                src = remove_comment_environments(src)
                 src = remove_draft_annotations(src)
                 src = remove_draft_packages(src)
                 if path == main_tex:

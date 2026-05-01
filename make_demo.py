@@ -9,9 +9,16 @@ files['main.tex'] = r"""\documentclass[12pt]{article}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{hyperref}
+\usepackage{comment}
 \usepackage{todonotes} % draft only -- will be removed by converter
 
 % \input{unused_section.tex}  % commented out -- converter will ignore this
+
+\begin{comment}
+This entire block is a draft note and will be removed by the converter.
+We considered adding a related work section here but decided against it.
+TODO: revisit before camera-ready.
+\end{comment}
 
 \title{\texttt{latex2arxiv}: Prepare Your LaTeX Project for arXiv Submission}
 \author{Demo Author}
@@ -61,7 +68,8 @@ File pruning    & Removes unused \texttt{.tex}, \texttt{.bib}, and image files,
                   plus all non-essential files (build artifacts, cover letters, etc.) \\
 Comment stripping & Removes \texttt{\% ...} comments from all \texttt{.tex} files \\
 Draft cleanup   & Removes \verb|\todo{}|, \verb|\hl{}|, \verb|\note{}|,
-                  \verb|\fixme{}|, and draft-only packages \\
+                  \verb|\fixme{}|, \verb|\begin{comment}| blocks,
+                  and draft-only packages \\
 BibTeX normalization & Canonical field ordering, deduplication, private field removal \\
 \texttt{\textbackslash pdfoutput=1} & Injected before \verb|\documentclass| if missing \\
 Compile check   & Optional: compiles with \texttt{pdflatex} and opens the PDF \\
@@ -100,6 +108,7 @@ The following \textbf{edits} are made to kept files:
   \item \verb|\pdfoutput=1| injected at the top of \texttt{main.tex}
   \item \verb|\usepackage{todonotes}| removed
   \item All \texttt{\%} comments stripped
+  \item \verb|\begin{comment}...\end{comment}| block removed
   \item \verb|\todo{...}| commands removed
   \item Duplicate BibTeX entry deduplicated; private fields
         (\texttt{abstract}, \texttt{file}) stripped
