@@ -7,35 +7,71 @@ files = {}
 files['main.tex'] = r"""\documentclass[12pt]{article}
 \usepackage{amsmath}
 \usepackage{graphicx}
-\usepackage{todonotes} % draft only
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{todonotes} % draft only -- will be removed by converter
 
-% \input{unused_section.tex}
+% \input{unused_section.tex}  % commented out -- converter will ignore this
 
-\title{Demo Paper}
-\author{Author Name}
+\title{\texttt{latex2arxiv}: Prepare Your LaTeX Project for arXiv Submission}
+\author{Demo Author}
 \date{}
 
 \begin{document}
 \maketitle
 
+\begin{abstract}
+Submitting a paper to arXiv requires cleaning up your LaTeX project:
+removing draft annotations, stripping comments, pruning unused files,
+and normalizing references.
+\texttt{latex2arxiv} automates all of these steps.
+This document is itself a demo input --- run the converter on it and
+inspect the output to see what changes are made.
+\end{abstract}
+
+% ---- Introduction ----
 \section{Introduction}
-This is the introduction. % TODO: expand this
-\todo{Add more content here.}
 
-See Figure~\ref{fig:example} for an illustration.
+When exporting a project from Overleaf, the resulting \texttt{.zip} typically
+contains build artifacts, editor files, unused images, and draft annotations
+that should not be submitted to arXiv. % TODO: cite arXiv submission guidelines
+\todo{Double-check submission requirements.}
 
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.5\textwidth]{figures/example}
-  \caption{An example figure.}
-  \label{fig:example}
-\end{figure}
+\texttt{latex2arxiv} converts the raw Overleaf export into a clean,
+submission-ready \texttt{.zip} in one command:
 
-\section{Method}
-We propose a method~\cite{smith2020}.
+\begin{verbatim}
+python3 converter.py paper.zip --main main.tex --compile
+\end{verbatim}
+
+% ---- What the converter does ----
+\section{What the Converter Does}
+
+Table~\ref{tab:features} summarizes the pipeline stages.
+
+\begin{table}[h]
+\centering
+\caption{Pipeline stages applied by \texttt{latex2arxiv}.}
+\label{tab:features}
+\begin{tabular}{lp{8cm}}
+\toprule
+\textbf{Stage} & \textbf{Action} \\
+\midrule
+File pruning    & Removes unused \texttt{.tex}, \texttt{.bib}, and image files,
+                  plus all non-essential files (build artifacts, cover letters, etc.) \\
+Comment stripping & Removes \texttt{\% ...} comments from all \texttt{.tex} files \\
+Draft cleanup   & Removes \verb|\todo{}|, \verb|\hl{}|, \verb|\note{}|,
+                  \verb|\fixme{}|, and draft-only packages \\
+BibTeX normalization & Canonical field ordering, deduplication, private field removal \\
+\texttt{\textbackslash pdfoutput=1} & Injected before \verb|\documentclass| if missing \\
+Compile check   & Optional: compiles with \texttt{pdflatex} and opens the PDF \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \input{sections/results.tex}
 
+% ---- References ----
 \bibliographystyle{plain}
 \bibliography{refs}
 
@@ -43,10 +79,42 @@ We propose a method~\cite{smith2020}.
 """
 
 files['sections/results.tex'] = r"""
-\section{Results}
-% This section summarizes results.
-Our method achieves state-of-the-art performance.
-\hl{Check these numbers before submission.}
+\section{What Gets Removed in This Demo}
+
+The following files are included in \texttt{demo\_project.zip} but will be
+\textbf{removed} by the converter:
+
+\begin{itemize}
+  \item \texttt{sections/old\_draft.tex} --- unused \texttt{.tex} file
+        (not reachable from \texttt{main.tex})
+  \item \texttt{figures/unused\_plot.png} --- image not referenced by any
+        \verb|\includegraphics| or \verb|\begin{overpic}|
+  \item \texttt{main.aux}, \texttt{main.log} --- build artifacts
+  \item \texttt{.DS\_Store} --- macOS metadata
+  \item \texttt{cover\_letter.md} --- non-\LaTeX{} file
+\end{itemize}
+
+The following \textbf{edits} are made to kept files:
+
+\begin{itemize}
+  \item \verb|\pdfoutput=1| injected at the top of \texttt{main.tex}
+  \item \verb|\usepackage{todonotes}| removed
+  \item All \texttt{\%} comments stripped
+  \item \verb|\todo{...}| commands removed
+  \item Duplicate BibTeX entry deduplicated; private fields
+        (\texttt{abstract}, \texttt{file}) stripped
+\end{itemize}
+
+Figure~\ref{fig:example} shows a sample figure that \textbf{is} kept,
+since it is referenced in the source.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figures/example}
+  \caption{A sample figure included via \texttt{\textbackslash includegraphics}.
+           The converter detects this reference and keeps the file.}
+  \label{fig:example}
+\end{figure}
 """
 
 # Unused tex file — should be removed
@@ -55,24 +123,21 @@ files['sections/old_draft.tex'] = r"""
 This section was removed.
 """
 
-files['refs.bib'] = r"""@article{smith2020,
-  author    = {Smith, John and Doe, Jane},
-  title     = {A Great Method},
-  journal   = {Journal of Examples},
-  year      = {2020},
-  volume    = {10},
-  pages     = {1--10},
-  doi       = {10.1234/example},
-  abstract  = {This is a private abstract that should be removed.},
-  file      = {smith2020.pdf},
+files['refs.bib'] = r"""@misc{arxiv_submission,
+  author  = {{arXiv}},
+  title   = {Submission Guidelines for TeX/LaTeX},
+  year    = {2024},
+  url     = {https://info.arxiv.org/help/submit_tex.html},
+  note    = {Accessed 2024},
+  abstract = {This is a private field that will be stripped by the converter.},
+  file     = {arxiv_guidelines.pdf},
 }
 
-@article{smith2020duplicate,
-  author    = {Smith, John and Doe, Jane},
-  title     = {A Great Method},
-  journal   = {Journal of Examples},
-  year      = {2020},
-  doi       = {10.1234/example},
+@misc{arxiv_submission_duplicate,
+  author  = {{arXiv}},
+  title   = {Submission Guidelines for TeX/LaTeX},
+  year    = {2024},
+  url     = {https://info.arxiv.org/help/submit_tex.html},
 }
 """
 
