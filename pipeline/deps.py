@@ -2,10 +2,17 @@ import re
 from pathlib import Path
 
 
+def _strip_comments(source: str) -> str:
+    """Remove LaTeX line comments (% ...) while preserving \\%."""
+    return re.sub(r'(?<!\\)%[^\n]*', '', source)
+
+
 def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
-    """Recursively find all .tex files reachable via \\input, \\include, \\subfile."""
+    """Recursively find all .tex files reachable via \\input, \\include, \\subfile.
+    Comments are stripped first so commented-out includes are not followed.
+    """
     found = set()
-    for cmd in re.findall(r'\\(?:input|include|subfile)\{([^}]+)\}', source):
+    for cmd in re.findall(r'\\(?:input|include|subfile)\{([^}]+)\}', _strip_comments(source)):
         p = Path(cmd) if cmd.endswith('.tex') else Path(cmd + '.tex')
         # subfile paths are relative to the including file's directory
         full = (base / p).resolve()
@@ -32,7 +39,7 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root: Path) -
     used_paths = set()
     used_refs = set()
     for src, tex_dir in zip(tex_sources, tex_dirs):
-        for m in _IMAGE_RE.finditer(src):
+        for m in _IMAGE_RE.finditer(_strip_comments(src)):
             ref = (m.group(1) or m.group(2)).strip()
             used_refs.add(ref)
             candidates = [Path(ref)] + [Path(ref + ext) for ext in ('.pdf', '.png', '.jpg', '.jpeg', '.eps')]
@@ -48,6 +55,7 @@ def find_used_bib_files(tex_sources: list[str]) -> set:
     """Return set of .bib filenames referenced by \\bibliography or \\addbibresource."""
     used = set()
     for src in tex_sources:
+        src = _strip_comments(src)
         for m in re.finditer(r'\\bibliography\{([^}]+)\}', src):
             for name in m.group(1).split(','):
                 name = name.strip()
