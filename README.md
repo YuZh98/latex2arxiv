@@ -84,6 +84,12 @@ This produces `demo_project_arxiv.zip` and opens a PDF showing exactly what was 
 
 **`--compile` is a local sanity check** — a successful local compile does not guarantee arXiv will compile it. arXiv uses specific TeX Live versions with fixed package sets. Always check the [arXiv submission preview](https://arxiv.org/help/submit) after uploading.
 
+**Custom style/class files** — if your project includes a `.cls` or `.sty` file, the tool keeps it and warns you. Verify it is not already provided by TeX Live; if it is, remove it from your submission to avoid conflicts.
+
+**Double-spaced / referee mode** — the tool warns if it detects `referee`, `doublespace`, or `\doublespacing` in your source. arXiv requires single-spaced submissions.
+
+**`\today` in `\date`** — arXiv occasionally rebuilds PDFs, which will change the displayed date. The tool warns if it detects `\today` in `\date`.
+
 ## Project structure
 
 ```

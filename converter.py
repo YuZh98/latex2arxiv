@@ -38,6 +38,33 @@ def find_main_tex(root: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path):
+    """Print warnings for common arXiv compliance issues."""
+    combined = '\n'.join(all_sources)
+
+    # Double-spacing / referee mode
+    if re.search(r'\\documentclass\[[^\]]*\b(referee|doublespace|doubleblind)\b', combined):
+        print("  [warn] 'referee' or 'doublespace' option detected in \\documentclass — "
+              "arXiv requires single-spaced submissions")
+    if re.search(r'\\(doublespacing|setstretch\s*\{[2-9])', combined):
+        print("  [warn] double-spacing command detected — arXiv requires single-spaced submissions")
+
+    # Custom style/class files included
+    for path in root.rglob('*'):
+        if path.suffix.lower() in {'.cls', '.sty'}:
+            print(f"  [warn] custom style file included: {path.relative_to(root)} — "
+                  "verify this is not already provided by TeX Live")
+
+    # \today in \date
+    if re.search(r'\\date\s*\{[^}]*\\today', combined):
+        print("  [warn] \\today used in \\date — arXiv may rebuild the PDF and the date will change")
+
+    # .eps images (not supported by pdflatex)
+    for path in root.rglob('*.eps'):
+        print(f"  [warn] .eps image found: {path.relative_to(root)} — "
+              "pdflatex does not support .eps; convert to .pdf or .png")
+
+
 def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             compile_pdf: bool = False, resize: int | None = None):
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -133,6 +160,9 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                 src = path.read_text(encoding='utf-8', errors='replace')
                 src = normalize_bibtex(src)
                 path.write_text(src, encoding='utf-8')
+
+        # 3b. Compliance warnings
+        _warn_compliance(main_tex, all_sources, root)
 
         # 4. Repack
         with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:

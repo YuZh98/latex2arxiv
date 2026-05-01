@@ -22,7 +22,7 @@ TODO: revisit before camera-ready.
 
 \title{\texttt{latex2arxiv}: Prepare Your LaTeX Project for arXiv Submission}
 \author{Demo Author}
-\date{}
+\date{\today} % \today triggers a warning: arXiv may rebuild and date will change
 
 \begin{document}
 \maketitle
