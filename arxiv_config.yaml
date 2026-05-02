@@ -1,0 +1,30 @@
+# arxiv_config.yaml — user-defined cleanup rules for latex2arxiv
+#
+# Uncomment and edit the sections you need.
+# Pass this file with: latex2arxiv paper.zip --config arxiv_config.yaml
+
+# Remove command AND its argument entirely (text is lost)
+# commands_to_delete:
+#   - \revision       # removes \revision{some text}
+#   - \deleted        # removes \deleted{old text}
+#   - \remark
+
+# Remove command but KEEP its argument text (text is preserved)
+# commands_to_unwrap:
+#   - \color{red}     # \color{red}text → text  (bare color switch)
+#   - \textcolor{red} # \textcolor{red}{text} → text
+#   - \new            # \new{added text} → added text
+#   - \added          # \added{text} → text
+
+# Remove entire environments
+# environments_to_delete:
+#   - response
+#   - changes
+#   - comment         # if not using the comment package
+
+# Raw regex replacements (Python re syntax)
+# replacements:
+#   - pattern: '\\added\{([^}]*)\}'
+#     replacement: '\1'
+#   - pattern: '\\deleted\{[^}]*\}'
+#     replacement: ''

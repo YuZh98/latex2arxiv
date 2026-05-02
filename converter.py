@@ -18,6 +18,7 @@ from pathlib import Path
 from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
 from pipeline.bibtex import normalize_bibtex
 from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files, find_used_style_files
+from pipeline.config import load_config, apply_config
 from pipeline.images import resize_image, DEFAULT_MAX_PX
 
 IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
@@ -63,7 +64,8 @@ def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path):
 
 
 def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
-            compile_pdf: bool = False, resize: int | None = None):
+            compile_pdf: bool = False, resize: int | None = None,
+            config_path: Path | None = None):
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
 
@@ -125,6 +127,8 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             elif ext in {'.ind', '.gls', '.nls'} and at_root:
                 whitelist.add(path.resolve())
 
+        user_config = load_config(config_path) if config_path else {}
+
         # 3. Process each file
         for path in list(root.rglob('*')):
             if not path.is_file():
@@ -160,6 +164,8 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                 src = remove_comment_environments(src)
                 src = remove_draft_annotations(src)
                 src = remove_draft_packages(src)
+                if user_config:
+                    src = apply_config(src, user_config)
                 if path == main_tex:
                     src = ensure_pdfoutput(src)
                 path.write_text(src, encoding='utf-8')
@@ -263,13 +269,16 @@ def main():
     parser.add_argument('--compile', action='store_true', help='Compile output with pdflatex and open PDF')
     parser.add_argument('--resize', type=int, metavar='PX',
                         help=f'Resize images so longest side <= PX pixels (default: {DEFAULT_MAX_PX} if flag given)')
+    parser.add_argument('--config', metavar='FILE',
+                        help='YAML config for custom removal rules (see arxiv_config.yaml)')
     args = parser.parse_args()
 
     inp = Path(args.input)
     out = Path(args.output) if args.output else inp.with_stem(inp.stem + '_arxiv')
-    resize = args.resize
+    config_path = Path(args.config) if args.config else None
     print(f"Converting {inp} → {out}\n")
-    convert(inp, out, main_hint=args.main, compile_pdf=args.compile, resize=resize)
+    convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
+            resize=args.resize, config_path=config_path)
 
 
 if __name__ == '__main__':
