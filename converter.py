@@ -65,7 +65,7 @@ def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path):
 
 def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             compile_pdf: bool = False, resize: int | None = None,
-            config_path: Path | None = None):
+            config_path: Path | None = None, dry_run: bool = False):
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
 
@@ -146,41 +146,55 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                         pass  # keep it
                     else:
                         print(f"  remove: {rel}")
-                        path.unlink()
+                        if not dry_run:
+                            path.unlink()
                         continue
                 else:
                     print(f"  remove: {rel}")
-                    path.unlink()
+                    if not dry_run:
+                        path.unlink()
                     continue
 
             # Resize images if requested
             if resize and path.suffix.lower() in IMAGE_EXTS:
-                if resize_image(path, max_px=resize):
+                if dry_run:
+                    print(f"  would resize: {rel}")
+                elif resize_image(path, max_px=resize):
                     print(f"  resized: {rel}")
 
             # Process .tex files
             if path.suffix == '.tex' and path.resolve() in {p.resolve() for p in all_tex_files}:
-                src = path.read_text(encoding='utf-8', errors='replace')
-                src = strip_comments(src)
-                src = remove_comment_environments(src)
-                src = remove_draft_annotations(src)
-                src = remove_draft_packages(src)
-                if user_config:
-                    src = apply_config(src, user_config)
-                if path == main_tex:
-                    src = ensure_pdfoutput(src)
-                path.write_text(src, encoding='utf-8')
+                if dry_run:
+                    print(f"  would process (tex): {rel}")
+                else:
+                    src = path.read_text(encoding='utf-8', errors='replace')
+                    src = strip_comments(src)
+                    src = remove_comment_environments(src)
+                    src = remove_draft_annotations(src)
+                    src = remove_draft_packages(src)
+                    if user_config:
+                        src = apply_config(src, user_config)
+                    if path == main_tex:
+                        src = ensure_pdfoutput(src)
+                    path.write_text(src, encoding='utf-8')
 
             # Process .bib files
             if path.suffix == '.bib' and path.name in used_bib_files:
-                src = path.read_text(encoding='utf-8', errors='replace')
-                src = normalize_bibtex(src, cited_keys=cited_keys)
-                path.write_text(src, encoding='utf-8')
+                if dry_run:
+                    print(f"  would process (bib): {rel}")
+                else:
+                    src = path.read_text(encoding='utf-8', errors='replace')
+                    src = normalize_bibtex(src, cited_keys=cited_keys)
+                    path.write_text(src, encoding='utf-8')
 
         # 3b. Compliance warnings
         _warn_compliance(main_tex, all_sources, root)
 
         # 4. Repack
+        if dry_run:
+            print(f"\n[dry-run] No output written. Would have created: {output_zip}")
+            return
+
         with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
             for path in sorted(root.rglob('*')):
                 if path.is_file():
@@ -272,6 +286,8 @@ def main():
                         help=f'Resize images so longest side <= PX pixels (default: {DEFAULT_MAX_PX} if flag given)')
     parser.add_argument('--config', metavar='FILE',
                         help='YAML config for custom removal rules (see arxiv_config.yaml)')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Preview what would be removed/processed without writing any output')
     args = parser.parse_args()
 
     inp = Path(args.input)
@@ -279,7 +295,7 @@ def main():
     config_path = Path(args.config) if args.config else None
     print(f"Converting {inp} → {out}\n")
     convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
-            resize=args.resize, config_path=config_path)
+            resize=args.resize, config_path=config_path, dry_run=args.dry_run)
 
 
 if __name__ == '__main__':
