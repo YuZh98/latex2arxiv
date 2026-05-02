@@ -14,6 +14,7 @@ import tempfile
 import shutil
 import subprocess
 from pathlib import Path
+from importlib import resources
 
 from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
 from pipeline.bibtex import normalize_bibtex
@@ -278,7 +279,7 @@ def _compile(output_zip: Path, main_hint: str | None):
 
 def main():
     parser = argparse.ArgumentParser(description='Convert LaTeX zip to arXiv-ready zip')
-    parser.add_argument('input', help='Input .zip file')
+    parser.add_argument('input', nargs='?', help='Input .zip file')
     parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
     parser.add_argument('--main', help='Filename of the main .tex file (e.g. JASA_main.tex)')
     parser.add_argument('--compile', action='store_true', help='Compile output with pdflatex and open PDF')
@@ -288,7 +289,27 @@ def main():
                         help='YAML config for custom removal rules (see arxiv_config.yaml)')
     parser.add_argument('--dry-run', action='store_true',
                         help='Preview what would be removed/processed without writing any output')
+    parser.add_argument('--demo', action='store_true',
+                        help='Run the built-in demo project (no input file needed)')
     args = parser.parse_args()
+
+    if args.demo:
+        try:
+            ref = resources.files(__name__).joinpath('demo_project.zip')
+            demo_zip = Path(ref)
+        except Exception:
+            # Fallback: look next to this file
+            demo_zip = Path(__file__).parent / 'demo_project.zip'
+        if not demo_zip.exists():
+            print("ERROR: demo_project.zip not found in package")
+            sys.exit(1)
+        out = Path('demo_project_arxiv.zip')
+        print(f"Running demo: {demo_zip} → {out}\n")
+        convert(demo_zip, out, compile_pdf=args.compile, dry_run=args.dry_run)
+        return
+
+    if not args.input:
+        parser.error("the following arguments are required: input")
 
     inp = Path(args.input)
     out = Path(args.output) if args.output else inp.with_stem(inp.stem + '_arxiv')

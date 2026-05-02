@@ -25,6 +25,9 @@ py-modules = ["converter"]
 where = ["."]
 include = ["pipeline*"]
 
+[tool.setuptools.package-data]
+"*" = ["demo_project.zip"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
