@@ -345,7 +345,6 @@ class TestDryRun:
 class TestDemoFlag:
     def test_demo_dry_run(self, tmp_path):
         """--demo --dry-run should print dry-run output and not create any output zip."""
-        import tempfile
         from converter import convert
         from importlib import resources
         import converter as conv_module
