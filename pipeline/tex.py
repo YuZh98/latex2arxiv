@@ -1,5 +1,4 @@
 import re
-import os
 
 
 # Environments where % is not a comment
