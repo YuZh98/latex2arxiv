@@ -8,12 +8,58 @@ except ImportError:
     HAS_YAML = False
 
 
+def _parse_simple_yaml(text: str) -> dict:
+    """Minimal YAML parser for our config format.
+    Supports top-level keys with list values and mapping list values.
+    No dependency on pyyaml.
+    """
+    result = {}
+    current_key = None
+    current_list = None
+
+    for line in text.splitlines():
+        # Skip comments and blank lines
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+
+        indent = len(line) - len(line.lstrip())
+
+        if indent == 0 and stripped.endswith(':'):
+            # Top-level key
+            current_key = stripped[:-1]
+            current_list = []
+            result[current_key] = current_list
+        elif indent > 0 and stripped.startswith('- ') and current_list is not None:
+            value = stripped[2:].strip()
+            # Check if this starts a mapping (next lines may have key: value)
+            if ':' not in value:
+                current_list.append(value)
+            else:
+                # Inline mapping item like "- pattern: '...'"
+                mapping = {}
+                k, v = value.split(':', 1)
+                mapping[k.strip()] = v.strip().strip("'\"")
+                current_list.append(mapping)
+        elif indent > 2 and ':' in stripped and current_list and isinstance(current_list[-1], dict):
+            # Continuation of a mapping item
+            k, v = stripped.split(':', 1)
+            current_list[-1][k.strip()] = v.strip().strip("'\"")
+
+    return result
+
+
 def load_config(config_path: Path) -> dict:
-    if not HAS_YAML:
-        print("  [warn] pyyaml not installed; --config ignored. Install with: pip install pyyaml")
-        return {}
-    with open(config_path, encoding='utf-8') as f:
-        return yaml.safe_load(f) or {}
+    text = config_path.read_text(encoding='utf-8')
+    if HAS_YAML:
+        return yaml.safe_load(text) or {}
+    return _parse_simple_yaml(text)
+
+
+def _make_cmd_pattern(cmd: str) -> str:
+    """Build a regex that matches \\cmd or \\cmd{arg} as written in the config."""
+    cmd = cmd.lstrip('\\')
+    return '\\\\' + re.escape(cmd)
 
 
 def apply_config(source: str, config: dict) -> str:
@@ -21,27 +67,19 @@ def apply_config(source: str, config: dict) -> str:
 
     # 1. commands_to_delete: remove \cmd{...} entirely (including argument)
     for cmd in config.get('commands_to_delete', []):
-        cmd = cmd.lstrip('\\')
-        # Handle \cmd[opt]{arg} and \cmd{arg}
-        source = re.sub(
-            r'\\' + re.escape(cmd) + r'(?:\[[^\]]*\])?\{[^{}]*\}',
-            '', source
-        )
-        # Also handle bare switches like \color{red} with no following braces
-        source = re.sub(r'\\' + re.escape(cmd) + r'\b', '', source)
+        base = _make_cmd_pattern(cmd)
+        source = re.sub(base + r'(?:\[[^\]]*\])?\{[^{}]*\}', '', source)
+        source = re.sub(base, '', source)
 
     # 2. commands_to_unwrap: remove \cmd but keep its argument text
     for cmd in config.get('commands_to_unwrap', []):
-        cmd = cmd.lstrip('\\')
+        base = _make_cmd_pattern(cmd)
         # \cmd{text} → text
-        source = re.sub(
-            r'\\' + re.escape(cmd) + r'(?:\[[^\]]*\])?\{([^{}]*)\}',
-            r'\1', source
-        )
-        # bare switch \cmd → ''
-        source = re.sub(r'\\' + re.escape(cmd) + r'\b', '', source)
+        source = re.sub(base + r'(?:\[[^\]]*\])?\{([^{}]*)\}', r'\1', source)
+        # bare switch (e.g. {\color{red} text}) — remove just the switch
+        source = re.sub(base, '', source)
 
-    # 3. environments_to_delete: remove \begin{env}...\end{env}
+    # 3. environments_to_delete
     for env in config.get('environments_to_delete', []):
         source = re.sub(
             r'\\begin\{' + re.escape(env) + r'\}.*?\\end\{' + re.escape(env) + r'\}',
