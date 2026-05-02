@@ -27,16 +27,20 @@ Works with any LaTeX `.zip` — including projects exported directly from Overle
 
 | Stage | Action |
 |---|---|
-| File pruning | Removes unused `.tex`, `.bib`, image, and all non-essential files (build artifacts, editor files, cover letters, etc.) |
-| Comment stripping | Removes `% ...` comments from all `.tex` files |
-| Draft cleanup | Removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}`, `\begin{comment}` blocks, `\iffalse...\fi` blocks, and draft-only packages |
-| BibTeX normalization | Canonical field ordering, deduplication, private field removal |
-| `\pdfoutput=1` | Injected before `\documentclass` if missing (required by arXiv) |
-| Image resizing | Optional: resize images so longest side ≤ N pixels (helps stay under arXiv's 50MB limit) |
-| Custom rules | Optional: remove or unwrap user-defined commands via a config file |
-| Compile check | Optional: compiles with `pdflatex` and opens the PDF for review |
+| **File pruning** | Removes unused `.tex`, `.bib`, image, and all non-essential files (build artifacts, editor files, cover letters, etc.) |
+| **Comment stripping** | Removes `% ...` comments from all `.tex` files |
+| **Draft cleanup** | Removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}`, `\begin{comment}` blocks, `\iffalse...\fi` blocks, and draft-only packages |
+| **BibTeX normalization** | Canonical field ordering, deduplication, private field removal |
+| **`\pdfoutput=1`** | Injected before `\documentclass` if missing (required by arXiv) |
+| **Image resizing** | Optional: resize images so longest side ≤ N pixels (helps stay under arXiv's 50MB limit) |
+| **Custom rules** | Optional: remove or unwrap user-defined commands via a config file |
+| **Compile check** | Optional: compiles with `pdflatex` and opens the PDF for review |
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\begin{overpic}`, and `\bibliography`. Commented-out commands are ignored.
+
+**Real-world results on a statistics paper:**
+- 950 files → 40 files
+- 82 MB → 3 MB
 
 ## Installation
 
@@ -71,7 +75,7 @@ latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--config FIL
 |---|---|
 | `--main FILENAME` | Specify the main `.tex` file (e.g. `JASA_main.tex`). Auto-detected via `\documentclass` if omitted. |
 | `--resize PX` | Resize images so longest side ≤ PX pixels (e.g. `--resize 1600`). Requires `Pillow`. |
-| `--config FILE` | YAML config file for custom removal rules (see below). Requires `pyyaml`. |
+| `--config FILE` | YAML config file for custom removal rules (see below). |
 | `--compile` | Run `pdflatex` on the output and open the resulting PDF. |
 
 **Examples**
@@ -116,6 +120,8 @@ replacements:
   - pattern: '\\added\{([^}]*)\}'
     replacement: '\1'
 ```
+
+No extra dependencies required — the config parser is built in.
 
 ## Caveats
 
