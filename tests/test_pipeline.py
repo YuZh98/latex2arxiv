@@ -340,3 +340,29 @@ class TestDryRun:
         _, output = self._run_dry(files)
         assert '[dry-run]' in output
         assert 'No output written' in output
+
+
+class TestDemoFlag:
+    def test_demo_dry_run(self, tmp_path):
+        """--demo --dry-run should print dry-run output and not create any output zip."""
+        import tempfile
+        from converter import convert
+        from importlib import resources
+        import converter as conv_module
+
+        ref = resources.files(conv_module).joinpath('demo_project.zip')
+        demo_zip = Path(str(ref))
+        assert demo_zip.exists(), "demo_project.zip not found in package"
+
+        out = tmp_path / 'demo_arxiv.zip'
+        captured = io.StringIO()
+        sys.stdout = captured
+        try:
+            convert(demo_zip, out, dry_run=True)
+        finally:
+            sys.stdout = sys.__stdout__
+
+        assert not out.exists()
+        output = captured.getvalue()
+        assert '[dry-run]' in output
+        assert 'No output written' in output
