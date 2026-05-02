@@ -276,3 +276,67 @@ class TestFullPipeline:
         }
         names = self._run(files, main_hint='main.tex')
         assert 'sub.tex' not in names
+
+
+class TestDryRun:
+    def _make_zip(self, files: dict) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            for name, content in files.items():
+                zf.writestr(name, content if isinstance(content, str) else content)
+        return buf.getvalue()
+
+    def _run_dry(self, files: dict) -> tuple[list[str], str]:
+        """Run convert with dry_run=True; return (output_zip_names_or_empty, stdout)."""
+        import tempfile
+        from converter import convert
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as f:
+            f.write(self._make_zip(files))
+            inp = Path(f.name)
+        out = inp.with_stem('out_dry')
+        captured = io.StringIO()
+        sys.stdout = captured
+        try:
+            convert(inp, out, dry_run=True)
+        finally:
+            sys.stdout = sys.__stdout__
+        inp.unlink()
+        names = []
+        if out.exists():
+            with zipfile.ZipFile(out) as zf:
+                names = zf.namelist()
+            out.unlink()
+        return names, captured.getvalue()
+
+    def test_no_output_zip_created(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hello\end{document}',
+            'unused.png': b'PNG',
+        }
+        names, _ = self._run_dry(files)
+        assert names == []
+
+    def test_reports_files_to_remove(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hello\end{document}',
+            'unused.png': b'PNG',
+        }
+        _, output = self._run_dry(files)
+        assert 'remove' in output
+        assert 'unused.png' in output
+
+    def test_reports_tex_to_process(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hello\end{document}',
+        }
+        _, output = self._run_dry(files)
+        assert 'would process (tex)' in output
+        assert 'main.tex' in output
+
+    def test_dry_run_summary_line(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hello\end{document}',
+        }
+        _, output = self._run_dry(files)
+        assert '[dry-run]' in output
+        assert 'No output written' in output

@@ -77,6 +77,7 @@ latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--config FIL
 | `--resize PX` | Resize images so longest side ≤ PX pixels (e.g. `--resize 1600`). Requires `Pillow`. |
 | `--config FILE` | YAML config file for custom removal rules (see below). |
 | `--compile` | Run `pdflatex` on the output and open the resulting PDF. |
+| `--dry-run` | Preview what would be removed/processed without writing any output. |
 
 **Examples**
 
@@ -92,6 +93,9 @@ latex2arxiv paper.zip --resize 1600 --compile
 
 # Apply custom removal rules
 latex2arxiv paper.zip --config arxiv_config.yaml --compile
+
+# Preview what would be removed without writing any output
+latex2arxiv paper.zip --dry-run
 ```
 
 ## Custom removal rules (`--config`)
