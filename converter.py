@@ -177,6 +177,16 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         _compile(output_zip, main_hint)
 
 
+def _open_file(path: Path) -> None:
+    """Open a file with the OS default viewer, cross-platform."""
+    if sys.platform == 'win32':
+        subprocess.run(['start', str(path)], shell=True)
+    elif sys.platform == 'darwin':
+        subprocess.run(['open', str(path)])
+    else:
+        subprocess.run(['xdg-open', str(path)])
+
+
 def _compile(output_zip: Path, main_hint: str | None):
     """Extract output zip, run pdflatex twice, and open the resulting PDF."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -231,7 +241,7 @@ def _compile(output_zip: Path, main_hint: str | None):
             out_pdf = output_zip.with_suffix('.pdf')
             shutil.copy(pdf, out_pdf)
             print(f"  PDF → {out_pdf}")
-            subprocess.run(['open', str(out_pdf)])  # macOS
+            _open_file(out_pdf)
         else:
             print("  [compile] PDF not produced")
 
@@ -248,9 +258,9 @@ def main():
 
     inp = Path(args.input)
     out = Path(args.output) if args.output else inp.with_stem(inp.stem + '_arxiv')
-    resize = args.resize if args.resize is not None else (DEFAULT_MAX_PX if hasattr(args, 'resize') and args.resize == 0 else args.resize)
+    resize = args.resize
     print(f"Converting {inp} → {out}\n")
-    convert(inp, out, main_hint=args.main, compile_pdf=args.compile, resize=args.resize)
+    convert(inp, out, main_hint=args.main, compile_pdf=args.compile, resize=resize)
 
 
 if __name__ == '__main__':
