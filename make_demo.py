@@ -26,12 +26,14 @@ files['main.tex'] = r"""\documentclass[12pt]{article}
 \maketitle
 
 \begin{abstract}
-This document is the demo input for \texttt{latex2arxiv}.
-Run the converter on \texttt{demo\_project.zip} and open the output PDF
-to see exactly what was cleaned.
-Each section below demonstrates one pipeline stage.
-The source of this file contains intentional draft artifacts;
-the output PDF is the cleaned version.
+This document is the built-in demo for \texttt{latex2arxiv}.
+Run it with:
+\begin{verbatim}
+latex2arxiv --demo --compile
+\end{verbatim}
+The converter processes \texttt{demo\_project.zip} and opens the cleaned PDF.
+Each section below demonstrates one pipeline stage or CLI feature.
+The source contains intentional draft artifacts; the output PDF is the cleaned version.
 \end{abstract}
 
 \input{sections/pruning.tex}
@@ -39,7 +41,9 @@ the output PDF is the cleaned version.
 \input{sections/annotations.tex}
 \input{sections/custom_rules.tex}
 \input{sections/bibtex.tex}
+\input{sections/pdfoutput.tex}
 \input{sections/warnings.tex}
+\input{sections/cli_tools.tex}
 
 \bibliographystyle{plain}
 \bibliography{refs}
@@ -171,9 +175,29 @@ pip install bibtexparser
 \end{verbatim}
 """
 
-# ── Section 6: Compliance warnings ────────────────────────────────────────────
+# ── Section 6: pdfoutput injection ────────────────────────────────────────────
+files['sections/pdfoutput.tex'] = r"""
+\section{Stage 6 — \texttt{\textbackslash pdfoutput=1} Injection}
+
+arXiv requires \verb|\pdfoutput=1| to appear before \verb|\documentclass|
+to force PDF output mode.
+The converter injects it automatically if it is missing.
+
+The source of this demo does \emph{not} contain \verb|\pdfoutput=1|.
+After conversion, the output \texttt{main.tex} begins with:
+\begin{verbatim}
+\pdfoutput=1
+\documentclass[12pt]{article}
+...
+\end{verbatim}
+
+If \verb|\pdfoutput=1| is already present, the converter leaves it unchanged
+and does not insert a duplicate.
+"""
+
+# ── Section 7: Compliance warnings ────────────────────────────────────────────
 files['sections/warnings.tex'] = r"""
-\section{Stage 6 — Compliance Warnings}
+\section{Stage 7 — Compliance Warnings}
 
 The converter prints warnings for common arXiv submission issues.
 This demo triggers the following warning:
@@ -186,10 +210,51 @@ This demo triggers the following warning:
 
 Other warnings (not triggered in this demo):
 \begin{itemize}
-  \item Referee/double-space mode detected
-  \item Custom \texttt{.cls}/\texttt{.sty} file included
+  \item Referee/double-space mode detected in \verb|\documentclass|
+  \item Custom \texttt{.cls}/\texttt{.sty} file included in the project
   \item \texttt{.eps} images found (not supported by pdflatex)
 \end{itemize}
+"""
+
+# ── Section 8: CLI tools ───────────────────────────────────────────────────────
+files['sections/cli_tools.tex'] = r"""
+\section{CLI Tools}
+
+\subsection{\texttt{--dry-run}: Preview Without Writing}
+
+Pass \texttt{--dry-run} to see exactly what the converter would do,
+without writing any output file:
+\begin{verbatim}
+latex2arxiv paper.zip --dry-run
+\end{verbatim}
+The terminal will list every file that would be removed or processed,
+then print:
+\begin{verbatim}
+[dry-run] No output written. Would have created: paper_arxiv.zip
+\end{verbatim}
+This is useful for a quick sanity check before committing to the conversion.
+
+\subsection{\texttt{--resize}: Shrink Images for the 50\,MB Limit}
+
+arXiv enforces a 50\,MB submission limit.
+If your project contains high-resolution figures, use \texttt{--resize}
+to cap the longest side of every image at a given pixel count:
+\begin{verbatim}
+latex2arxiv paper.zip --resize 1600 --compile
+\end{verbatim}
+Requires \texttt{Pillow} (\texttt{pip install Pillow}).
+The converter resizes \texttt{.png}, \texttt{.jpg}, \texttt{.pdf},
+and other supported formats in-place in the output zip.
+
+\subsection{\texttt{--demo}: Run the Built-In Demo}
+
+No input file needed:
+\begin{verbatim}
+latex2arxiv --demo --compile
+\end{verbatim}
+The converter locates the bundled \texttt{demo\_project.zip} from the
+installed package, processes it, and opens the resulting PDF —
+the document you are reading right now.
 """
 
 # ── Unused tex file (should be removed) ───────────────────────────────────────
@@ -252,5 +317,5 @@ with zipfile.ZipFile('demo_project.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
 
 print("Created demo_project.zip")
 print("\nRun the demo:")
-print("  latex2arxiv demo_project.zip --compile")
-print("  latex2arxiv demo_project.zip --config arxiv_config.yaml --compile")
+print("  latex2arxiv --demo --compile")
+print("  latex2arxiv --demo --dry-run")
