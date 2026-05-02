@@ -110,14 +110,20 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             if path.name in used_bib_files:
                 whitelist.add(path.resolve())
         # Add used support files (.cls, .sty) and always-keep types (.bst, .ind, .gls, .nls, .bbl)
+        main_stem = main_tex.stem
         for path in root.rglob('*'):
-            if path.is_file():
-                if path.suffix.lower() in {'.bst', '.ind', '.gls', '.nls', '.bbl'}:
-                    whitelist.add(path.resolve())
-                elif path.suffix.lower() in {'.cls', '.sty'} and path.name in used_style_files:
-                    # Only keep style files at the project root level, not in subdirectories
-                    if path.parent == root:
-                        whitelist.add(path.resolve())
+            if not path.is_file():
+                continue
+            ext = path.suffix.lower()
+            at_root = path.parent == root
+            if ext in {'.cls', '.sty'} and path.name in used_style_files and at_root:
+                whitelist.add(path.resolve())
+            elif ext == '.bst' and at_root:
+                whitelist.add(path.resolve())
+            elif ext == '.bbl' and path.stem == main_stem and at_root:
+                whitelist.add(path.resolve())
+            elif ext in {'.ind', '.gls', '.nls'} and at_root:
+                whitelist.add(path.resolve())
 
         # 3. Process each file
         for path in list(root.rglob('*')):
