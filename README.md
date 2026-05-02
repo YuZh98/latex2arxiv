@@ -17,7 +17,7 @@ Works with any LaTeX `.zip` — including projects exported directly from Overle
 > 🚀 **Try it in 30 seconds** — a self-documenting demo is included:
 > ```bash
 > pip install latex2arxiv
-> latex2arxiv demo_project.zip --compile
+> latex2arxiv --demo --compile
 > ```
 > This opens a PDF that explains exactly what the converter does and shows the cleaned output.
 
@@ -78,6 +78,7 @@ latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--config FIL
 | `--config FILE` | YAML config file for custom removal rules (see below). |
 | `--compile` | Run `pdflatex` on the output and open the resulting PDF. |
 | `--dry-run` | Preview what would be removed/processed without writing any output. |
+| `--demo` | Run the built-in demo project (no input file needed). |
 
 **Examples**
 
@@ -96,6 +97,9 @@ latex2arxiv paper.zip --config arxiv_config.yaml --compile
 
 # Preview what would be removed without writing any output
 latex2arxiv paper.zip --dry-run
+
+# Run the built-in demo (no input file needed)
+latex2arxiv --demo --compile
 ```
 
 ## Custom removal rules (`--config`)
