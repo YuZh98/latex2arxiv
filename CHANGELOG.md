@@ -1,0 +1,64 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.4.0] - 2025-05-02
+
+### Added
+- `--demo` flag: runs the built-in demo project without needing an input file (`latex2arxiv --demo --compile`)
+- `demo_project.zip` bundled inside the package via `importlib.resources`
+- `--dry-run` flag: previews what would be removed/processed without writing any output
+- Demo now documents all pipeline stages including `\pdfoutput=1` injection and the `--resize`, `--dry-run`, and `--demo` CLI flags
+- GitHub Releases created automatically on tag push
+
+### Changed
+- `input` argument is now optional (required only when `--demo` is not used)
+
+### Internal
+- Switched to PyPI trusted publishing (OIDC); removed API token requirement
+- Updated GitHub Actions to `actions/checkout@v6` and `actions/setup-python@v6`
+
+---
+
+## [0.3.0] - 2025-05-02
+
+### Added
+- Full test suite: 31 tests covering all pipeline stages
+- Dependabot for GitHub Actions dependency updates
+- Ruff linting in CI
+
+### Fixed
+- Comment stripping: comment-only lines no longer introduce spurious paragraph breaks
+- BibTeX deduplication: prefer the cited entry when multiple duplicates share the same DOI/title
+
+---
+
+## [0.2.0] - 2025-05-01
+
+### Added
+- `--config` flag: YAML config file for custom removal rules (`commands_to_delete`, `commands_to_unwrap`, `environments_to_delete`, `replacements`)
+- Built-in YAML parser (no `pyyaml` dependency required)
+- GitHub Actions workflow for automatic PyPI publishing on version tags
+- Self-documenting 6-section demo paper ordered by pipeline stage
+
+### Fixed
+- YAML parser: strip inline comments from list values
+- Style file detection: try both `.sty` and `.cls` for `\documentclass` and `\usepackage`
+- Support file whitelist: root-only, `.bbl` must match main stem
+- Compile: `UnicodeDecodeError` on binary files
+
+---
+
+## [0.1.0] - 2025-05-01
+
+### Added
+- Initial release
+- File pruning: removes unused `.tex`, images, build artifacts, and non-essential files
+- Comment stripping: removes `% ...` comments while preserving verbatim blocks and `\%`
+- Draft cleanup: removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}`, `\begin{comment}`, `\iffalse...\fi` blocks, and draft-only packages
+- BibTeX normalization: canonical field ordering, deduplication, private field removal (requires `bibtexparser`)
+- `\pdfoutput=1` injection before `\documentclass` if missing
+- Image resizing via `--resize PX` (requires `Pillow`)
+- `--compile` flag: runs `pdflatex` and opens the resulting PDF
+- Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\begin{overpic}`, `\bibliography`
+- Compliance warnings: referee/double-space mode, custom style files, `\today` in `\date`, `.eps` images
