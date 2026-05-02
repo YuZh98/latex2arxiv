@@ -115,7 +115,9 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                 if path.suffix.lower() in {'.bst', '.ind', '.gls', '.nls', '.bbl'}:
                     whitelist.add(path.resolve())
                 elif path.suffix.lower() in {'.cls', '.sty'} and path.name in used_style_files:
-                    whitelist.add(path.resolve())
+                    # Only keep style files at the project root level, not in subdirectories
+                    if path.parent == root:
+                        whitelist.add(path.resolve())
 
         # 3. Process each file
         for path in list(root.rglob('*')):
@@ -215,10 +217,11 @@ def _compile(output_zip: Path, main_hint: str | None):
         def run_pdflatex():
             result = subprocess.run(
                 ['pdflatex', '-interaction=nonstopmode', tex_name],
-                cwd=run_dir, capture_output=True, text=True
+                cwd=run_dir, capture_output=True
             )
-            if '! Fatal error' in result.stdout or ('! ' in result.stdout and 'Output written' not in result.stdout):
-                errors = [l for l in result.stdout.splitlines() if l.startswith('!')]
+            stdout = result.stdout.decode('utf-8', errors='replace')
+            if '! Fatal error' in stdout or ('! ' in stdout and 'Output written' not in stdout):
+                errors = [l for l in stdout.splitlines() if l.startswith('!')]
                 print("  [compile] pdflatex errors:")
                 print('\n'.join(errors[:10]))
                 return False
