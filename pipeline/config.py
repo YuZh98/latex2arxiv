@@ -32,6 +32,10 @@ def _parse_simple_yaml(text: str) -> dict:
             result[current_key] = current_list
         elif indent > 0 and stripped.startswith('- ') and current_list is not None:
             value = stripped[2:].strip()
+            # Strip inline comments (text after unquoted #)
+            value = re.sub(r'\s+#.*$', '', value).strip()
+            if not value:
+                continue
             # Check if this starts a mapping (next lines may have key: value)
             if ':' not in value:
                 current_list.append(value)
