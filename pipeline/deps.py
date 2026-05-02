@@ -77,6 +77,17 @@ def find_used_style_files(tex_sources: list[str]) -> set:
     return used
 
 
+def find_cited_keys(tex_sources: list[str]) -> set:
+    """Return set of all citation keys used in \\cite, \\citep, \\citet, etc."""
+    keys = set()
+    for src in tex_sources:
+        src = _strip_comments(src)
+        for m in re.finditer(r'\\cite[a-z]*\*?\{([^}]+)\}', src):
+            for key in m.group(1).split(','):
+                keys.add(key.strip())
+    return keys
+
+
 def find_used_bib_files(tex_sources: list[str]) -> set:
     """Return set of .bib filenames referenced by \\bibliography or \\addbibresource."""
     used = set()

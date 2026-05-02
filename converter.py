@@ -17,7 +17,7 @@ from pathlib import Path
 
 from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
 from pipeline.bibtex import normalize_bibtex
-from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files, find_used_style_files
+from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files, find_used_style_files, find_cited_keys
 from pipeline.config import load_config, apply_config
 from pipeline.images import resize_image, DEFAULT_MAX_PX
 
@@ -103,6 +103,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         used_image_paths, used_image_refs = find_used_images(all_sources, tex_dirs, root)
         used_bib_files = find_used_bib_files(all_sources)
         used_style_files = find_used_style_files(all_sources)
+        cited_keys = find_cited_keys(all_sources)
 
         # Build whitelist of resolved absolute paths to keep
         whitelist = {p.resolve() for p in all_tex_files if p.exists()}
@@ -173,7 +174,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             # Process .bib files
             if path.suffix == '.bib' and path.name in used_bib_files:
                 src = path.read_text(encoding='utf-8', errors='replace')
-                src = normalize_bibtex(src)
+                src = normalize_bibtex(src, cited_keys=cited_keys)
                 path.write_text(src, encoding='utf-8')
 
         # 3b. Compliance warnings
