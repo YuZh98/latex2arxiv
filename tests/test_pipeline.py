@@ -18,8 +18,8 @@ from pipeline.tex import (
     ensure_pdfoutput,
     remove_draft_packages,
 )
-from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files, find_used_style_files
-from pipeline.config import apply_config, load_config
+from pipeline.deps import find_used_images, find_used_style_files
+from pipeline.config import apply_config
 from pipeline.bibtex import normalize_bibtex
 
 
@@ -178,9 +178,9 @@ class TestApplyConfig:
 # ── bibtex.py ─────────────────────────────────────────────────────────────────
 
 try:
-    import bibtexparser
-    HAS_BIBTEXPARSER = True
-except ImportError:
+    import importlib.util
+    HAS_BIBTEXPARSER = importlib.util.find_spec("bibtexparser") is not None
+except Exception:
     HAS_BIBTEXPARSER = False
 
 

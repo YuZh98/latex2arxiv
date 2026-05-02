@@ -233,7 +233,7 @@ def _compile(output_zip: Path, main_hint: str | None):
             )
             stdout = result.stdout.decode('utf-8', errors='replace')
             if '! Fatal error' in stdout or ('! ' in stdout and 'Output written' not in stdout):
-                errors = [l for l in stdout.splitlines() if l.startswith('!')]
+                errors = [line for line in stdout.splitlines() if line.startswith('!')]
                 print("  [compile] pdflatex errors:")
                 print('\n'.join(errors[:10]))
                 return False

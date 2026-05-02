@@ -30,8 +30,8 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
+exclude = ["tests/test_bugs.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
-ignore = ["E501", "W291", "W293"]  # line length, trailing whitespace
-exclude = ["tests/"]
+ignore = ["E501", "W291", "W293"]
