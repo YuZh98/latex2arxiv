@@ -23,7 +23,6 @@ Works with any LaTeX `.zip` — including projects exported directly from Overle
 
 ---
 
-
 ## What it does
 
 | Stage | Action |
@@ -34,6 +33,7 @@ Works with any LaTeX `.zip` — including projects exported directly from Overle
 | BibTeX normalization | Canonical field ordering, deduplication, private field removal |
 | `\pdfoutput=1` | Injected before `\documentclass` if missing (required by arXiv) |
 | Image resizing | Optional: resize images so longest side ≤ N pixels (helps stay under arXiv's 50MB limit) |
+| Custom rules | Optional: remove or unwrap user-defined commands via a config file |
 | Compile check | Optional: compiles with `pdflatex` and opens the PDF for review |
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\begin{overpic}`, and `\bibliography`. Commented-out commands are ignored.
@@ -64,21 +64,14 @@ pip install .
 ## Usage
 
 ```bash
-latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--compile]
+latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--config FILE] [--compile]
 ```
-
-Or without installing:
-
-```bash
-python3 converter.py input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--compile]
-```
-
-**Options**
 
 | Flag | Description |
 |---|---|
 | `--main FILENAME` | Specify the main `.tex` file (e.g. `JASA_main.tex`). Auto-detected via `\documentclass` if omitted. |
 | `--resize PX` | Resize images so longest side ≤ PX pixels (e.g. `--resize 1600`). Requires `Pillow`. |
+| `--config FILE` | YAML config file for custom removal rules (see below). Requires `pyyaml`. |
 | `--compile` | Run `pdflatex` on the output and open the resulting PDF. |
 
 **Examples**
@@ -92,6 +85,36 @@ latex2arxiv paper.zip arxiv_ready.zip --main main.tex --compile
 
 # Resize large images to stay under arXiv's 50MB limit
 latex2arxiv paper.zip --resize 1600 --compile
+
+# Apply custom removal rules
+latex2arxiv paper.zip --config arxiv_config.yaml --compile
+```
+
+## Custom removal rules (`--config`)
+
+For revision markup and other project-specific cleanup, create a YAML config file.
+A template is provided in [`arxiv_config.yaml`](arxiv_config.yaml).
+
+```yaml
+# Remove command AND its argument (text is lost)
+commands_to_delete:
+  - \deleted
+  - \revision
+
+# Remove command but KEEP its argument text
+commands_to_unwrap:
+  - \color{red}       # \color{red}text → text
+  - \textcolor{red}   # \textcolor{red}{text} → text
+  - \added            # \added{new text} → new text
+
+# Remove entire environments
+environments_to_delete:
+  - response
+
+# Raw regex replacements
+replacements:
+  - pattern: '\\added\{([^}]*)\}'
+    replacement: '\1'
 ```
 
 ## Caveats
@@ -121,4 +144,6 @@ pipeline/
     bibtex.py       # BibTeX normalization
     deps.py         # Dependency graph (tex includes, images, bib files)
     images.py       # Image resizing
+    config.py       # User-defined removal rules
+arxiv_config.yaml   # Sample config file
 ```
