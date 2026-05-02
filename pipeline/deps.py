@@ -59,15 +59,21 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
 
 
 def find_used_style_files(tex_sources: list[str]) -> set:
-    """Return set of .sty/.cls basenames referenced by \\usepackage or \\documentclass."""
+    """Return set of .sty/.cls basenames referenced by \\usepackage or \\documentclass.
+    Both extensions are tried since some packages (e.g. imsart) use .sty as a document class.
+    """
     used = set()
     for src in tex_sources:
         src = _strip_comments(src)
         for m in re.finditer(r'\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}', src):
             for name in m.group(1).split(','):
-                used.add(name.strip() + '.sty')
+                name = name.strip()
+                used.add(name + '.sty')
+                used.add(name + '.cls')
         for m in re.finditer(r'\\documentclass(?:\[[^\]]*\])?\{([^}]+)\}', src):
-            used.add(m.group(1).strip() + '.cls')
+            name = m.group(1).strip()
+            used.add(name + '.cls')
+            used.add(name + '.sty')
     return used
 
 
