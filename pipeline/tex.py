@@ -11,7 +11,6 @@ _VERBATIM_ENVS = re.compile(
 
 def strip_comments(source: str) -> str:
     """Remove LaTeX comments (% ...) while preserving \\% and verbatim blocks."""
-    # Protect verbatim environments by replacing them with placeholders
     placeholders = {}
     def protect(m):
         key = f"\x00VERBATIM{len(placeholders)}\x00"
@@ -19,10 +18,18 @@ def strip_comments(source: str) -> str:
         return key
     protected = _VERBATIM_ENVS.sub(protect, source)
 
-    # Strip comments: % not preceded by backslash, to end of line
-    stripped = re.sub(r'(?<!\\)%[^\n]*', '', protected)
+    result_lines = []
+    for line in protected.splitlines(keepends=True):
+        # Find first unescaped %
+        stripped = re.sub(r'(?<!\\)%.*', '', line)
+        # If the line was entirely a comment (only whitespace remains), drop it
+        # to avoid introducing spurious paragraph breaks
+        if stripped.strip() == '' and '%' in line and not line.strip().startswith('\x00'):
+            continue
+        result_lines.append(stripped)
 
-    # Restore verbatim blocks
+    stripped = ''.join(result_lines)
+
     for key, val in placeholders.items():
         stripped = stripped.replace(key, val)
 
@@ -61,10 +68,6 @@ def remove_comment_environments(source: str) -> str:
 
 
 def ensure_pdfoutput(source: str) -> str:
-    """Ensure \\pdfoutput=1 appears before \\documentclass."""
-    if r'\pdfoutput=1' in source:
-        return source
-    return r'\pdfoutput=1' + '\n' + source
     """Ensure \\pdfoutput=1 appears before \\documentclass."""
     if r'\pdfoutput=1' in source:
         return source

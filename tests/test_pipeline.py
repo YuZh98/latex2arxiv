@@ -41,6 +41,16 @@ class TestStripComments:
         assert "entire line" not in result
         assert "code" in result
 
+    def test_no_spurious_paragraph_break(self):
+        """A comment-only line should not become a blank line (paragraph break)."""
+        result = strip_comments("First.\n% comment\nSecond.")
+        assert "\n\n" not in result
+        assert "First." in result and "Second." in result
+
+    def test_multiple_comment_lines_no_break(self):
+        result = strip_comments("a\n% c1\n% c2\nb")
+        assert "\n\n" not in result
+
 
 class TestRemoveDraftAnnotations:
     def test_removes_todo(self):
