@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "latex2arxiv"
-version = "0.3.0"
+version = "0.4.0"
 description = "Convert a LaTeX .zip project into an arXiv-ready .zip"
 readme = "README.md"
 requires-python = ">=3.10"

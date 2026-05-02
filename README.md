@@ -97,6 +97,9 @@ latex2arxiv paper.zip --config arxiv_config.yaml --compile
 
 # Preview what would be removed without writing any output
 latex2arxiv paper.zip --dry-run
+
+# Run the built-in demo (no input file needed)
+latex2arxiv --demo --compile
 ```
 
 ## Custom removal rules (`--config`)
