@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # required for trusted publishing
+      contents: write  # required for creating GitHub releases
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -21,5 +22,10 @@ jobs:
           pip install build
           python -m build
 
-      - name: Publish
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
