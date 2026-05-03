@@ -128,6 +128,14 @@ class TestFindUsedImages:
         paths, refs = self._run(r"% \includegraphics{fig}", tmp_path)
         assert len(paths) == 0
 
+    def test_graphicspath(self, tmp_path):
+        fig_dir = tmp_path / "figures"
+        fig_dir.mkdir()
+        (fig_dir / "fig.png").write_bytes(b"PNG")
+        src = r"\graphicspath{{figures/}}" + "\n" + r"\includegraphics{fig}"
+        paths, refs = find_used_images([src], [tmp_path], tmp_path)
+        assert any("fig.png" in str(p) for p in paths)
+
 
 class TestFindUsedStyleFiles:
     def test_finds_usepackage(self):

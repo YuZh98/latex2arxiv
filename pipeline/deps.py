@@ -32,11 +32,24 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
     LaTeX resolves image paths relative to the compilation root (main file's directory),
     except in \\subfile documents which have their own root. We try both the file's own
     directory and the project root to handle both cases.
+
+    Also respects \\graphicspath{{dir1/}{dir2/}} declarations.
     """
     _IMAGE_RE = re.compile(
         r'\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}'
         r'|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}'
     )
+
+    # Extract all \graphicspath directories from all sources
+    graphic_dirs: list[Path] = []
+    for src in tex_sources:
+        for m in re.finditer(r'\\graphicspath\{((?:\{[^}]*\})+)\}', _strip_comments(src)):
+            for d in re.findall(r'\{([^}]+)\}', m.group(1)):
+                for base in [root_dir] + tex_dirs:
+                    full = (base / d).resolve()
+                    if full.is_dir() and full not in graphic_dirs:
+                        graphic_dirs.append(full)
+
     used_paths = set()
     used_refs = set()
     for src, tex_dir in zip(tex_sources, tex_dirs):
@@ -44,8 +57,10 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
             ref = (m.group(1) or m.group(2)).strip()
             used_refs.add(ref)
             candidates = [Path(ref)] + [Path(ref + ext) for ext in ('.pdf', '.png', '.jpg', '.jpeg', '.eps')]
-            # Try root dir first (correct for \input'd files), then tex_dir (for \subfile)
-            search_dirs = [root_dir, tex_dir] if tex_dir != root_dir else [root_dir]
+            # Try root dir first, then graphicspath dirs, then tex_dir (for \subfile)
+            search_dirs = [root_dir] + graphic_dirs
+            if tex_dir != root_dir:
+                search_dirs.append(tex_dir)
             for c in candidates:
                 for base in search_dirs:
                     full = (base / c).resolve()
