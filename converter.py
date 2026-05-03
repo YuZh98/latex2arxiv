@@ -242,21 +242,20 @@ def _compile(output_zip: Path, main_hint: str | None):
         tex_name = main_tex.name
         bib_stem = main_tex.stem
 
-        def run_pdflatex():
+        def run_pdflatex(final=False):
             result = subprocess.run(
                 ['pdflatex', '-interaction=nonstopmode', tex_name],
                 cwd=run_dir, capture_output=True
             )
             stdout = result.stdout.decode('utf-8', errors='replace')
-            if '! Fatal error' in stdout or ('! ' in stdout and 'Output written' not in stdout):
+            if final and ('! Fatal error' in stdout or ('! ' in stdout and 'Output written' not in stdout)):
                 errors = [line for line in stdout.splitlines() if line.startswith('!')]
                 print("  [compile] pdflatex errors:")
                 print('\n'.join(errors[:10]))
                 return False
             return True
 
-        if not run_pdflatex():
-            return
+        run_pdflatex()
 
         # Run bibtex if a .bib file is present
         bib_files = list(run_dir.glob('*.bib'))
@@ -265,7 +264,8 @@ def _compile(output_zip: Path, main_hint: str | None):
 
         # Second and third pass to resolve references
         run_pdflatex()
-        run_pdflatex()
+        if not run_pdflatex(final=True):
+            return
 
         pdf = main_tex.with_suffix('.pdf')
         if pdf.exists():
@@ -295,8 +295,9 @@ def main():
 
     if args.demo:
         try:
-            ref = resources.files(__name__).joinpath('demo_project.zip')
-            demo_zip = Path(ref)
+            import converter as _conv_mod
+            ref = resources.files(_conv_mod).joinpath('demo_project.zip')
+            demo_zip = Path(str(ref))
         except Exception:
             # Fallback: look next to this file
             demo_zip = Path(__file__).parent / 'demo_project.zip'
