@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
-    "bibtexparser>=1.4",
+    "bibtexparser>=1.4,<2",
     "Pillow>=10.0",
     "pyyaml>=6.0",
 ]
