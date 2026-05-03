@@ -69,6 +69,15 @@ class TestRemoveDraftAnnotations:
         result = remove_draft_annotations(r"before \todo{x} after")
         assert "before" in result and "after" in result
 
+    def test_removes_todo_with_nested_braces(self):
+        assert remove_draft_annotations(r"\todo{fix \textbf{this}}") == ""
+
+    def test_removes_todo_with_cite(self):
+        assert remove_draft_annotations(r"\todo{see \cite{smith2020}}") == ""
+
+    def test_removes_hl_with_nested_braces(self):
+        assert remove_draft_annotations(r"\hl{some \emph{important} text}") == ""
+
 
 class TestRemoveCommentEnvironments:
     def test_removes_comment_block(self):
