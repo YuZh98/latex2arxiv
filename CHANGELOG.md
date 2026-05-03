@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2025-05-02
+
+### Fixed
+- `--demo` flag now correctly locates the bundled `demo_project.zip` when installed via PyPI (`resources.files(__name__)` resolved to `__main__` at runtime; fixed by referencing the module explicitly)
+- Compile: first and second `pdflatex` passes no longer abort on expected errors (missing `.sty` cache, unresolved references); only the final pass reports a failure
+
+### Internal
+- Release workflow now opens a PR instead of pushing directly to `main`, avoiding branch protection conflicts
+
+---
+
 ## [0.4.0] - 2025-05-02
 
 ### Added
