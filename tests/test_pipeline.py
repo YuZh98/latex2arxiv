@@ -168,6 +168,45 @@ class TestApplyConfig:
         result = apply_config(r"\revision{old text}", {"commands_to_delete": ["revision"]})
         assert "old text" not in result
 
+    def test_commands_to_delete_nested_braces(self):
+        result = apply_config(
+            r"before \deleted{see \cite{smith2020} too} after",
+            {"commands_to_delete": ["deleted"]},
+        )
+        assert "before  after" in result
+        assert "smith2020" not in result
+        assert r"\deleted" not in result
+        assert r"\cite" not in result
+
+    def test_commands_to_delete_nested_textbf(self):
+        result = apply_config(
+            r"\deleted{remove \textbf{this} too}",
+            {"commands_to_delete": ["deleted"]},
+        )
+        assert result.strip() == ""
+
+    def test_commands_to_delete_with_optional_arg(self):
+        result = apply_config(
+            r"\revision[v2]{old} kept",
+            {"commands_to_delete": ["revision"]},
+        )
+        assert "old" not in result
+        assert "kept" in result
+
+    def test_commands_to_delete_bare_switch(self):
+        result = apply_config(r"a \deprecated b", {"commands_to_delete": ["deprecated"]})
+        assert r"\deprecated" not in result
+        assert "a " in result and " b" in result
+
+    def test_commands_to_delete_multiple_occurrences(self):
+        result = apply_config(
+            r"\del{first} middle \del{second}",
+            {"commands_to_delete": ["del"]},
+        )
+        assert "first" not in result
+        assert "second" not in result
+        assert "middle" in result
+
     def test_commands_to_unwrap(self):
         result = apply_config(r"{\color{red} keep this}", {"commands_to_unwrap": ["color{red}"]})
         assert "keep this" in result
@@ -177,6 +216,27 @@ class TestApplyConfig:
         result = apply_config(r"\textcolor{red}{keep this}", {"commands_to_unwrap": ["textcolor{red}"]})
         assert "keep this" in result
         assert r"\textcolor" not in result
+
+    def test_commands_to_unwrap_nested_braces(self):
+        result = apply_config(
+            r"\added{see \cite{smith2020}}",
+            {"commands_to_unwrap": ["added"]},
+        )
+        assert r"see \cite{smith2020}" in result
+        assert r"\added" not in result
+
+    def test_commands_to_unwrap_with_emph_inside(self):
+        result = apply_config(
+            r"before \added{some \emph{important} text} after",
+            {"commands_to_unwrap": ["added"]},
+        )
+        assert r"some \emph{important} text" in result
+        assert r"\added" not in result
+
+    def test_commands_to_unwrap_no_arg(self):
+        result = apply_config(r"a \added b", {"commands_to_unwrap": ["added"]})
+        assert r"\added" not in result
+        assert "a " in result and " b" in result
 
     def test_environments_to_delete(self):
         src = "before\n\\begin{response}\nhidden\n\\end{response}\nafter"

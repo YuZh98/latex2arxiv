@@ -35,7 +35,7 @@ def strip_comments(source: str) -> str:
     return stripped
 
 
-def _find_balanced(s: str, start: int) -> int:
+def find_balanced(s: str, start: int) -> int:
     """Return the index after the closing brace matching the '{' at s[start].
     Returns -1 if not found.
     """
@@ -52,8 +52,13 @@ def _find_balanced(s: str, start: int) -> int:
     return -1
 
 
-def _remove_cmd(source: str, pattern: re.Pattern) -> str:
-    """Remove all occurrences of a command with a brace-balanced argument."""
+def remove_cmd(source: str, pattern: re.Pattern) -> str:
+    """Remove all occurrences of a command with a brace-balanced argument.
+
+    For each regex match, deletes the match plus the immediately-following
+    {...} group (handling nested braces). If no '{' follows the match, the
+    match itself is left untouched.
+    """
     result = []
     pos = 0
     for m in pattern.finditer(source):
@@ -63,8 +68,36 @@ def _remove_cmd(source: str, pattern: re.Pattern) -> str:
             result.append(m.group(0))
             pos = m.end()
             continue
-        end = _find_balanced(source, brace_start)
+        end = find_balanced(source, brace_start)
         pos = end if end != -1 else m.end()
+    result.append(source[pos:])
+    return ''.join(result)
+
+
+def unwrap_cmd(source: str, pattern: re.Pattern) -> str:
+    """Replace `\\cmd{inner}` with `inner`, using a brace-balanced matcher.
+
+    For each regex match, looks for an immediately-following '{'. If found,
+    substitutes the match plus its balanced group with the group's contents.
+    If no '{' follows (a switch like `\\color{red}` written literally as the
+    pattern), the match is removed entirely.
+    """
+    result = []
+    pos = 0
+    for m in pattern.finditer(source):
+        result.append(source[pos:m.start()])
+        brace_start = source.find('{', m.end())
+        if brace_start == -1 or brace_start > m.end() + 1:
+            # No following arg group: treat as switch, remove the match.
+            pos = m.end()
+            continue
+        end = find_balanced(source, brace_start)
+        if end == -1:
+            result.append(m.group(0))
+            pos = m.end()
+            continue
+        result.append(source[brace_start + 1:end - 1])
+        pos = end
     result.append(source[pos:])
     return ''.join(result)
 
@@ -73,9 +106,9 @@ def remove_draft_annotations(source: str) -> str:
     """Remove common draft-only commands: \\todo, \\hl, \\note, \\fixme.
     Uses a brace-balanced matcher to handle nested braces correctly.
     """
-    source = _remove_cmd(source, re.compile(r'\\todo(?:\[[^\]]*\])?(?=\{)'))
+    source = remove_cmd(source, re.compile(r'\\todo(?:\[[^\]]*\])?(?=\{)'))
     for cmd in ('hl', 'note', 'fixme'):
-        source = _remove_cmd(source, re.compile(r'\\' + cmd + r'(?=\{)'))
+        source = remove_cmd(source, re.compile(r'\\' + cmd + r'(?=\{)'))
     return source
 
 
