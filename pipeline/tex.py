@@ -35,12 +35,47 @@ def strip_comments(source: str) -> str:
     return stripped
 
 
+def _find_balanced(s: str, start: int) -> int:
+    """Return the index after the closing brace matching the '{' at s[start].
+    Returns -1 if not found.
+    """
+    depth = 0
+    i = start
+    while i < len(s):
+        if s[i] == '{':
+            depth += 1
+        elif s[i] == '}':
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return -1
+
+
+def _remove_cmd(source: str, pattern: re.Pattern) -> str:
+    """Remove all occurrences of a command with a brace-balanced argument."""
+    result = []
+    pos = 0
+    for m in pattern.finditer(source):
+        result.append(source[pos:m.start()])
+        brace_start = source.find('{', m.end())
+        if brace_start == -1 or brace_start > m.end() + 1:
+            result.append(m.group(0))
+            pos = m.end()
+            continue
+        end = _find_balanced(source, brace_start)
+        pos = end if end != -1 else m.end()
+    result.append(source[pos:])
+    return ''.join(result)
+
+
 def remove_draft_annotations(source: str) -> str:
-    """Remove common draft-only commands: \\todo, \\hl, \\note, \\fixme."""
-    # Remove \todo[...]{...} and \todo{...}
-    source = re.sub(r'\\todo(?:\[[^\]]*\])?\{[^}]*\}', '', source)
-    # Remove \hl{...}, \note{...}, \fixme{...}
-    source = re.sub(r'\\(hl|note|fixme)\{[^}]*\}', r'', source)
+    """Remove common draft-only commands: \\todo, \\hl, \\note, \\fixme.
+    Uses a brace-balanced matcher to handle nested braces correctly.
+    """
+    source = _remove_cmd(source, re.compile(r'\\todo(?:\[[^\]]*\])?(?=\{)'))
+    for cmd in ('hl', 'note', 'fixme'):
+        source = _remove_cmd(source, re.compile(r'\\' + cmd + r'(?=\{)'))
     return source
 
 
