@@ -2,7 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.4.1] - 2025-05-02
+## [0.4.2] - 2026-05-03
+
+### Fixed
+- **Main tex auto-detection**: projects with multiple `\documentclass` files (e.g. main paper + response letter + supplement) now correctly prefer `arxiv_*` files, then `*main*` files, and deprioritize response/backup/supplement files. Falls back with a `--main` hint warning when ambiguous.
+- **`\subfile` bibliography warning**: warns when a `\subfile`'d document contains `\bibliographystyle` — a common cause of duplicate bibliography commands and arXiv BibTeX failures.
+- **`\graphicspath` support**: images referenced without directory prefix (e.g. `\includegraphics{fig}` with `\graphicspath{{figures/}}`) are now correctly resolved and kept instead of being silently deleted.
+- **Nested braces in draft annotations**: `\todo{fix \textbf{this}}` and `\todo{see \cite{smith2020}}` are now correctly removed using a brace-balanced matcher instead of a regex that stopped at the first `}`.
+
+### Internal
+- Pinned `bibtexparser` to `>=1.4,<2` to prevent accidental installation of the v2 beta, which has a breaking API change.
+
+---
+
+## [0.4.1] - 2026-05-02
 
 ### Fixed
 - `--demo` flag now correctly locates the bundled `demo_project.zip` when installed via PyPI (`resources.files(__name__)` resolved to `__main__` at runtime; fixed by referencing the module explicitly)
