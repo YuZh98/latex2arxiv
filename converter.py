@@ -26,15 +26,50 @@ IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
 
 
 def find_main_tex(root: Path) -> Path | None:
-    """Heuristic: find the .tex file containing \\documentclass."""
-    candidates = list(root.rglob('*.tex'))
+    """Heuristic: find the .tex file containing \\documentclass.
+
+    When multiple candidates exist, prefer files whose name suggests they are
+    the main document (contains 'main' or 'arxiv') over response letters,
+    supplements, or backups. Warns if the choice is ambiguous.
+    """
+    candidates = [p for p in root.rglob('*.tex')
+                  if not any(part.startswith('__MACOSX') for part in p.parts)]
+    with_docclass = []
     for p in candidates:
         try:
             if r'\documentclass' in p.read_text(encoding='utf-8', errors='replace'):
-                return p
+                with_docclass.append(p)
         except Exception:
             continue
-    return candidates[0] if candidates else None
+
+    if not with_docclass:
+        return candidates[0] if candidates else None
+    if len(with_docclass) == 1:
+        return with_docclass[0]
+
+    # Multiple candidates: rank by name preference
+    _ARXIV = re.compile(r'arxiv', re.IGNORECASE)
+    _MAIN = re.compile(r'(^|[_\-])main([_\-]|\.tex$)', re.IGNORECASE)
+    _DEPRIORITIZED = re.compile(r'(response|reply|cover|supplement|backup|bak|old|svm)', re.IGNORECASE)
+
+    def rank(p: Path) -> tuple:
+        name = p.name
+        if _DEPRIORITIZED.search(name):
+            return (2, len(name))
+        if _ARXIV.search(name):
+            return (0, len(name))
+        if _MAIN.search(name):
+            return (1, len(name))
+        return (2, len(name))
+
+    ranked = sorted(with_docclass, key=rank)
+    chosen = ranked[0]
+
+    if rank(ranked[0])[0] == rank(ranked[1])[0] or rank(ranked[0])[0] != 0:
+        print(f"  [warn] multiple \\documentclass files found; using '{chosen.relative_to(root)}'")
+        print("         use --main to specify the correct file if this is wrong")
+
+    return chosen
 
 
 def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path):
