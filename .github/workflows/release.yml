@@ -15,6 +15,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Bump version in pyproject.toml
         run: sed -i "s/^version = .*/version = \"${{ github.event.inputs.version }}\"/" pyproject.toml
@@ -22,7 +24,7 @@ jobs:
       - name: Create PR
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
           branch: release/v${{ github.event.inputs.version }}
           commit-message: "Bump version to ${{ github.event.inputs.version }}"
           title: "Bump version to ${{ github.event.inputs.version }}"
