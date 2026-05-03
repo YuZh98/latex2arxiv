@@ -72,7 +72,8 @@ def find_main_tex(root: Path) -> Path | None:
     return chosen
 
 
-def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path):
+def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path,
+                     tex_files: list[Path] | None = None):
     """Print warnings for common arXiv compliance issues."""
     combined = '\n'.join(all_sources)
 
@@ -97,6 +98,20 @@ def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path):
     for path in root.rglob('*.eps'):
         print(f"  [warn] .eps image found: {path.relative_to(root)} — "
               "pdflatex does not support .eps; convert to .pdf or .png")
+
+    # \subfile'd documents that contain \bibliographystyle (likely standalone supplements)
+    if tex_files:
+        main_src = main_tex.read_text(encoding='utf-8', errors='replace')
+        subfiles = re.findall(r'\\subfile\{([^}]+)\}', re.sub(r'(?<!\\)%[^\n]*', '', main_src))
+        for sf in subfiles:
+            sf_path = (main_tex.parent / (sf if sf.endswith('.tex') else sf + '.tex')).resolve()
+            for tf in tex_files:
+                if tf.resolve() == sf_path:
+                    sf_src = tf.read_text(encoding='utf-8', errors='replace')
+                    if re.search(r'\\bibliographystyle\{', sf_src):
+                        print(f"  [warn] {tf.relative_to(root.resolve())} (via \\subfile) contains \\bibliographystyle — "
+                              "if this is a standalone supplement, remove the \\subfile line before arXiv submission "
+                              "to avoid duplicate bibliography commands")
 
 
 def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
@@ -224,7 +239,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                     path.write_text(src, encoding='utf-8')
 
         # 3b. Compliance warnings
-        _warn_compliance(main_tex, all_sources, root)
+        _warn_compliance(main_tex, all_sources, root, tex_files=tex_files_list)
 
         # 4. Repack
         if dry_run:
