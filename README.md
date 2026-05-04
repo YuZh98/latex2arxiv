@@ -21,7 +21,7 @@ latex2arxiv --demo --compile
 
 This processes a bundled self-documenting paper and opens the cleaned PDF. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
 
-[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [vs `arxiv_latex_cleaner`](#latex2arxiv-vs-arxiv_latex_cleaner)
+[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [Pre-flight checks](#pre-flight-checks) • [vs `arxiv_latex_cleaner`](#latex2arxiv-vs-arxiv_latex_cleaner)
 
 ## Before / After
 
@@ -50,7 +50,7 @@ On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 | 📦 **One-command zip-in / zip-out** | No directory dance, no manual repack; optionally compiles and opens the PDF for review |
 | ✂️ **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
 | 🧹 **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
-| 🚨 **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, oversized output, problematic filenames |
+| 🚨 **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, missing index files, oversized output, problematic filenames — [full list](#pre-flight-checks) |
 
 Also: BibTeX normalization, `\pdfoutput=1` injection, image resizing (Pillow), `--dry-run` preview, `--demo` for first-run.
 
@@ -81,7 +81,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 | | `latex2arxiv` | `arxiv_latex_cleaner` |
 |---|---|---|
 | Output format | `.zip` → `.zip` | Cleaned directory |
-| Pre-flight `[error]` / `[warn]` | ✅ | ❌ |
+| Pre-flight `[error]` / `[warn]` ([details](#pre-flight-checks)) | ✅ | ❌ |
 | Non-zero exit on errors | ✅ | ❌ |
 | `--compile` preview | ✅ | ❌ |
 | Auto-detect main `.tex` | ✅ | ❌ |
@@ -150,7 +150,31 @@ latex2arxiv paper.zip --dry-run                        # preview without writing
 latex2arxiv --demo --compile                           # run the built-in demo
 ```
 
-The tool exits non-zero if any pre-flight error fires (e.g. `\usepackage{minted}`) — useful for CI gating. Warnings do not affect the exit code.
+## Pre-flight checks
+
+Before producing the output zip, latex2arxiv validates the project against [arXiv's LaTeX submission guide](https://info.arxiv.org/help/submit_tex.html). `[error]` lines block submission (the tool exits non-zero, useful for CI gating); `[warn]` lines are advisory and do not affect the exit code.
+
+| Severity | Trigger | Why it matters |
+|---|---|---|
+| 🛑 error | `\usepackage{minted}` / `pythontex` / `shellesc` | Require `--shell-escape`; arXiv compiles without it. |
+| 🛑 error | `\usepackage{psfig}` | arXiv no longer supports the psfig package. |
+| ⚠️ warn | `\usepackage{xr}` or `xr-hyper` | File paths/locations differ on arXiv; external-document references break. |
+| ⚠️ warn | Main `.tex` not at the submission root | arXiv compiles from root; subdirectory main files aren't found. |
+| ⚠️ warn | `\printindex` / `\printglossary` / `\printnomenclature` without matching `.ind` / `.gls` / `.nls` | arXiv doesn't run makeindex or glossary processors; the printed section silently disappears. |
+| ⚠️ warn | `\usepackage{biblatex}` (or `\addbibresource`) without `<main>.bbl` shipped | If arXiv can't resolve any `.bib` file, your submission is blocked. |
+| ⚠️ warn | `\documentclass[referee]` / `[doublespace]` / `\doublespacing` | arXiv requires single-spaced submissions. |
+| ⚠️ warn | `\today` inside `\date{...}` | arXiv may rebuild the PDF; the date will change. |
+| ⚠️ warn | `\subfile`'d document containing `\bibliographystyle` | Likely a standalone supplement; remove the `\subfile` line to avoid duplicate bibliography commands. |
+| ⚠️ warn | `.eps` images shipped | `pdflatex` doesn't support `.eps`; convert to `.pdf` or `.png`. |
+| ⚠️ warn | Custom `.cls` / `.sty` files | Verify they aren't already provided by TeX Live. |
+| ⚠️ warn | Filename has spaces or non-ASCII characters | Breaks `\input` and `\includegraphics` resolution. |
+| ⚠️ warn | Output `.zip` larger than 50 MB | arXiv has size limits; consider `--resize` or splitting supplementary materials. |
+
+In addition to surfacing issues, the conversion silently fixes common pitfalls:
+
+- Inserts `\pdfoutput=1` (or normalizes any `\pdfoutput=N`) in the main `.tex`, so arXiv selects pdfLaTeX.
+- Preserves `00README` / `00README.XXX` files at root for arXiv processor hints.
+- Strips comments and standard draft annotations (`\todo`, `\hl`, ...) and packages (`todonotes`, `comment`, ...).
 
 ## Custom removal rules (`--config`)
 
