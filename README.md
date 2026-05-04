@@ -4,62 +4,46 @@
 [![PyPI](https://img.shields.io/pypi/v/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Validates arXiv compatibility and cleans your LaTeX project in one command.**
+**Validates arXiv compatibility and cleans your LaTeX project in one command--zip in zip out.**
 
-If you submit papers to arXiv — especially from Overleaf — this tool is for you. Drop in a `.zip`, get an arXiv-ready `.zip` back, with pre-flight checks that catch submission-blocking issues before you upload.
-
-On a real statistics paper: **950 → 40 files, 82 MB → 3 MB**.
-
-```
-Files removed  ████████████████████  95%
-Size reduced   ████████████████████  96%
-Errors caught  ████████████████████  before upload
-```
-
-[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [vs arxiv_latex_cleaner](#how-does-this-compare-to-arxiv_latex_cleaner)
+If you submit papers to arXiv, this tool is for you. Drop in a `.zip`, get a new arXiv-ready `.zip` back -- no overwriting -- with pre-flight checks that catch submission-blocking issues before you upload.
 
 ```bash
 latex2arxiv paper.zip --compile
 ```
 
-```
-  main tex: paper.tex
-  remove: .DS_Store
-  remove: cover_letter.md
-  remove: paper.aux
-  remove: figures/old_unused.pdf
-  ... (43 more)
-  [warn] \today used in \date — arXiv may rebuild the PDF and the date will change
+Try in 20 seconds with the built-in demo:
 
-Done → paper_arxiv.zip
-Summary: 47 removed, 12 kept | 79.1 MB → 3.2 MB | 0 errors, 1 warning
-
-Compiling paper.tex ...
-  PDF → paper_arxiv.pdf
+```bash
+pip install latex2arxiv
+latex2arxiv --demo --compile
 ```
 
-The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
+This processes a bundled self-documenting paper and opens the cleaned PDF. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
 
-<img src="docs/demo.gif" width="700" alt="latex2arxiv demo">
+[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [vs arxiv_latex_cleaner](#how-does-this-compare-to-arxiv_latex_cleaner)
 
 ## Before / After
 
-A real statistics paper exported from Overleaf:
+On a real statistics paper: **950 → 40 files, 82 MB → 3 MB**. It is easy, quick, and safe:
+
+<img src="docs/demo.gif" width="700" alt="latex2arxiv demo">
 
 | Before (Overleaf export) | After (latex2arxiv output) |
 |---|---|
 | 📁 Images/ | 📁 Images/ |
 | 📄 JASA_main.tex | 📄 JASA_main.tex |
-| 📄 JASA_main_backup.tex | 📄 ref_fixed.bib |
+| 📄 JASA_main_backup.tex | 📄 ref.bib |
 | 📄 main_bak_svm.tex | 📄 Supplementary_Materials.tex |
 | 📄 cover_letter.md | |
 | 📄 response.tex | |
+| 📄 ref.bib | |
 | 📄 JASA_main.aux  .log  .bbl  .pdf | |
 | 📁 jasa_comments/  jasa_revision/ | |
 | ... (and ~930 more) | |
 | **950 files, 82 MB** | **40 files, 3 MB** |
 
-(`JASA_main.tex` is the main file (`--main JASA_main.tex`). `Supplementary_Materials.tex` is kept because it is a `\subfile` dependency of the main file. `ref_fixed.bib` is kept because it is referenced by `\bibliography`.)
+(Footnote: `JASA_main.tex` is the main file (`--main JASA_main.tex`). `Supplementary_Materials.tex` is kept because it is a `\subfile` dependency of the main file.)
 
 ## What it does
 
@@ -74,7 +58,7 @@ Also: BibTeX normalization, `\pdfoutput=1` injection, image resizing (Pillow), `
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, and `\bibliography`. Commented-out commands are ignored.
 
-## How does this compare to `arxiv_latex_cleaner`?
+## `latex2arxiv` VS `arxiv_latex_cleaner`
 
 [`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the established tool in this space — Google-backed, ~5k★, years of usage. If you want the most battle-tested option, use it.
 
@@ -107,7 +91,7 @@ The differences are framed as failure modes the tool prevents — not as feature
 | Auto-detect main `.tex` | ✅ | ❌ |
 | Brace-balanced config | ✅ | ❌ |
 | BibTeX normalization | ✅ | ❌ |
-| `\pdfoutput=1` injection | ✅ | ❌ |
+| Auto `\pdfoutput=1` injection | ✅ | ❌ |
 | `--dry-run` | ✅ | ❌ |
 | Built-in `--demo` | ✅ | ❌ |
 | Image resizing (Pillow) | ✅ | ✅ |
@@ -138,13 +122,11 @@ pip install .
 
 `pdflatex` is required only for `--compile` (install via [TeX Live](https://tug.org/texlive/) or [MacTeX](https://tug.org/mactex/)).
 
-Once installed, try the built-in demo to see the tool in action — no input file needed:
+Once installed, try the built-in demo to see the tool in action:
 
 ```bash
 latex2arxiv --demo --compile
 ```
-
-This processes a bundled self-documenting paper and opens the cleaned PDF.
 
 ## Usage
 
@@ -202,7 +184,7 @@ replacements:
 
 The config parser is built in (no extra dependencies). The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`.
 
-## Known limitations
+## Caveats
 
 **Dynamically constructed filenames** — `\includegraphics{\figpath/fig1}` cannot be resolved statically and the image will be deleted. Expand path macros before running.
 
