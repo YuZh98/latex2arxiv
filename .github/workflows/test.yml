@@ -29,3 +29,68 @@ jobs:
         run: |
           pip install dist/*.whl
           latex2arxiv --demo --dry-run
+
+  compile-smoke:
+    # Live --compile end-to-end test against real TeX Live + biber. Catches
+    # regressions in _compile() that unit tests can't (subprocess interaction,
+    # bibtex/biber dispatch, PDF actually produced). Runs only after unit
+    # tests pass to fail fast on cheap signals.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install TeX Live + biber
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-base \
+            texlive-latex-recommended \
+            texlive-latex-extra \
+            texlive-bibtex-extra \
+            biber
+      - name: Install package
+        run: pip install .
+      - name: Stub xdg-open so the PDF auto-open is a no-op on headless runner
+        run: |
+          mkdir -p "$HOME/bin"
+          printf '#!/bin/sh\nexit 0\n' > "$HOME/bin/xdg-open"
+          chmod +x "$HOME/bin/xdg-open"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: Bibtex path — demo project --compile
+        run: |
+          latex2arxiv --demo --compile
+          test -f demo_project_arxiv.pdf
+          # PDF must be non-trivially sized — guards against silent compile failure.
+          test "$(stat -c%s demo_project_arxiv.pdf)" -gt 10000
+      - name: Biber path — biblatex fixture --compile
+        run: |
+          mkdir -p /tmp/biber-fixture/bib
+          cat > /tmp/biber-fixture/main.tex <<'TEX'
+          \documentclass{article}
+          \usepackage[backend=biber]{biblatex}
+          \addbibresource{bib/refs.bib}
+          \begin{document}
+          Hello, citation: \cite{einstein1905}.
+          \printbibliography
+          \end{document}
+          TEX
+          cat > /tmp/biber-fixture/bib/refs.bib <<'BIB'
+          @article{einstein1905,
+            author = {Einstein, Albert},
+            title = {On the electrodynamics of moving bodies},
+            journal = {Annalen der Physik},
+            year = {1905},
+          }
+          BIB
+          # Echo the fixture so any heredoc/indentation regression is visible in CI logs.
+          echo '--- main.tex ---'
+          cat /tmp/biber-fixture/main.tex
+          echo '--- bib/refs.bib ---'
+          cat /tmp/biber-fixture/bib/refs.bib
+          (cd /tmp/biber-fixture && zip -r /tmp/biber.zip .)
+          latex2arxiv /tmp/biber.zip /tmp/biber_arxiv.zip --compile
+          test -f /tmp/biber_arxiv.pdf
+          test "$(stat -c%s /tmp/biber_arxiv.pdf)" -gt 5000
