@@ -55,7 +55,7 @@ where = ["."]
 include = ["pipeline*"]
 
 [tool.setuptools.package-data]
-"*" = ["demo_project.zip"]
+"pipeline" = ["demo_project.zip"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
