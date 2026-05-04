@@ -46,30 +46,29 @@ The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/
 
 A real statistics paper exported from Overleaf:
 
-```
-Before (Overleaf export)              After (latex2arxiv output)
-──────────────────────────────────    ──────────────────────────
-📁 Images/                            📁 Images/
-📄 JASA_main.tex                      📄 JASA_main.tex
-📄 JASA_main_backup.tex               📄 ref_fixed.bib
-📄 main_bak_svm.tex                   📄 Supplementary_Materials.tex
-📄 cover_letter.md
-📄 response.tex
-📄 JASA_main.aux  .log  .bbl  .pdf
-📁 jasa_comments/  jasa_revision/
-... (and ~930 more)
-──────────────────────────────────    ──────────────────────────
-950 files, 82 MB                      40 files, 3 MB
-```
+| Before (Overleaf export) | After (latex2arxiv output) |
+|---|---|
+| 📁 Images/ | 📁 Images/ |
+| 📄 JASA_main.tex | 📄 JASA_main.tex |
+| 📄 JASA_main_backup.tex | 📄 ref_fixed.bib |
+| 📄 main_bak_svm.tex | 📄 Supplementary_Materials.tex |
+| 📄 cover_letter.md | |
+| 📄 response.tex | |
+| 📄 JASA_main.aux  .log  .bbl  .pdf | |
+| 📁 jasa_comments/  jasa_revision/ | |
+| ... (and ~930 more) | |
+| **950 files, 82 MB** | **40 files, 3 MB** |
 
-`JASA_main.tex` is the main file (`--main JASA_main.tex`). `Supplementary_Materials.tex` is kept because it is a `\subfile` dependency of the main file. `ref_fixed.bib` is kept because it is referenced by `\bibliography`.
+(`JASA_main.tex` is the main file (`--main JASA_main.tex`). `Supplementary_Materials.tex` is kept because it is a `\subfile` dependency of the main file. `ref_fixed.bib` is kept because it is referenced by `\bibliography`.)
 
 ## What it does
 
-- **Catches submission blockers before you upload** — `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, oversized output, problematic filenames
-- **Prunes your project to submission-ready** — keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures
-- **Cleans your `.tex`** — strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works)
-- **One-command zip-in / zip-out** — no directory dance, no manual repack; optionally compiles and opens the PDF for review
+| Feature | What it does |
+|---|---|
+| **One-command zip-in / zip-out** | No directory dance, no manual repack; optionally compiles and opens the PDF for review |
+| **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
+| **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
+| **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, oversized output, problematic filenames |
 
 Also: BibTeX normalization, `\pdfoutput=1` injection, image resizing (Pillow), `--dry-run` preview, `--demo` for first-run.
 
@@ -83,15 +82,19 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 
 The differences are framed as failure modes the tool prevents — not as feature checkmarks.
 
-- **You stop wasting time on failed submissions.** Without pre-flight checks, you upload, wait for arXiv to compile, and find out from a cryptic email that `\usepackage{minted}` won't work. Then re-upload and wait again. `latex2arxiv` catches it locally with a clear error message, and exits non-zero so your CI catches it too.
-- **You stop guessing which files to include.** `arxiv_latex_cleaner` cleans into a directory and leaves the rest to you — figure out what to zip, hope you didn't miss a `.bbl`. `latex2arxiv`'s output *is* the file you upload.
-- **You stop silently shipping reviewer markup.** With a naive regex-based cleaner, `\deleted{see \cite{smith}}` leaves `\cite{smith}` in your paper after `\deleted` is stripped — the PDF looks fine locally, then a reviewer sees a citation that shouldn't be there. `latex2arxiv`'s brace-balanced matcher removes the whole nested expression correctly.
+| Without `latex2arxiv` | With `latex2arxiv` |
+|---|---|
+| You upload, wait for arXiv to compile, get a cryptic failure email about `\usepackage{minted}`, re-upload and wait again. | Pre-flight checks catch it locally with a clear `[error]` message. Exits non-zero so your CI catches it too. |
+| `arxiv_latex_cleaner` cleans into a directory — you still figure out what to zip, hope you didn't miss a `.bbl`. | The output *is* the file you upload. Nothing to figure out. |
+| `\deleted{see \cite{smith}}` silently leaves `\cite{smith}` in your paper — PDF looks fine locally, reviewer sees a stray citation. | Brace-balanced matcher removes the whole nested expression correctly. |
 
 ### Where `arxiv_latex_cleaner` is stronger
 
-- **Maturity** — thousands of papers cleaned, larger contributor pool, more edge cases discovered.
-- **Ghostscript-based PDF compression** — we don't bundle this.
-- **PNG → JPG conversion** — we don't do this.
+| Advantage | Notes |
+|---|---|
+| **Maturity** | Thousands of papers cleaned, larger contributor pool, more edge cases discovered. |
+| **Ghostscript-based PDF compression** | We don't bundle this. |
+| **PNG → JPG conversion** | We don't do this. |
 
 ### Full feature comparison
 
