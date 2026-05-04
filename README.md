@@ -25,7 +25,7 @@ This processes a bundled self-documenting paper and opens the cleaned PDF. The c
 
 ## Before / After
 
-On a real statistics paper: **950 → 40 files, 82 MB → 3 MB**.
+On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 
 <img src="docs/demo.gif" width="700" alt="latex2arxiv demo">
 
@@ -41,7 +41,7 @@ On a real statistics paper: **950 → 40 files, 82 MB → 3 MB**.
 | 📄 JASA_main.aux/.log/.bbl/.pdf | |
 | 📁 jasa_comments/, jasa_revision/ | |
 | ... (and ~930 more) | |
-| **950 files, 82 MB** | **40 files, 3 MB** |
+| **934 files, 80.6 MB** | **40 files, 3.1 MB** |
 
 ## What it does
 
