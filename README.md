@@ -10,6 +10,14 @@ If you submit papers to arXiv — especially from Overleaf — this tool is for 
 
 On a real statistics paper: **950 → 40 files, 82 MB → 3 MB**.
 
+```
+Files removed  ████████████████████  95%
+Size reduced   ████████████████████  96%
+Errors caught  ████████████████████  before upload
+```
+
+[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [vs arxiv_latex_cleaner](#how-does-this-compare-to-arxiv_latex_cleaner)
+
 ```bash
 latex2arxiv paper.zip --compile
 ```
@@ -33,6 +41,36 @@ Compiling paper.tex ...
 The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
 
 ![latex2arxiv demo](docs/demo.gif)
+
+## Before / After
+
+A real statistics paper exported from Overleaf:
+
+```
+Before (Overleaf export)              After (latex2arxiv output)
+──────────────────────────────────    ──────────────────────────
+📁 Images/                            📁 Images/
+📄 arxiv_main.tex                     📄 JASA_main.tex
+📄 Consistency.pdf                    📄 ref_fixed.bib
+📄 Consistency.tex                    📄 Supplementary_Materials.tex
+📄 cover_letter.md
+📁 jasa_comments/
+📄 JASA_main_backup.tex
+📄 JASA_main.aux
+📄 JASA_main.bbl
+📄 JASA_main.pdf
+📄 JASA_main.tex
+📁 jasa_revision/
+📄 main_bak_svm.tex
+📄 main.bbl
+📄 main.tex
+📄 ref_fixed.bib
+📄 response.tex
+📄 Supplementary_Materials.pdf
+📄 Supplementary_Materials.tex
+──────────────────────────────────    ──────────────────────────
+950 files, 82 MB                      40 files, 3 MB
+```
 
 ## What it does
 
