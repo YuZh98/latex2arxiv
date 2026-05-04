@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2026-05-04
+
+### Fixed
+- **`--demo` broken on PyPI installs** — `demo_project.zip` was never included in the wheel because `package-data` globs only work inside Python package directories, not at the project root. Moved `demo_project.zip` into `pipeline/` and updated the `importlib.resources` lookup accordingly.
+
+### Changed
+- README rewritten: result-first headline with real numbers (950→40 files, 82→3 MB), terminal output snippet, restructured comparison vs. `arxiv_latex_cleaner` (prose bullets + ✅/❌ table), "Known limitations" replacing "Caveats".
+- PyPI keywords and classifiers added for discoverability.
+
+---
+
 ## [0.5.0] - 2026-05-03
 
 ### Added
