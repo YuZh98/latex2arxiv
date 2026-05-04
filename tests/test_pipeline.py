@@ -520,6 +520,67 @@ class TestDryRun:
         assert 'No output written' in output
 
 
+class TestSummary:
+    def _make_zip(self, files: dict) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            for name, content in files.items():
+                zf.writestr(name, content if isinstance(content, str) else content)
+        return buf.getvalue()
+
+    def _run(self, files: dict, dry_run: bool = False) -> str:
+        import tempfile
+        from converter import convert
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as f:
+            f.write(self._make_zip(files))
+            inp = Path(f.name)
+        out = inp.with_stem('summary_out')
+        captured = io.StringIO()
+        sys.stdout = captured
+        try:
+            convert(inp, out, dry_run=dry_run)
+        finally:
+            sys.stdout = sys.__stdout__
+        inp.unlink()
+        if out.exists():
+            out.unlink()
+        return captured.getvalue()
+
+    def test_summary_line_counts_match(self):
+        # Kept: main.tex, fig.png. Removed: unused.tex, unused.png, .DS_Store, main.aux. = 4 removed, 2 kept.
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics{fig}\end{document}',
+            'fig.png': b'PNG',
+            'unused.tex': r'\section{x}',
+            'unused.png': b'PNG',
+            '.DS_Store': b'junk',
+            'main.aux': 'aux',
+        }
+        output = self._run(files)
+        assert 'Summary: 4 removed, 2 kept' in output
+        assert 'MB →' in output
+        assert '0 errors' in output
+
+    def test_summary_dry_run_skips_size(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+            'unused.tex': r'\section{x}',
+        }
+        output = self._run(files, dry_run=True)
+        assert 'Summary: 1 removed, 1 kept' in output
+        # Dry-run has no output zip; size segment is omitted.
+        assert 'MB →' not in output
+
+    def test_summary_pluralization(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{minted}\begin{document}hi\end{document}',
+        }
+        output = self._run(files)
+        # 1 minted error → "1 error" (singular). 0 warnings → "0 warnings" (plural).
+        assert '1 error,' in output
+        assert '0 warnings' in output
+
+
 class TestDemoFlag:
     def test_demo_dry_run(self, tmp_path):
         """--demo --dry-run should print dry-run output and not create any output zip."""
