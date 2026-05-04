@@ -32,7 +32,7 @@ Works with any LaTeX `.zip` — including projects exported directly from Overle
 | **Draft cleanup** | Removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}`, `\begin{comment}` blocks, `\iffalse...\fi` blocks, and draft-only packages |
 | **BibTeX normalization** | Canonical field ordering, deduplication, private field removal |
 | **`\pdfoutput=1`** | Injected before `\documentclass` if missing (required by arXiv) |
-| **Image resizing** | Optional: resize images so longest side ≤ N pixels (helps stay under arXiv's 50MB limit) |
+| **Image resizing** | Optional: resize images so longest side ≤ N pixels (helps keep submission size manageable) |
 | **Custom rules** | Optional: remove or unwrap user-defined commands via a config file |
 | **Compile check** | Optional: compiles with `pdflatex` and opens the PDF for review |
 
@@ -89,7 +89,7 @@ latex2arxiv paper.zip
 # Specify main file and compile for review
 latex2arxiv paper.zip arxiv_ready.zip --main main.tex --compile
 
-# Resize large images to stay under arXiv's 50MB limit
+# Resize large images to reduce submission size
 latex2arxiv paper.zip --resize 1600 --compile
 
 # Apply custom removal rules

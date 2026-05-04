@@ -24,6 +24,28 @@ from pipeline.images import resize_image, DEFAULT_MAX_PX
 
 IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
 
+# Output zip size threshold for advisory warning (MB).
+SIZE_WARN_MB = 50
+
+# Packages that require shell-escape; arXiv compiles without it, so these fail.
+_SHELL_ESCAPE_PKGS = ('minted', 'pythontex', 'shellesc')
+
+
+class Issues:
+    """Collect [warn] and [error] events; print as they happen."""
+
+    def __init__(self):
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+
+    def warn(self, msg: str) -> None:
+        print(f"  [warn] {msg}")
+        self.warnings.append(msg)
+
+    def error(self, msg: str) -> None:
+        print(f"  [error] {msg}")
+        self.errors.append(msg)
+
 
 def find_main_tex(root: Path) -> Path | None:
     """Heuristic: find the .tex file containing \\documentclass.
@@ -72,32 +94,36 @@ def find_main_tex(root: Path) -> Path | None:
     return chosen
 
 
-def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path,
-                     tex_files: list[Path] | None = None):
-    """Print warnings for common arXiv compliance issues."""
+def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
+                      tex_files: list[Path] | None,
+                      main_stem: str,
+                      issues: Issues) -> None:
+    """Compliance checks against arXiv requirements. Records [warn] and [error]."""
     combined = '\n'.join(all_sources)
+    # Comment-stripped source for package detection (don't flag commented-out usepackage lines).
+    combined_nc = re.sub(r'(?<!\\)%[^\n]*', '', combined)
 
     # Double-spacing / referee mode
     if re.search(r'\\documentclass\[[^\]]*\b(referee|doublespace|doubleblind)\b', combined):
-        print("  [warn] 'referee' or 'doublespace' option detected in \\documentclass — "
-              "arXiv requires single-spaced submissions")
+        issues.warn("'referee' or 'doublespace' option detected in \\documentclass — "
+                    "arXiv requires single-spaced submissions")
     if re.search(r'\\(doublespacing|setstretch\s*\{[2-9])', combined):
-        print("  [warn] double-spacing command detected — arXiv requires single-spaced submissions")
+        issues.warn("double-spacing command detected — arXiv requires single-spaced submissions")
 
     # Custom style/class files included
     for path in root.rglob('*'):
         if path.suffix.lower() in {'.cls', '.sty'}:
-            print(f"  [warn] custom style file kept: {path.relative_to(root)} — "
-                  "verify this is not already provided by TeX Live")
+            issues.warn(f"custom style file kept: {path.relative_to(root)} — "
+                        "verify this is not already provided by TeX Live")
 
     # \today in \date
     if re.search(r'\\date\s*\{[^}]*\\today', combined):
-        print("  [warn] \\today used in \\date — arXiv may rebuild the PDF and the date will change")
+        issues.warn("\\today used in \\date — arXiv may rebuild the PDF and the date will change")
 
     # .eps images (not supported by pdflatex)
     for path in root.rglob('*.eps'):
-        print(f"  [warn] .eps image found: {path.relative_to(root)} — "
-              "pdflatex does not support .eps; convert to .pdf or .png")
+        issues.warn(f".eps image found: {path.relative_to(root)} — "
+                    "pdflatex does not support .eps; convert to .pdf or .png")
 
     # \subfile'd documents that contain \bibliographystyle (likely standalone supplements)
     if tex_files:
@@ -109,14 +135,56 @@ def _warn_compliance(main_tex: Path, all_sources: list[str], root: Path,
                 if tf.resolve() == sf_path:
                     sf_src = tf.read_text(encoding='utf-8', errors='replace')
                     if re.search(r'\\bibliographystyle\{', sf_src):
-                        print(f"  [warn] {tf.relative_to(root.resolve())} (via \\subfile) contains \\bibliographystyle — "
-                              "if this is a standalone supplement, remove the \\subfile line before arXiv submission "
-                              "to avoid duplicate bibliography commands")
+                        issues.warn(f"{tf.relative_to(root.resolve())} (via \\subfile) contains \\bibliographystyle — "
+                                    "if this is a standalone supplement, remove the \\subfile line before arXiv submission "
+                                    "to avoid duplicate bibliography commands")
+
+    # Shell-escape packages (arXiv compiles without --shell-escape, so these fail).
+    for pkg in _SHELL_ESCAPE_PKGS:
+        if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b' + pkg + r'\b[^}]*\}', combined_nc):
+            issues.error(f"\\usepackage{{{pkg}}} requires shell-escape — arXiv compiles without it; "
+                         "this submission will fail to build")
+
+    # biblatex detected: recommend shipping .bbl as a defensive measure.
+    if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}', combined_nc) \
+            or re.search(r'\\addbibresource\{', combined_nc):
+        bbl = root / f"{main_stem}.bbl"
+        if not bbl.exists():
+            issues.warn(f"biblatex detected but no {main_stem}.bbl shipped — "
+                        "if arXiv cannot resolve any .bib file, it will block your submission; "
+                        "include the .bbl as a fallback")
+
+
+def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
+    """Filesystem checks over kept files: problematic filenames."""
+    for path in sorted(kept_files):
+        rel = path.relative_to(root)
+        name = path.name
+
+        # Spaces in filenames cause problems with \input{} resolution.
+        if ' ' in name:
+            issues.warn(f"filename contains spaces: {rel} — rename to avoid \\input/\\includegraphics issues")
+
+        # Non-ASCII filenames are best avoided in TeX submissions.
+        try:
+            name.encode('ascii')
+        except UnicodeEncodeError:
+            issues.warn(f"filename contains non-ASCII characters: {rel} — "
+                        "rename using ASCII to avoid portability issues")
+
+
+def _check_output_size(output_zip: Path, issues: Issues) -> None:
+    """Warn if the output zip exceeds the advisory size threshold."""
+    size_mb = output_zip.stat().st_size / (1024 * 1024)
+    if size_mb > SIZE_WARN_MB:
+        issues.warn(f"output is {size_mb:.1f} MB (> {SIZE_WARN_MB} MB) — "
+                    "consider --resize to shrink images, or split supplementary materials")
 
 
 def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             compile_pdf: bool = False, resize: int | None = None,
-            config_path: Path | None = None, dry_run: bool = False):
+            config_path: Path | None = None, dry_run: bool = False) -> Issues:
+    issues = Issues()
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
 
@@ -180,6 +248,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                 whitelist.add(path.resolve())
 
         user_config = load_config(config_path) if config_path else {}
+        kept_files: set[Path] = set()
 
         # 3. Process each file
         for path in list(root.rglob('*')):
@@ -205,6 +274,8 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                     if not dry_run:
                         path.unlink()
                     continue
+
+            kept_files.add(path)
 
             # Resize images if requested
             if resize and path.suffix.lower() in IMAGE_EXTS:
@@ -238,23 +309,29 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                     src = normalize_bibtex(src, cited_keys=cited_keys)
                     path.write_text(src, encoding='utf-8')
 
-        # 3b. Compliance warnings
-        _warn_compliance(main_tex, all_sources, root, tex_files=tex_files_list)
+        # 3b. Compliance + pre-flight checks
+        _check_compliance(main_tex, all_sources, root,
+                          tex_files=tex_files_list, main_stem=main_stem, issues=issues)
+        _check_files(root, kept_files, issues)
 
         # 4. Repack
         if dry_run:
             print(f"\n[dry-run] No output written. Would have created: {output_zip}")
-            return
+            return issues
 
         with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
             for path in sorted(root.rglob('*')):
                 if path.is_file():
                     zf.write(path, path.relative_to(root))
 
+        _check_output_size(output_zip, issues)
         print(f"\nDone → {output_zip}")
+        if issues.errors:
+            print(f"  {len(issues.errors)} pre-flight error(s) — fix before submitting to arXiv")
 
     if compile_pdf:
         _compile(output_zip, main_hint)
+    return issues
 
 
 def _open_file(path: Path) -> None:
@@ -356,7 +433,9 @@ def main():
             sys.exit(1)
         out = Path('demo_project_arxiv.zip')
         print(f"Running demo: {demo_zip} → {out}\n")
-        convert(demo_zip, out, compile_pdf=args.compile, dry_run=args.dry_run)
+        issues = convert(demo_zip, out, compile_pdf=args.compile, dry_run=args.dry_run)
+        if issues.errors:
+            sys.exit(1)
         return
 
     if not args.input:
@@ -366,8 +445,10 @@ def main():
     out = Path(args.output) if args.output else inp.with_stem(inp.stem + '_arxiv')
     config_path = Path(args.config) if args.config else None
     print(f"Converting {inp} → {out}\n")
-    convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
-            resize=args.resize, config_path=config_path, dry_run=args.dry_run)
+    issues = convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
+                     resize=args.resize, config_path=config_path, dry_run=args.dry_run)
+    if issues.errors:
+        sys.exit(1)
 
 
 if __name__ == '__main__':

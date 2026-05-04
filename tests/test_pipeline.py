@@ -338,6 +338,14 @@ class TestFullPipeline:
         assert 'main.aux' not in names
         assert '.DS_Store' not in names
 
+    def test_removes_hidden_files(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hello\end{document}',
+            '.hidden': 'secret',
+        }
+        names = self._run(files)
+        assert '.hidden' not in names
+
     def test_subfile_included(self):
         files = {
             'main.tex': r'\documentclass{article}\usepackage{subfiles}\begin{document}\subfile{sub}\end{document}',
@@ -353,6 +361,99 @@ class TestFullPipeline:
         }
         names = self._run(files, main_hint='main.tex')
         assert 'sub.tex' not in names
+
+
+class TestPreflightChecks:
+    """Pre-flight compliance checks added in Direction 4."""
+
+    def _make_zip(self, files: dict) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            for name, content in files.items():
+                zf.writestr(name, content if isinstance(content, str) else content)
+        return buf.getvalue()
+
+    def _run(self, files: dict, **kwargs):
+        import tempfile
+        from converter import convert
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as f:
+            f.write(self._make_zip(files))
+            inp = Path(f.name)
+        out = inp.with_stem('preflight_out')
+        captured = io.StringIO()
+        sys.stdout = captured
+        try:
+            issues = convert(inp, out, **kwargs)
+        finally:
+            sys.stdout = sys.__stdout__
+        inp.unlink()
+        if out.exists():
+            out.unlink()
+        return issues, captured.getvalue()
+
+    def test_minted_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{minted}\begin{document}hi\end{document}',
+        }
+        issues, output = self._run(files)
+        assert any('minted' in e for e in issues.errors)
+        assert '[error]' in output
+
+    def test_pythontex_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{pythontex}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('pythontex' in e for e in issues.errors)
+
+    def test_commented_minted_not_flagged(self):
+        files = {
+            'main.tex': "\\documentclass{article}\n% \\usepackage{minted}\n\\begin{document}hi\\end{document}",
+        }
+        issues, _ = self._run(files)
+        assert not any('minted' in e for e in issues.errors)
+
+    def test_biblatex_without_bbl_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{biblatex}\addbibresource{refs.bib}'
+                        r'\begin{document}hi\end{document}',
+            'refs.bib': '@misc{x, title={t}}',
+        }
+        issues, _ = self._run(files)
+        assert any('biblatex' in w and '.bbl' in w for w in issues.warnings)
+
+    def test_biblatex_with_bbl_does_not_warn(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{biblatex}\addbibresource{refs.bib}'
+                        r'\begin{document}hi\end{document}',
+            'refs.bib': '@misc{x, title={t}}',
+            'main.bbl': r'\begin{thebibliography}{1}\end{thebibliography}',
+        }
+        issues, _ = self._run(files)
+        assert not any('biblatex' in w and '.bbl' in w for w in issues.warnings)
+
+    def test_filename_with_spaces_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics{my fig}\end{document}',
+            'my fig.png': b'PNG',
+        }
+        issues, _ = self._run(files)
+        assert any('spaces' in w for w in issues.warnings)
+
+    def test_filename_with_non_ascii_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics{café}\end{document}',
+            'café.png': b'PNG',
+        }
+        issues, _ = self._run(files)
+        assert any('non-ASCII' in w for w in issues.warnings)
+
+    def test_clean_project_has_no_errors(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hello\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert issues.errors == []
 
 
 class TestDryRun:
