@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **00README files no longer stripped** — `00README` and `00README.XXX` at the submission root are now preserved. arXiv reads these for processor hints, encoding declarations, and auxiliary file lists; silently deleting them was a data-loss bug for power users.
+- **`\pdfoutput=0` (or any non-1 value) now corrected** — `ensure_pdfoutput` previously only injected `\pdfoutput=1` when absent; a user-supplied `\pdfoutput=0` slipped through and forced DVI mode. Now strips any existing `\pdfoutput=N` before prepending `\pdfoutput=1`.
+
+### Added
+- **`\usepackage{psfig}` → `[error]`** — arXiv explicitly dropped psfig support; submissions using it will fail to build.
+- **`\usepackage{xr}` / `xr-hyper` → `[warn]`** — file paths differ on arXiv's servers; external-document references will break. Warning names the exact package detected.
+- **makeindex/glossary without pre-built files → `[warn]`** — arXiv does not run `makeindex` or glossary processors. Detects `\printindex` without `.ind`, `\printglossary`/`\printglossaries` without `.gls`, and `\printnomenclature` without `.nls` at root.
+- **Main tex not at submission root → `[warn]`** — arXiv compiles from the zip root; a main file in a subdirectory will not be found.
+
 ### Added
 - **biblatex/biber support in `--compile`**: `_compile()` now detects `\usepackage{biblatex}` or `\addbibresource` in the tex source and runs `biber` instead of `bibtex`. Error output is printed on non-zero exit for both tools.
 
