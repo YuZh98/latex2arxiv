@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **biblatex/biber support in `--compile`**: `_compile()` now detects `\usepackage{biblatex}` or `\addbibresource` in the tex source and runs `biber` instead of `bibtex`. Error output is printed on non-zero exit for both tools.
+
+### Fixed
+- **`\addbibresource` with subdirectory paths**: `find_used_bib_files()` now strips directory components (e.g. `\addbibresource{bib/refs.bib}` correctly keeps `bib/refs.bib` in the output zip). Previously only the basename was matched, causing the file to be pruned.
+
+---
+
 ## [0.5.1] - 2026-05-04
 
 ### Fixed

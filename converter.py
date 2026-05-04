@@ -405,10 +405,27 @@ def _compile(output_zip: Path, main_hint: str | None):
 
         run_pdflatex()
 
-        # Run bibtex if a .bib file is present
-        bib_files = list(run_dir.glob('*.bib'))
+        # Run biber for biblatex projects, else bibtex.
+        bib_files = list(run_dir.rglob('*.bib'))
         if bib_files:
-            subprocess.run(['bibtex', bib_stem], cwd=run_dir, capture_output=True)
+            main_nc = re.sub(r'(?<!\\)%[^\n]*', '',
+                             main_tex.read_text(encoding='utf-8', errors='replace'))
+            uses_biblatex = bool(
+                re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}', main_nc)
+                or re.search(r'\\addbibresource\{', main_nc)
+            )
+            cmd = 'biber' if uses_biblatex else 'bibtex'
+            print(f"  Running {cmd} ...")
+            result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True)
+            if result.returncode != 0:
+                # biber emits to stderr; bibtex emits to stdout — pick whichever has content.
+                err = result.stderr.decode('utf-8', errors='replace').strip()
+                out = result.stdout.decode('utf-8', errors='replace').strip()
+                msg = err or out
+                if msg:
+                    tail = '\n'.join(msg.splitlines()[-10:])
+                    print(f"  [compile] {cmd} failed (exit {result.returncode}):")
+                    print(tail)
 
         # Second and third pass to resolve references
         run_pdflatex()

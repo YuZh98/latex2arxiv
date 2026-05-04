@@ -18,7 +18,7 @@ from pipeline.tex import (
     ensure_pdfoutput,
     remove_draft_packages,
 )
-from pipeline.deps import find_used_images, find_used_style_files
+from pipeline.deps import find_used_images, find_used_style_files, find_used_bib_files
 from pipeline.config import apply_config
 from pipeline.bibtex import normalize_bibtex
 
@@ -159,6 +159,28 @@ class TestFindUsedStyleFiles:
     def test_ignores_commented(self):
         used = find_used_style_files([r"% \usepackage{imsart}"])
         assert "imsart.sty" not in used
+
+
+class TestFindUsedBibFiles:
+    def test_finds_bibliography(self):
+        used = find_used_bib_files([r"\bibliography{refs}"])
+        assert "refs.bib" in used
+
+    def test_finds_addbibresource(self):
+        used = find_used_bib_files([r"\addbibresource{refs.bib}"])
+        assert "refs.bib" in used
+
+    def test_addbibresource_strips_subdirectory(self):
+        used = find_used_bib_files([r"\addbibresource{bib/refs.bib}"])
+        assert used == {"refs.bib"}
+
+    def test_bibliography_strips_subdirectory(self):
+        used = find_used_bib_files([r"\bibliography{bib/refs}"])
+        assert used == {"refs.bib"}
+
+    def test_ignores_commented(self):
+        used = find_used_bib_files([r"% \addbibresource{refs.bib}"])
+        assert used == set()
 
 
 # ── config.py ─────────────────────────────────────────────────────────────────
@@ -361,6 +383,17 @@ class TestFullPipeline:
         }
         names = self._run(files, main_hint='main.tex')
         assert 'sub.tex' not in names
+
+    def test_biblatex_addbibresource_in_subdirectory(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{biblatex}'
+                        r'\addbibresource{bib/refs.bib}'
+                        r'\begin{document}\cite{x}\printbibliography\end{document}',
+            'bib/refs.bib': '@misc{x, title={t}}',
+        }
+        names = self._run(files)
+        assert 'main.tex' in names
+        assert 'bib/refs.bib' in names
 
 
 class TestPreflightChecks:
