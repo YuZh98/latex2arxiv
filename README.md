@@ -34,6 +34,7 @@ Works with any LaTeX `.zip` — including projects exported directly from Overle
 | **`\pdfoutput=1`** | Injected before `\documentclass` if missing (required by arXiv) |
 | **Image resizing** | Optional: resize images so longest side ≤ N pixels (helps keep submission size manageable) |
 | **Custom rules** | Optional: remove or unwrap user-defined commands via a config file |
+| **Pre-flight checks** | Flags arXiv compatibility issues: shell-escape packages (`minted`, `pythontex`) as errors; biblatex without `.bbl`, output > 50 MB, and problematic filenames as warnings |
 | **Compile check** | Optional: compiles with `pdflatex` and opens the PDF for review |
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\begin{overpic}`, and `\bibliography`. Commented-out commands are ignored.
@@ -101,6 +102,8 @@ latex2arxiv paper.zip --dry-run
 # Run the built-in demo (no input file needed)
 latex2arxiv --demo --compile
 ```
+
+The tool exits non-zero if any pre-flight error fires (e.g. `\usepackage{minted}` detected) — useful for CI gating. Warnings do not affect the exit code.
 
 ## Custom removal rules (`--config`)
 
