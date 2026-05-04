@@ -946,6 +946,140 @@ class TestSummary:
         assert '0 warnings' in output
 
 
+class TestFormatPdflatexErrors:
+    """The contract: each error becomes a 3-line block of '! line' + 'l.NN line'
+    + '<suffix line>'. Tests assert exact output shape rather than substring
+    containment, so the contract is locked in."""
+
+    def test_single_error_yields_exact_three_line_block(self):
+        from converter import _format_pdflatex_errors
+        stdout = (
+            "This is pdfTeX, Version 3.141592653 ...\n"
+            "(./main.tex\n"
+            "! Undefined control sequence.\n"
+            "l.42 \\frobnicate\n"
+            "                {arg}\n"
+            "?\n"
+        )
+        expected = (
+            "! Undefined control sequence.\n"
+            "l.42 \\frobnicate\n"
+            "                {arg}"
+        )
+        assert _format_pdflatex_errors(stdout) == expected
+
+    def test_multiple_errors_separated_by_blank_line(self):
+        from converter import _format_pdflatex_errors
+        stdout = (
+            "! Undefined control sequence.\n"
+            "l.42 \\frobnicate\n"
+            "                {arg}\n"
+            "(some intermediate output)\n"
+            "! Missing $ inserted.\n"
+            "l.78 see Eq.\n"
+            "              \\eqref{wrong}\n"
+        )
+        expected = (
+            "! Undefined control sequence.\n"
+            "l.42 \\frobnicate\n"
+            "                {arg}"
+            "\n\n"
+            "! Missing $ inserted.\n"
+            "l.78 see Eq.\n"
+            "              \\eqref{wrong}"
+        )
+        assert _format_pdflatex_errors(stdout) == expected
+
+    def test_error_without_line_marker_yields_just_bang_line(self):
+        from converter import _format_pdflatex_errors
+        stdout = "! Fatal error occurred, no output PDF file produced!\n"
+        assert _format_pdflatex_errors(stdout) == "! Fatal error occurred, no output PDF file produced!"
+
+    def test_no_errors_returns_empty_string(self):
+        from converter import _format_pdflatex_errors
+        assert _format_pdflatex_errors("") == ""
+        assert _format_pdflatex_errors("This is pdfTeX...\nOutput written.\n") == ""
+
+    def test_caps_at_max_errors(self):
+        from converter import _format_pdflatex_errors
+        stdout = "\n".join(f"! error number {i}" for i in range(10))
+        result = _format_pdflatex_errors(stdout, max_errors=3)
+        assert result.count("! error") == 3
+        # And the output is exactly 3 blocks separated by blank lines:
+        assert result == "! error number 0\n\n! error number 1\n\n! error number 2"
+
+    def test_cascading_bang_before_line_marker_isolates_each(self):
+        # The lookahead must stop at the next '!', not borrow the later l.NN.
+        from converter import _format_pdflatex_errors
+        stdout = (
+            "! First error.\n"
+            "! Second error.\n"
+            "l.42 something\n"
+            "                ctx\n"
+        )
+        expected = (
+            "! First error."
+            "\n\n"
+            "! Second error.\n"
+            "l.42 something\n"
+            "                ctx"
+        )
+        assert _format_pdflatex_errors(stdout) == expected
+
+    def test_lookahead_window_bounded_at_six_lines(self):
+        # If l.NN is >6 lines after '!', it's outside the window — yield only the '!' line.
+        from converter import _format_pdflatex_errors
+        stdout = (
+            "! Boundary test.\n"
+            "filler 1\n"
+            "filler 2\n"
+            "filler 3\n"
+            "filler 4\n"
+            "filler 5\n"
+            "filler 6\n"
+            "l.99 too far\n"
+            "                ctx\n"
+        )
+        assert _format_pdflatex_errors(stdout) == "! Boundary test."
+
+
+class TestCompileMissingTools:
+    """When pdflatex / biber / bibtex aren't installed, --compile must surface
+    a clear actionable message rather than a Python traceback. Verified by
+    monkey-patching subprocess.run to raise FileNotFoundError."""
+
+    def _build_zip(self, files: dict) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            for name, content in files.items():
+                zf.writestr(name, content)
+        return buf.getvalue()
+
+    def test_pdflatex_not_found_prints_clear_message(self, monkeypatch, tmp_path, capsys):
+        import subprocess
+        def raise_fnfe(*args, **kwargs):
+            raise FileNotFoundError(2, "No such file or directory: 'pdflatex'")
+        monkeypatch.setattr(subprocess, 'run', raise_fnfe)
+        # Block the PDF auto-open in case execution somehow gets that far.
+        import converter as _conv
+        monkeypatch.setattr(_conv, '_open_file', lambda p: None)
+
+        from converter import convert
+        inp = tmp_path / 'in.zip'
+        inp.write_bytes(self._build_zip({
+            'main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+        }))
+        out = tmp_path / 'out.zip'
+        # Should complete without raising.
+        convert(inp, out, compile_pdf=True)
+
+        captured = capsys.readouterr().out
+        assert 'pdflatex not found' in captured
+        assert 'TeX Live' in captured  # message points at the install path
+        # Early-return ensures the same error isn't printed three times.
+        assert captured.count('pdflatex not found') == 1
+
+
 class TestDemoFlag:
     def test_demo_dry_run(self, tmp_path):
         """--demo --dry-run should print dry-run output and not create any output zip."""
