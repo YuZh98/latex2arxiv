@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **Config `None` values no longer crash** — a YAML key with no value (e.g. `commands_to_delete:` alone) parses as `None`; `config.get(key) or []` now treats it the same as an absent key instead of raising `TypeError`.
+- **Non-dict / null `replacements` rules skipped gracefully** — a string or `~` item in the `replacements` list now emits `[warn]` and continues instead of raising `AttributeError`.
+- **Empty or missing `pattern` in `replacements` skipped** — an empty pattern would silently corrupt the source via `re.sub('', replacement, source)`; it now warns and skips.
+- **Malformed `replacements` regex warns and skips** — a bad regex pattern emits `[warn]` naming the rule index and continues processing subsequent rules instead of crashing.
+- **Top-level non-dict config warns and is ignored** — a root-level YAML list or scalar now emits `[warn]` and returns `{}` instead of raising `AttributeError` downstream.
+
+### Added
+- **Unknown config keys warn** — a typo like `command_to_delete` (singular) now prints `[warn] unknown config key` listing valid options, preventing silent no-ops.
+- **Rewritten `arxiv_config.yaml` template** — decision tree explaining delete vs. unwrap vs. environments vs. replacements; inline before/after examples for each entry; note on `\textcolor` color-literal limitation.
+
+### Fixed
 - **00README files no longer stripped** — `00README` and `00README.XXX` at the submission root are now preserved. arXiv reads these for processor hints, encoding declarations, and auxiliary file lists; silently deleting them was a data-loss bug for power users.
 - **`\pdfoutput=0` (or any non-1 value) now corrected** — `ensure_pdfoutput` previously only injected `\pdfoutput=1` when absent; a user-supplied `\pdfoutput=0` slipped through and forced DVI mode. Now strips any existing `\pdfoutput=N` before prepending `\pdfoutput=1`.
 

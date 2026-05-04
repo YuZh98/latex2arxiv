@@ -55,11 +55,33 @@ def _parse_simple_yaml(text: str) -> dict:
     return result
 
 
+_KNOWN_KEYS = frozenset({
+    'commands_to_delete',
+    'commands_to_unwrap',
+    'environments_to_delete',
+    'replacements',
+})
+
+
 def load_config(config_path: Path) -> dict:
     text = config_path.read_text(encoding='utf-8')
     if HAS_YAML:
-        return yaml.safe_load(text) or {}
-    return _parse_simple_yaml(text)
+        cfg = yaml.safe_load(text) or {}
+    else:
+        cfg = _parse_simple_yaml(text)
+    if not isinstance(cfg, dict):
+        # User wrote a top-level list/string/scalar instead of a mapping; downstream
+        # config.get(...) calls would raise AttributeError.
+        print(f"  [warn] config root must be a mapping (got {type(cfg).__name__}); "
+              "ignoring the file")
+        return {}
+    for key in cfg:
+        if key not in _KNOWN_KEYS:
+            # Typos like 'command_to_delete' (singular) silently no-op otherwise,
+            # so a paper full of revision markup ships unchanged.
+            print(f"  [warn] unknown config key '{key}' — expected one of: "
+                  f"{', '.join(sorted(_KNOWN_KEYS))}")
+    return cfg
 
 
 def _make_cmd_pattern(cmd: str) -> str:
@@ -69,30 +91,49 @@ def _make_cmd_pattern(cmd: str) -> str:
 
 
 def apply_config(source: str, config: dict) -> str:
-    """Apply user-defined removal rules from config."""
+    """Apply user-defined removal rules from config.
+
+    Uses ``config.get(key) or []`` so a YAML null (``commands_to_delete:`` with
+    no value, parsing as ``None``) is treated the same as an absent key.
+    """
 
     # 1. commands_to_delete: remove \cmd{...} entirely (including argument).
     # Brace-balanced so nested braces (e.g. \deleted{see \cite{x}}) are handled.
-    for cmd in config.get('commands_to_delete', []):
+    for cmd in config.get('commands_to_delete') or []:
         base = _make_cmd_pattern(cmd)
         source = remove_cmd(source, re.compile(base + r'(?:\[[^\]]*\])?'))
         source = re.sub(base, '', source)
 
     # 2. commands_to_unwrap: remove \cmd but keep its argument text.
     # Brace-balanced; falls back to bare-switch removal when no arg follows.
-    for cmd in config.get('commands_to_unwrap', []):
+    for cmd in config.get('commands_to_unwrap') or []:
         base = _make_cmd_pattern(cmd)
         source = unwrap_cmd(source, re.compile(base + r'(?:\[[^\]]*\])?'))
 
     # 3. environments_to_delete
-    for env in config.get('environments_to_delete', []):
+    for env in config.get('environments_to_delete') or []:
         source = re.sub(
             r'\\begin\{' + re.escape(env) + r'\}.*?\\end\{' + re.escape(env) + r'\}',
             '', source, flags=re.DOTALL
         )
 
-    # 4. replacements: raw regex find/replace
-    for rule in config.get('replacements', []):
-        source = re.sub(rule['pattern'], rule.get('replacement', ''), source)
+    # 4. replacements: raw regex find/replace.
+    # Per-rule try/except so one malformed pattern doesn't crash the conversion.
+    for i, rule in enumerate(config.get('replacements') or []):
+        if not isinstance(rule, dict):
+            print(f"  [warn] replacements rule #{i} skipped — expected a mapping "
+                  f"with 'pattern' and 'replacement', got {type(rule).__name__}")
+            continue
+        pattern = rule.get('pattern', '')
+        if not pattern:
+            # Empty pattern would re.sub at every position — silent corruption.
+            print(f"  [warn] replacements rule #{i} skipped — missing or empty 'pattern'")
+            continue
+        replacement = rule.get('replacement', '')
+        try:
+            source = re.sub(pattern, replacement, source)
+        except re.error as e:
+            print(f"  [warn] replacements rule #{i} skipped — invalid regex "
+                  f"{pattern!r}: {e}")
 
     return source
