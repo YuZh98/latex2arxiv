@@ -32,6 +32,8 @@ Compiling paper.tex ...
 
 The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
 
+![latex2arxiv demo](docs/demo.gif)
+
 ## What it does
 
 - **File pruning** — keeps only files reachable from your main `.tex`; removes everything else (build artifacts, editor files, cover letters, unused figures)
