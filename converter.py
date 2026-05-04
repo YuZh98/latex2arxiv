@@ -181,6 +181,22 @@ def _check_output_size(output_zip: Path, issues: Issues) -> None:
                     "consider --resize to shrink images, or split supplementary materials")
 
 
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
+def _print_summary(removed: int, kept: int, issues: Issues,
+                   input_zip: Path, output_zip: Path | None) -> None:
+    """One-line conversion summary. Skips size segment in dry-run (no output_zip)."""
+    parts = [f"Summary: {removed} removed, {kept} kept"]
+    if output_zip is not None:
+        in_mb = input_zip.stat().st_size / (1024 * 1024)
+        out_mb = output_zip.stat().st_size / (1024 * 1024)
+        parts.append(f"{in_mb:.1f} MB → {out_mb:.1f} MB saved")
+    parts.append(f"{_plural(len(issues.errors), 'error')}, {_plural(len(issues.warnings), 'warning')}")
+    print(' | '.join(parts))
+
+
 def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             compile_pdf: bool = False, resize: int | None = None,
             config_path: Path | None = None, dry_run: bool = False) -> Issues:
@@ -249,6 +265,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
 
         user_config = load_config(config_path) if config_path else {}
         kept_files: set[Path] = set()
+        removed_count = 0
 
         # 3. Process each file
         for path in list(root.rglob('*')):
@@ -266,11 +283,13 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                         pass  # keep it
                     else:
                         print(f"  remove: {rel}")
+                        removed_count += 1
                         if not dry_run:
                             path.unlink()
                         continue
                 else:
                     print(f"  remove: {rel}")
+                    removed_count += 1
                     if not dry_run:
                         path.unlink()
                     continue
@@ -317,6 +336,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         # 4. Repack
         if dry_run:
             print(f"\n[dry-run] No output written. Would have created: {output_zip}")
+            _print_summary(removed_count, len(kept_files), issues, input_zip, None)
             return issues
 
         with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -326,6 +346,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
 
         _check_output_size(output_zip, issues)
         print(f"\nDone → {output_zip}")
+        _print_summary(removed_count, len(kept_files), issues, input_zip, output_zip)
         if issues.errors:
             print(f"  {len(issues.errors)} pre-flight error(s) — fix before submitting to arXiv")
 
