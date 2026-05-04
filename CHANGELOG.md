@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- **Zip-slip protection** — member paths are validated before extraction; any path escaping the temp root via `..` or absolute paths aborts with `sys.exit(1)` and a clear message. No files are written before the check completes.
+
+### Fixed
+- **macOS Finder zips unwrap correctly** — `__MACOSX/` metadata sibling and `.DS_Store` at the zip root are now ignored by the single-directory unwrap heuristic, so Finder-created zips no longer leave the main `.tex` in a subdirectory.
+- **Non-UTF-8 source files surface a warning** — files decoded with replacement characters (U+FFFD) now emit `[warn]` naming the file, so users know to re-save as UTF-8 rather than silently shipping corrupted accented characters.
+
+### Added
+- **Empty zip / no-.tex zip exits cleanly** — produces `sys.exit(1)` with "no .tex file found" instead of a traceback.
+
 ### Fixed
 - **`pdflatex` / `biber` / `bibtex` not installed now prints a clear message** — `FileNotFoundError` is caught and surfaces an actionable install hint instead of a Python traceback. For `pdflatex`, compilation aborts immediately (no repeated messages). For the bib tool, compilation continues without bibliography processing.
 - **makeindex/glossary warnings now say "re-run latex2arxiv"** — previously said "include the .ind/.gls/.nls file", implying manual zip editing. The tool picks up these files automatically on re-run.
