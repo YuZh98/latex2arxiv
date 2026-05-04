@@ -104,15 +104,19 @@ def find_cited_keys(tex_sources: list[str]) -> set:
 
 
 def find_used_bib_files(tex_sources: list[str]) -> set:
-    """Return set of .bib filenames referenced by \\bibliography or \\addbibresource."""
+    """Return set of .bib basenames referenced by \\bibliography or \\addbibresource.
+
+    Directory components in the argument (e.g. \\addbibresource{bib/refs.bib}) are
+    stripped — converter.py matches against ``path.name`` when scanning for .bib files.
+    """
     used = set()
     for src in tex_sources:
         src = _strip_comments(src)
         for m in re.finditer(r'\\bibliography\{([^}]+)\}', src):
             for name in m.group(1).split(','):
-                name = name.strip()
+                name = Path(name.strip()).name
                 used.add(name if name.endswith('.bib') else name + '.bib')
         for m in re.finditer(r'\\addbibresource\{([^}]+)\}', src):
-            name = m.group(1).strip()
+            name = Path(m.group(1).strip()).name
             used.add(name if name.endswith('.bib') else name + '.bib')
     return used
