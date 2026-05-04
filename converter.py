@@ -443,8 +443,8 @@ def main():
 
     if args.demo:
         try:
-            import converter as _conv_mod
-            ref = resources.files(_conv_mod).joinpath('demo_project.zip')
+            import pipeline as _pipeline_mod
+            ref = resources.files(_pipeline_mod).joinpath('demo_project.zip')
             demo_zip = Path(str(ref))
         except Exception:
             # Fallback: look next to this file
