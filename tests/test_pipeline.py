@@ -104,6 +104,32 @@ class TestEnsurePdfoutput:
         result = ensure_pdfoutput(src)
         assert result.count("\\pdfoutput=1") == 1
 
+    def test_normalizes_pdfoutput_zero(self):
+        src = "\\pdfoutput=0\n\\documentclass{article}"
+        result = ensure_pdfoutput(src)
+        assert "\\pdfoutput=0" not in result
+        assert result.count("\\pdfoutput=1") == 1
+        assert result.startswith("\\pdfoutput=1")
+
+    def test_normalizes_pdfoutput_with_spaces(self):
+        src = "\\pdfoutput = 0\n\\documentclass{article}"
+        result = ensure_pdfoutput(src)
+        assert "\\pdfoutput = 0" not in result
+        assert result.count("\\pdfoutput=1") == 1
+
+    def test_strips_late_pdfoutput_override(self):
+        # User had \pdfoutput=0 mid-file; result should not contain any =0 declaration.
+        src = "\\documentclass{article}\n\\pdfoutput=0\n\\begin{document}hi\\end{document}"
+        result = ensure_pdfoutput(src)
+        assert "\\pdfoutput=0" not in result
+        assert result.startswith("\\pdfoutput=1")
+
+    def test_normalizes_pdfoutput_two(self):
+        src = "\\pdfoutput=2\n\\documentclass{article}"
+        result = ensure_pdfoutput(src)
+        assert "\\pdfoutput=2" not in result
+        assert result.startswith("\\pdfoutput=1")
+
 
 class TestRemoveDraftPackages:
     def test_removes_todonotes(self):
@@ -395,6 +421,46 @@ class TestFullPipeline:
         assert 'main.tex' in names
         assert 'bib/refs.bib' in names
 
+    def test_00readme_preserved_at_root(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+            '00README': 'arxiv processor hints',
+            '00README.XXX': 'aux file list',
+        }
+        names = self._run(files)
+        assert '00README' in names
+        assert '00README.XXX' in names
+
+    def test_00readme_in_subdir_not_preserved(self):
+        # 00README is only meaningful at root; subdirectory copies are not arXiv-recognized
+        # and can be safely pruned along with other non-whitelisted files.
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+            'sub/00README': 'not at root',
+        }
+        names = self._run(files)
+        assert 'sub/00README' not in names
+
+    def test_pdfoutput_zero_normalized_in_output(self):
+        # End-to-end: a user-supplied \pdfoutput=0 must become =1 in the converted main.tex.
+        import tempfile
+        from converter import convert
+        files = {
+            'main.tex': "\\pdfoutput=0\n\\documentclass{article}\n"
+                        "\\begin{document}hi\\end{document}",
+        }
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as f:
+            f.write(self._make_zip(files))
+            inp = Path(f.name)
+        out = inp.with_stem('pdfoutput_out')
+        convert(inp, out)
+        with zipfile.ZipFile(out) as zf:
+            converted = zf.read('main.tex').decode('utf-8')
+        inp.unlink()
+        out.unlink()
+        assert '\\pdfoutput=0' not in converted
+        assert '\\pdfoutput=1' in converted
+
 
 class TestPreflightChecks:
     """Pre-flight compliance checks added in Direction 4."""
@@ -438,6 +504,123 @@ class TestPreflightChecks:
         }
         issues, _ = self._run(files)
         assert any('pythontex' in e for e in issues.errors)
+
+    def test_psfig_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{psfig}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('psfig' in e for e in issues.errors)
+
+    def test_commented_psfig_not_flagged(self):
+        files = {
+            'main.tex': "\\documentclass{article}\n% \\usepackage{psfig}\n\\begin{document}hi\\end{document}",
+        }
+        issues, _ = self._run(files)
+        assert not any('psfig' in e for e in issues.errors)
+
+    def test_psfig_with_options_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage[draft]{psfig}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('psfig' in e for e in issues.errors)
+
+    def test_psfig_co_listed_with_other_packages_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{graphicx,psfig}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('psfig' in e for e in issues.errors)
+
+    def test_xr_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{xr}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('\\usepackage{xr}' in w for w in issues.warnings)
+
+    def test_xr_hyper_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{xr-hyper}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        # Message must name xr-hyper specifically, not just "xr",
+        # so the user doesn't dismiss it thinking it's about a different package.
+        assert any('\\usepackage{xr-hyper}' in w for w in issues.warnings)
+
+    def test_xrcolor_not_flagged(self):
+        # \b xr \b should not match unrelated packages whose names start with "xr".
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{xcolor}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert not any('xr' in w and 'arXiv' in w for w in issues.warnings)
+
+    def test_printindex_without_ind_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{makeidx}\makeindex'
+                        r'\begin{document}hi\printindex\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('\\printindex' in w and '.ind' in w for w in issues.warnings)
+
+    def test_printindex_with_ind_silent(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{makeidx}\makeindex'
+                        r'\begin{document}hi\printindex\end{document}',
+            'main.ind': r'\begin{theindex}\end{theindex}',
+        }
+        issues, _ = self._run(files)
+        assert not any('\\printindex' in w and '.ind' in w for w in issues.warnings)
+
+    def test_printglossary_without_gls_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{glossaries}\makeglossaries'
+                        r'\begin{document}hi\printglossary\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('\\printglossary' in w and '.gls' in w for w in issues.warnings)
+
+    def test_printglossaries_plural_form(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{glossaries}\makeglossaries'
+                        r'\begin{document}hi\printglossaries\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('\\printglossary' in w and '.gls' in w for w in issues.warnings)
+
+    def test_printnomenclature_without_nls_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{nomencl}\makenomenclature'
+                        r'\begin{document}hi\printnomenclature\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('\\printnomenclature' in w and '.nls' in w for w in issues.warnings)
+
+    def test_main_in_subdirectory_warns(self):
+        # Two top-level entries in the zip prevent the unwrap, leaving main in 'paper/'.
+        files = {
+            'paper/main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+            'figures/.keep': '',
+        }
+        issues, _ = self._run(files)
+        assert any('not at the submission root' in w for w in issues.warnings)
+
+    def test_main_at_root_no_warn(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert not any('not at the submission root' in w for w in issues.warnings)
+
+    def test_single_top_level_dir_unwraps_cleanly(self):
+        # Single 'project/' directory at top should be unwrapped, leaving main at root.
+        files = {
+            'project/main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert not any('not at the submission root' in w for w in issues.warnings)
 
     def test_commented_minted_not_flagged(self):
         files = {

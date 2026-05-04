@@ -145,6 +145,37 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
             issues.error(f"\\usepackage{{{pkg}}} requires shell-escape — arXiv compiles without it; "
                          "this submission will fail to build")
 
+    # psfig is no longer supported by arXiv.
+    if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bpsfig\b[^}]*\}', combined_nc):
+        issues.error("\\usepackage{psfig} — arXiv no longer supports the psfig package; "
+                     "convert figure inclusions to \\includegraphics from graphicx")
+
+    # xr / xr-hyper break because file paths/locations differ on arXiv's servers.
+    # Longer alternative listed first so the captured group prefers xr-hyper over xr.
+    m = re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b(xr-hyper|xr)\b[^}]*\}', combined_nc)
+    if m:
+        issues.warn(f"\\usepackage{{{m.group(1)}}} detected — file paths/locations differ "
+                    "on arXiv and external-document references will likely break")
+
+    # arXiv compiles from the submission root; main.tex in a subdirectory will not be found.
+    if main_tex.parent != root:
+        rel = main_tex.relative_to(root)
+        issues.warn(f"main tex '{rel}' is not at the submission root — "
+                    "arXiv compiles from root and will not find it; move it up "
+                    "or repackage from inside the directory that contains it")
+
+    # arXiv does not run makeindex / glossary processors — pre-built files must ship.
+    # Without them, the printed section silently disappears.
+    if re.search(r'\\printindex\b', combined_nc) and not any(root.glob('*.ind')):
+        issues.warn("\\printindex used but no .ind file at root — arXiv does not run "
+                    "makeindex; build locally and include the .ind file")
+    if re.search(r'\\printglossar(?:y|ies)\b', combined_nc) and not any(root.glob('*.gls')):
+        issues.warn("\\printglossary used but no .gls file at root — arXiv does not run "
+                    "the glossaries processor; build locally and include the .gls file")
+    if re.search(r'\\printnomenclature\b', combined_nc) and not any(root.glob('*.nls')):
+        issues.warn("\\printnomenclature used but no .nls file at root — arXiv does not "
+                    "run makeindex for nomencl; build locally and include the .nls file")
+
     # biblatex detected: recommend shipping .bbl as a defensive measure.
     if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}', combined_nc) \
             or re.search(r'\\addbibresource\{', combined_nc):
@@ -261,6 +292,10 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             elif ext == '.bbl' and path.stem == main_stem and at_root:
                 whitelist.add(path.resolve())
             elif ext in {'.ind', '.gls', '.nls'} and at_root:
+                whitelist.add(path.resolve())
+            elif at_root and (path.name == '00README' or path.name.startswith('00README.')):
+                # arXiv reads 00README / 00README.XXX at root for processor hints,
+                # encoding declarations, and aux file lists.
                 whitelist.add(path.resolve())
 
         user_config = load_config(config_path) if config_path else {}
