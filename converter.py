@@ -454,7 +454,22 @@ def main():
             sys.exit(1)
         out = Path('demo_project_arxiv.zip')
         print(f"Running demo: {demo_zip} → {out}\n")
-        issues = convert(demo_zip, out, compile_pdf=args.compile, dry_run=args.dry_run)
+
+        # If the demo zip ships an arxiv_config.yaml, auto-apply it so --demo
+        # exercises the --config code path without requiring user flags.
+        with tempfile.TemporaryDirectory() as cfg_tmp:
+            demo_config: Path | None = None
+            with zipfile.ZipFile(demo_zip) as zf:
+                cfg_name = next(
+                    (n for n in zf.namelist() if Path(n).name == 'arxiv_config.yaml'),
+                    None,
+                )
+                if cfg_name is not None:
+                    demo_config = Path(cfg_tmp) / 'arxiv_config.yaml'
+                    demo_config.write_bytes(zf.read(cfg_name))
+
+            issues = convert(demo_zip, out, compile_pdf=args.compile,
+                             config_path=demo_config, dry_run=args.dry_run)
         if issues.errors:
             sys.exit(1)
         return
