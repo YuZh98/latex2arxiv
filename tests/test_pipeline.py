@@ -771,6 +771,100 @@ class TestPreflightChecks:
         issues, _ = self._run(files)
         assert not any('not at the submission root' in w for w in issues.warnings)
 
+    def test_macosx_metadata_sibling_does_not_block_unwrap(self):
+        # macOS-created zips contain a __MACOSX/ metadata sibling alongside
+        # the project directory. The unwrap heuristic should ignore it so
+        # main.tex still resolves to the submission root.
+        files = {
+            'project/main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+            '__MACOSX/project/._main.tex': 'macos resource fork garbage',
+        }
+        issues, _ = self._run(files)
+        assert not any('not at the submission root' in w for w in issues.warnings)
+
+    def test_ds_store_sibling_does_not_block_unwrap(self):
+        files = {
+            'project/main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+            '.DS_Store': 'finder metadata',
+        }
+        issues, _ = self._run(files)
+        assert not any('not at the submission root' in w for w in issues.warnings)
+
+    def test_non_utf8_tex_emits_warning(self):
+        # Latin-1 encoded byte 0xE9 (é) is invalid UTF-8; reading with errors='replace'
+        # silently inserts U+FFFD. The warn surfaces this per-file so users can re-save.
+        files = {
+            'main.tex': '\\documentclass{article}\\begin{document}café\\end{document}'.encode('latin-1'),
+        }
+        issues, _ = self._run(files)
+        assert any('non-UTF-8' in w for w in issues.warnings)
+        assert any('main.tex' in w for w in issues.warnings)
+
+    def test_utf8_tex_does_not_emit_encoding_warning(self):
+        # Same accented content but encoded as UTF-8 — no warning should fire.
+        files = {
+            'main.tex': '\\documentclass{article}\\begin{document}café\\end{document}'.encode('utf-8'),
+        }
+        issues, _ = self._run(files)
+        assert not any('non-UTF-8' in w for w in issues.warnings)
+
+    def test_zip_slip_member_aborts_extraction(self, tmp_path, capsys):
+        # Build a zip with a member whose path tries to escape via '..'.
+        # The pre-extraction validation must abort before anything is written.
+        from converter import convert
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('main.tex', r'\documentclass{article}\begin{document}hi\end{document}')
+            zf.writestr('../escape.txt', 'malicious content trying to land outside root')
+        inp = tmp_path / 'malicious.zip'
+        inp.write_bytes(buf.getvalue())
+        out = tmp_path / 'out.zip'
+        with pytest.raises(SystemExit) as excinfo:
+            convert(inp, out)
+        assert excinfo.value.code == 1
+        captured = capsys.readouterr().out
+        assert 'escapes the extraction root' in captured
+        assert "'../escape.txt'" in captured
+        # Output zip must not have been created.
+        assert not out.exists()
+
+    def test_zip_slip_absolute_path_aborts_extraction(self, tmp_path, capsys):
+        # Same protection should catch a member with an absolute path. Python's
+        # zipfile would otherwise sanitize the leading slash and write under
+        # root, but our pre-validation is stricter — defensive is good.
+        from converter import convert
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('main.tex', r'\documentclass{article}\begin{document}hi\end{document}')
+            zf.writestr('/etc/passwd', 'malicious absolute-path member')
+        inp = tmp_path / 'malicious_abs.zip'
+        inp.write_bytes(buf.getvalue())
+        out = tmp_path / 'out.zip'
+        with pytest.raises(SystemExit) as excinfo:
+            convert(inp, out)
+        assert excinfo.value.code == 1
+        captured = capsys.readouterr().out
+        assert 'escapes the extraction root' in captured
+        assert not out.exists()
+
+    def test_zip_with_no_tex_exits_with_clear_message(self, tmp_path, capsys):
+        # A zip containing files but no .tex should exit 1 with a clear message,
+        # not raise a Python traceback.
+        from converter import convert
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('README.md', '# This is not a TeX project')
+            zf.writestr('image.png', b'PNG')
+        inp = tmp_path / 'no_tex.zip'
+        inp.write_bytes(buf.getvalue())
+        out = tmp_path / 'out.zip'
+        with pytest.raises(SystemExit) as excinfo:
+            convert(inp, out)
+        assert excinfo.value.code == 1
+        captured = capsys.readouterr().out
+        assert 'no .tex file found' in captured
+        assert not out.exists()
+
     def test_commented_minted_not_flagged(self):
         files = {
             'main.tex': "\\documentclass{article}\n% \\usepackage{minted}\n\\begin{document}hi\\end{document}",

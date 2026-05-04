@@ -239,12 +239,26 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
 
-        # 1. Extract
+        # 1. Extract — validate member paths first (zip-slip protection).
+        # Aborts before any disk write if a member would escape the temp root
+        # via .. or absolute-style paths.
         with zipfile.ZipFile(input_zip) as zf:
+            root_abs = root.resolve()
+            for name in zf.namelist():
+                target = (root / name).resolve()
+                try:
+                    target.relative_to(root_abs)
+                except ValueError:
+                    print(f"ERROR: refusing to extract — zip contains a path that "
+                          f"escapes the extraction root: {name!r}")
+                    sys.exit(1)
             zf.extractall(root)
 
-        # Unwrap single top-level directory if present
-        entries = [p for p in root.iterdir()]
+        # Unwrap single top-level directory if present.
+        # Ignore macOS zip noise (__MACOSX/ metadata sibling, .DS_Store file)
+        # so a zip created via the macOS Finder still unwraps cleanly.
+        entries = [p for p in root.iterdir()
+                   if p.name != '__MACOSX' and p.name != '.DS_Store']
         if len(entries) == 1 and entries[0].is_dir():
             root = entries[0]
 
@@ -269,6 +283,20 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         tex_files_list = [p for p in all_tex_files if p.exists()]
         all_sources = [p.read_text(encoding='utf-8', errors='replace') for p in tex_files_list]
         tex_dirs = [p.parent for p in tex_files_list]
+
+        # Encoding warn: errors='replace' silently inserts U+FFFD for non-UTF-8 bytes.
+        # Surface it per-file so users know which source needs re-saving.
+        # Resolve both sides — tex_files_list contains a mix of resolved (from
+        # find_included_tex) and unresolved (main_tex) paths, and on macOS
+        # /var/folders is a symlink to /private/var/folders, breaking a naive
+        # relative_to.
+        _root_abs = root.resolve()
+        for tf, src in zip(tex_files_list, all_sources):
+            if '�' in src:
+                issues.warn(f"{tf.resolve().relative_to(_root_abs)} contains non-UTF-8 "
+                            "bytes — decoded with replacement characters; re-save as "
+                            "UTF-8 to avoid corrupted accented/special characters in "
+                            "the output")
 
         used_image_paths, used_image_refs = find_used_images(all_sources, tex_dirs, root)
         used_bib_files = find_used_bib_files(all_sources)
