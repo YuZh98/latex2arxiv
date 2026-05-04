@@ -19,7 +19,7 @@ from pipeline.tex import (
     remove_draft_packages,
 )
 from pipeline.deps import find_used_images, find_used_style_files, find_used_bib_files
-from pipeline.config import apply_config
+from pipeline.config import apply_config, load_config, _parse_simple_yaml, HAS_YAML
 from pipeline.bibtex import normalize_bibtex
 
 
@@ -211,6 +211,65 @@ class TestFindUsedBibFiles:
 
 # ── config.py ─────────────────────────────────────────────────────────────────
 
+class TestLoadConfig:
+    def _write(self, tmp_path, content: str):
+        p = tmp_path / "config.yaml"
+        p.write_text(content)
+        return p
+
+    def test_known_keys_no_warning(self, tmp_path, capsys):
+        p = self._write(tmp_path, "commands_to_delete:\n  - revision\n")
+        load_config(p)
+        out = capsys.readouterr().out
+        assert 'unknown config key' not in out
+
+    def test_unknown_key_warns(self, tmp_path, capsys):
+        # Singular form is a common typo and should not silently no-op.
+        p = self._write(tmp_path, "command_to_delete:\n  - revision\n")
+        load_config(p)
+        out = capsys.readouterr().out
+        assert 'unknown config key' in out
+        assert 'command_to_delete' in out
+
+    def test_warning_lists_expected_keys(self, tmp_path, capsys):
+        p = self._write(tmp_path, "typo_key:\n  - x\n")
+        load_config(p)
+        out = capsys.readouterr().out
+        assert 'commands_to_delete' in out
+        assert 'commands_to_unwrap' in out
+        assert 'environments_to_delete' in out
+        assert 'replacements' in out
+
+    def test_empty_config_no_warning(self, tmp_path, capsys):
+        p = self._write(tmp_path, "")
+        load_config(p)
+        assert 'unknown config key' not in capsys.readouterr().out
+
+    @pytest.mark.skipif(not HAS_YAML, reason="fallback parser silently drops non-dict roots")
+    def test_top_level_list_warns_and_returns_empty(self, tmp_path, capsys):
+        # User wrote a list at the root instead of a mapping. Only PyYAML's safe_load
+        # actually returns a list here; the fallback parser ignores non-mapping syntax.
+        p = self._write(tmp_path, "- foo\n- bar\n")
+        result = load_config(p)
+        assert result == {}
+        assert 'config root must be a mapping' in capsys.readouterr().out
+
+    @pytest.mark.skipif(not HAS_YAML, reason="fallback parser silently drops non-dict roots")
+    def test_top_level_string_warns_and_returns_empty(self, tmp_path, capsys):
+        p = self._write(tmp_path, "just_a_string\n")
+        result = load_config(p)
+        assert result == {}
+        assert 'config root must be a mapping' in capsys.readouterr().out
+
+    def test_fallback_parser_handles_bundled_template(self):
+        # The bundled template ships with everything commented out, so both the
+        # PyYAML and the fallback parser should produce {}. Guards against
+        # template syntax that only PyYAML accepts.
+        template = Path(__file__).parent.parent / 'arxiv_config.yaml'
+        result = _parse_simple_yaml(template.read_text(encoding='utf-8'))
+        assert result == {}
+
+
 class TestApplyConfig:
     def test_commands_to_delete(self):
         result = apply_config(r"\revision{old text}", {"commands_to_delete": ["revision"]})
@@ -298,6 +357,96 @@ class TestApplyConfig:
             {"replacements": [{"pattern": r"\\added\{([^}]*)\}", "replacement": r"\1"}]}
         )
         assert result == "new text"
+
+    def test_replacements_bad_regex_does_not_crash(self, capsys):
+        # Unbalanced bracket — should warn and skip, not raise.
+        result = apply_config(
+            r"\added{new text}",
+            {"replacements": [{"pattern": r"[unclosed", "replacement": ""}]}
+        )
+        assert result == r"\added{new text}"
+        out = capsys.readouterr().out
+        assert 'invalid regex' in out
+        assert '[unclosed' in out
+
+    def test_replacements_bad_rule_does_not_block_subsequent(self, capsys):
+        # First rule is malformed; second should still apply.
+        result = apply_config(
+            r"\added{new text}",
+            {"replacements": [
+                {"pattern": r"[unclosed", "replacement": ""},
+                {"pattern": r"\\added\{([^}]*)\}", "replacement": r"\1"},
+            ]}
+        )
+        assert result == "new text"
+        out = capsys.readouterr().out
+        assert 'rule #0' in out
+
+    def test_replacements_bad_rule_index_in_warning(self, capsys):
+        # Second rule (index 1) is bad; warning should name index 1.
+        apply_config(
+            "text",
+            {"replacements": [
+                {"pattern": r"x", "replacement": "y"},
+                {"pattern": r"(?P<", "replacement": ""},
+            ]}
+        )
+        out = capsys.readouterr().out
+        assert 'rule #1' in out
+
+    def test_none_value_for_known_keys_does_not_crash(self):
+        # YAML "commands_to_delete:" with no value parses to None.
+        result = apply_config(
+            r"\added{x}",
+            {
+                "commands_to_delete": None,
+                "commands_to_unwrap": None,
+                "environments_to_delete": None,
+                "replacements": None,
+            },
+        )
+        assert result == r"\added{x}"
+
+    def test_replacements_non_dict_rule_skipped(self, capsys):
+        # YAML list with a string item where a mapping was expected.
+        result = apply_config(
+            "hello",
+            {"replacements": ["just a string", {"pattern": "h", "replacement": "H"}]},
+        )
+        assert result == "Hello"
+        out = capsys.readouterr().out
+        assert 'rule #0' in out
+        assert 'expected a mapping' in out
+        assert 'str' in out
+
+    def test_replacements_none_rule_skipped(self, capsys):
+        result = apply_config(
+            "hello",
+            {"replacements": [None, {"pattern": "h", "replacement": "H"}]},
+        )
+        assert result == "Hello"
+        out = capsys.readouterr().out
+        assert 'rule #0' in out
+        assert 'NoneType' in out
+
+    def test_replacements_missing_pattern_skipped(self, capsys):
+        # Without the empty-pattern guard, re.sub('', 'X', 'hi') corrupts the source.
+        result = apply_config(
+            "hi",
+            {"replacements": [{"replacement": "X"}]},
+        )
+        assert result == "hi"
+        out = capsys.readouterr().out
+        assert 'rule #0' in out
+        assert "missing or empty 'pattern'" in out
+
+    def test_replacements_empty_pattern_skipped(self, capsys):
+        result = apply_config(
+            "hi",
+            {"replacements": [{"pattern": "", "replacement": "X"}]},
+        )
+        assert result == "hi"
+        assert "missing or empty 'pattern'" in capsys.readouterr().out
 
 
 # ── bibtex.py ─────────────────────────────────────────────────────────────────

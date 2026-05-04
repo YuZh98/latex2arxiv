@@ -1,30 +1,63 @@
-# arxiv_config.yaml — user-defined cleanup rules for latex2arxiv
+# arxiv_config.yaml — custom cleanup rules for latex2arxiv
 #
-# Uncomment and edit the sections you need.
-# Pass this file with: latex2arxiv paper.zip --config arxiv_config.yaml
+# Run with:  latex2arxiv paper.zip --config arxiv_config.yaml
+#
+# Use this for project-specific commands and environments — revision markup,
+# response-to-reviewers blocks, custom highlight macros. The main pipeline
+# already handles \todo, \hl, draft packages, and comments without any config,
+# so this file is only needed for non-standard or homemade markup.
+#
+# All sections are optional; uncomment what you want. Unknown top-level keys
+# warn (typos won't silently no-op). Bad regex in a replacements rule warns
+# and skips that rule, rather than crashing the whole conversion.
 
-# Remove command AND its argument entirely (text is lost)
+
+# ─── Decision tree ────────────────────────────────────────────────────────────
+#
+#   Remove the command AND its argument text  → commands_to_delete
+#       \deleted{old paragraph}     → (gone)
+#
+#   Remove just the command, KEEP the text    → commands_to_unwrap
+#       \added{new sentence}        → new sentence
+#
+#   Remove a whole \begin..\end block         → environments_to_delete
+#       \begin{response}...\end{response}  → (gone)
+#
+#   Anything else                             → replacements (raw Python regex)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+# Remove the command AND its argument text. The text inside {...} is LOST.
+# Use this for revision-tracking commands whose contents are obsolete.
 # commands_to_delete:
-#   - \revision       # removes \revision{some text}
-#   - \deleted        # removes \deleted{old text}
-#   - \remark
+#   - \deleted        # \deleted{old paragraph}     → (removed)
+#   - \revision       # \revision{see line 42}      → (removed)
+#   - \remark         # \remark{TODO: cite Smith}   → (removed)
 
-# Remove command but KEEP its argument text (text is preserved)
+
+# Remove just the command; KEEP its argument text. The text inside {...}
+# survives, so the document still reads correctly. Brace-balanced — nested
+# commands inside the argument (e.g. \added{see \cite{x}}) are preserved.
 # commands_to_unwrap:
-#   - \color{red}     # \color{red}text → text  (bare color switch)
-#   - \textcolor{red} # \textcolor{red}{text} → text
-#   - \new            # \new{added text} → added text
-#   - \added          # \added{text} → text
+#   - \added          # \added{new sentence}        → new sentence
+#   - \new            # \new{revised text}          → revised text
+#   - \emph           # \emph{italics}              → italics
+#   - \textcolor{red} # \textcolor{red}{warning}    → warning
+#   #                 ↑ exact color literal — repeat the line for each color
+#   #                   you use (\textcolor{blue}, \textcolor{green}, ...).
+#   - \color{red}     # \color{red}plain text       → plain text  (bare switch)
 
-# Remove entire environments
+
+# Remove whole \begin{name}...\end{name} blocks by environment name.
+# Useful for response-to-reviewers sections kept in the same source file.
 # environments_to_delete:
-#   - response
-#   - changes
-#   - comment         # if not using the comment package
+#   - response        # response-to-reviewers blocks
+#   - changes         # changes package's \begin{changes}...\end{changes}
 
-# Raw regex replacements (Python re syntax)
+
+# Raw Python regex find/replace. Power tool — prefer the structured sections
+# above when they fit. Each rule is independent; a malformed pattern emits
+# a [warn] naming the rule index and is skipped. Capture groups: \1, \2, ...
 # replacements:
-#   - pattern: '\\added\{([^}]*)\}'
+#   - pattern: '\\highlight\{([^}]*)\}'   # \highlight{text} → text
 #     replacement: '\1'
-#   - pattern: '\\deleted\{[^}]*\}'
-#     replacement: ''
