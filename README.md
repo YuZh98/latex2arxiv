@@ -4,15 +4,15 @@
 [![PyPI](https://img.shields.io/pypi/v/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Validates arXiv compatibility and cleans your LaTeX project in one command--zip in zip out.**
+**Validates arXiv compatibility and cleans your LaTeX project in one command — zip in, zip out.**
 
-If you submit papers to arXiv, this tool is for you. Drop in a `.zip`, get a new arXiv-ready `.zip` back -- no overwriting -- with pre-flight checks that catch submission-blocking issues before you upload.
+If you submit papers to arXiv, this tool is for you. Drop in a `.zip`, get a new arXiv-ready `.zip` back — your input is never overwritten — with pre-flight checks that catch submission-blocking issues before you upload.
 
 ```bash
 latex2arxiv paper.zip --compile
 ```
 
-Try in 20 seconds with the built-in demo:
+Try the built-in demo:
 
 ```bash
 pip install latex2arxiv
@@ -21,52 +21,48 @@ latex2arxiv --demo --compile
 
 This processes a bundled self-documenting paper and opens the cleaned PDF. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
 
-[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [vs arxiv_latex_cleaner](#how-does-this-compare-to-arxiv_latex_cleaner)
+[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [vs `arxiv_latex_cleaner`](#latex2arxiv-vs-arxiv_latex_cleaner)
 
 ## Before / After
 
-On a real statistics paper: **950 → 40 files, 82 MB → 3 MB**. It is easy, quick, and safe:
+On a real statistics paper: **950 → 40 files, 82 MB → 3 MB**.
 
 <img src="docs/demo.gif" width="700" alt="latex2arxiv demo">
 
 | Before (Overleaf export) | After (latex2arxiv output) |
 |---|---|
 | 📁 Images/ | 📁 Images/ |
-| 📄 JASA_main.tex | 📄 JASA_main.tex |
+| 📄 JASA_main.tex | 📄 JASA_main.tex[^main] |
 | 📄 JASA_main_backup.tex | 📄 ref.bib |
-| 📄 main_bak_svm.tex | 📄 Supplementary_Materials.tex |
+| 📄 main_bak_svm.tex | 📄 Supplementary_Materials.tex[^supp] |
 | 📄 cover_letter.md | |
 | 📄 response.tex | |
 | 📄 ref.bib | |
-| 📄 JASA_main.aux  .log  .bbl  .pdf | |
-| 📁 jasa_comments/  jasa_revision/ | |
+| 📄 JASA_main.aux/.log/.bbl/.pdf | |
+| 📁 jasa_comments/, jasa_revision/ | |
 | ... (and ~930 more) | |
 | **950 files, 82 MB** | **40 files, 3 MB** |
-
-(Footnote: `JASA_main.tex` is the main file (`--main JASA_main.tex`). `Supplementary_Materials.tex` is kept because it is a `\subfile` dependency of the main file.)
 
 ## What it does
 
 | Feature | What it does |
 |---|---|
-| **One-command zip-in / zip-out** | No directory dance, no manual repack; optionally compiles and opens the PDF for review |
-| **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
-| **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
-| **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, oversized output, problematic filenames |
+| 📦 **One-command zip-in / zip-out** | No directory dance, no manual repack; optionally compiles and opens the PDF for review |
+| ✂️ **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
+| 🧹 **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
+| 🚨 **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, oversized output, problematic filenames |
 
 Also: BibTeX normalization, `\pdfoutput=1` injection, image resizing (Pillow), `--dry-run` preview, `--demo` for first-run.
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, and `\bibliography`. Commented-out commands are ignored.
 
-## `latex2arxiv` VS `arxiv_latex_cleaner`
+## `latex2arxiv` vs. `arxiv_latex_cleaner`
 
 [`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the established tool in this space — Google-backed, ~5k★, years of usage. If you want the most battle-tested option, use it.
 
 ### Where `latex2arxiv` is different
 
-The differences are framed as failure modes the tool prevents — not as feature checkmarks.
-
-| Without `latex2arxiv` | With `latex2arxiv` |
+| ❌ Without `latex2arxiv` | ✅ With `latex2arxiv` |
 |---|---|
 | You upload, wait for arXiv to compile, get a cryptic failure email about `\usepackage{minted}`, re-upload and wait again. | Pre-flight checks catch it locally with a clear `[error]` message. Exits non-zero so your CI catches it too. |
 | `arxiv_latex_cleaner` cleans into a directory — you still figure out what to zip, hope you didn't miss a `.bbl`. | The output *is* the file you upload. Nothing to figure out. |
@@ -184,7 +180,7 @@ replacements:
 
 The config parser is built in (no extra dependencies). The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`.
 
-## Caveats
+## Caveats ⚠️
 
 **Dynamically constructed filenames** — `\includegraphics{\figpath/fig1}` cannot be resolved statically and the image will be deleted. Expand path macros before running.
 
@@ -206,3 +202,6 @@ pipeline/
     config.py       # User-defined removal rules
 arxiv_config.yaml   # Sample config file
 ```
+
+[^main]: `JASA_main.tex` is identified as the main file via auto-detection (or pass `--main JASA_main.tex` to be explicit).
+[^supp]: `Supplementary_Materials.tex` is kept because it's a `\subfile` dependency of the main file.
