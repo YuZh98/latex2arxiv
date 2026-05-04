@@ -192,7 +192,7 @@ def _print_summary(removed: int, kept: int, issues: Issues,
     if output_zip is not None:
         in_mb = input_zip.stat().st_size / (1024 * 1024)
         out_mb = output_zip.stat().st_size / (1024 * 1024)
-        parts.append(f"{in_mb:.1f} MB → {out_mb:.1f} MB saved")
+        parts.append(f"{in_mb:.1f} MB → {out_mb:.1f} MB")
     parts.append(f"{_plural(len(issues.errors), 'error')}, {_plural(len(issues.warnings), 'warning')}")
     print(' | '.join(parts))
 

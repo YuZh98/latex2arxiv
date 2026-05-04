@@ -559,7 +559,6 @@ class TestSummary:
         output = self._run(files)
         assert 'Summary: 4 removed, 2 kept' in output
         assert 'MB →' in output
-        assert 'saved' in output
         assert '0 errors' in output
 
     def test_summary_dry_run_skips_size(self):
