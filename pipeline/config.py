@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+from pipeline.tex import remove_cmd, unwrap_cmd
+
 try:
     import yaml
     HAS_YAML = True
@@ -69,19 +71,18 @@ def _make_cmd_pattern(cmd: str) -> str:
 def apply_config(source: str, config: dict) -> str:
     """Apply user-defined removal rules from config."""
 
-    # 1. commands_to_delete: remove \cmd{...} entirely (including argument)
+    # 1. commands_to_delete: remove \cmd{...} entirely (including argument).
+    # Brace-balanced so nested braces (e.g. \deleted{see \cite{x}}) are handled.
     for cmd in config.get('commands_to_delete', []):
         base = _make_cmd_pattern(cmd)
-        source = re.sub(base + r'(?:\[[^\]]*\])?\{[^{}]*\}', '', source)
+        source = remove_cmd(source, re.compile(base + r'(?:\[[^\]]*\])?'))
         source = re.sub(base, '', source)
 
-    # 2. commands_to_unwrap: remove \cmd but keep its argument text
+    # 2. commands_to_unwrap: remove \cmd but keep its argument text.
+    # Brace-balanced; falls back to bare-switch removal when no arg follows.
     for cmd in config.get('commands_to_unwrap', []):
         base = _make_cmd_pattern(cmd)
-        # \cmd{text} → text
-        source = re.sub(base + r'(?:\[[^\]]*\])?\{([^{}]*)\}', r'\1', source)
-        # bare switch (e.g. {\color{red} text}) — remove just the switch
-        source = re.sub(base, '', source)
+        source = unwrap_cmd(source, re.compile(base + r'(?:\[[^\]]*\])?'))
 
     # 3. environments_to_delete
     for env in config.get('environments_to_delete', []):
