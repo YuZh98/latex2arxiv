@@ -4,70 +4,82 @@
 [![PyPI](https://img.shields.io/pypi/v/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Validates arXiv compatibility and cleans your LaTeX project in one command.** Built for the Overleaf-export workflow: drop in a `.zip`, get an arXiv-ready `.zip` back, with pre-flight checks that catch submission-blocking issues before you upload.
+**Validates arXiv compatibility and cleans your LaTeX project in one command.**
+
+If you submit papers to arXiv — especially from Overleaf — this tool is for you. Drop in a `.zip`, get an arXiv-ready `.zip` back, with pre-flight checks that catch submission-blocking issues before you upload.
+
+On a real statistics paper: **950 → 40 files, 82 MB → 3 MB**.
 
 ```bash
 latex2arxiv paper.zip --compile
 ```
 
-📄 **See what the cleaned output looks like** — the bundled demo's compiled PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) (`demo_project_arxiv.pdf`). One click, no install.
+```
+  main tex: paper.tex
+  remove: .DS_Store
+  remove: cover_letter.md
+  remove: paper.aux
+  remove: figures/old_unused.pdf
+  ... (43 more)
+  [warn] \today used in \date — arXiv may rebuild the PDF and the date will change
 
----
+Done → paper_arxiv.zip
+Summary: 47 removed, 12 kept | 79.1 MB → 3.2 MB | 0 errors, 1 warning
 
-> 🚀 **Try it in 30 seconds** — a self-documenting demo is included:
-> ```bash
-> pip install latex2arxiv
-> latex2arxiv --demo --compile
-> ```
-> This opens a PDF that explains exactly what the converter does and shows the cleaned output.
+Compiling paper.tex ...
+  PDF → paper_arxiv.pdf
+```
 
----
+The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
 
 ## What it does
 
-| Stage | Action |
-|---|---|
-| **File pruning** | Removes unused `.tex`, `.bib`, image, and all non-essential files (build artifacts, editor files, cover letters, etc.) |
-| **Comment stripping** | Removes `% ...` comments from all `.tex` files |
-| **Draft cleanup** | Removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}`, `\begin{comment}` blocks, `\iffalse...\fi` blocks, and draft-only packages |
-| **BibTeX normalization** | Canonical field ordering, deduplication, private field removal |
-| **`\pdfoutput=1`** | Injected before `\documentclass` if missing (required by arXiv) |
-| **Image resizing** | Optional: resize images so longest side ≤ N pixels (helps keep submission size manageable) |
-| **Custom rules** | Optional: remove or unwrap user-defined commands via a config file |
-| **Pre-flight checks** | Flags arXiv compatibility issues: shell-escape packages (`minted`, `pythontex`) as errors; biblatex without `.bbl`, output > 50 MB, and problematic filenames as warnings |
-| **Compile check** | Optional: compiles with `pdflatex` and opens the PDF for review |
+- **File pruning** — keeps only files reachable from your main `.tex`; removes everything else (build artifacts, editor files, cover letters, unused figures)
+- **arXiv compatibility checks** — `[error]` for shell-escape packages (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, output > 50 MB, problematic filenames, and other gotchas
+- **Comment + draft cleanup** — strips `% ...` comments; removes `\todo{}`, `\hl{}`, `\note{}`, `\fixme{}`, `\begin{comment}` blocks, `\iffalse...\fi` blocks, and draft-only packages
+- **`\pdfoutput=1` auto-injection** — arXiv requires it; easy to forget
+- **BibTeX normalization** — canonical field ordering, deduplication, private-field strip (requires `bibtexparser`)
+- **Image resizing** (optional) — caps longest side at N pixels via Pillow
+- **Custom revision-markup rules** (optional) — YAML config; brace-balanced matcher correctly handles `\deleted{see \cite{x}}`
+- **`--compile`** — runs `pdflatex` and opens the cleaned PDF for review
 
-Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\begin{overpic}`, and `\bibliography`. Commented-out commands are ignored.
-
-**Real-world results on a statistics paper:**
-- 950 files → 40 files
-- 82 MB → 3 MB
+Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, and `\bibliography`. Commented-out commands are ignored.
 
 ## How does this compare to `arxiv_latex_cleaner`?
 
-[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the established tool in this space. It's been around for years, is Google-backed, and has thousands of stars. If maturity and community size are your top priorities, use it.
+[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the established tool in this space — Google-backed, ~5k★, years of usage. If you want the most battle-tested option, use it.
 
-`latex2arxiv` is newer (just released) and overlaps in scope, but takes a different stance: **submission validation first, cleanup second.** The differences below are the ones a researcher about to upload to arXiv tonight is most likely to feel.
+### Where `latex2arxiv` is different
+
+- **Pre-flight checks with severity levels.** `[error]` blocks submission and exits non-zero (CI-friendly); `[warn]` flags risk. Nothing else in this space does this.
+- **One-command zip-in / zip-out workflow.** Drop a `.zip`, get a `.zip` back, optionally compile and preview the PDF. No directory dance, no manual repack.
+- **Brace-balanced config matcher.** `\deleted{see \cite{x}}` and `\added{some \emph{nested} text}` work correctly — naive regex-based cleaners silently leave nested content behind.
+- **`\pdfoutput=1` auto-injection** and **BibTeX normalization** out of the box.
+
+### Where `arxiv_latex_cleaner` is stronger
+
+- **Maturity** — thousands of papers cleaned, larger contributor pool, more edge cases discovered.
+- **Ghostscript-based PDF compression** — we don't bundle this.
+- **PNG → JPG conversion** — we don't do this.
+
+### Full feature comparison
 
 | | `latex2arxiv` | `arxiv_latex_cleaner` |
 |---|---|---|
-| **Maturity** | New (0.5.0) | Years of usage, ~5k★ |
-| **Output** | `.zip` in → `.zip` out | Cleaned directory (you zip yourself) |
-| **Pre-flight checks** | `[error]` and `[warn]` severity, non-zero exit on errors | None |
-| **Compile preview** (`--compile`) | Runs `pdflatex` and opens the PDF | Not built in |
-| **Auto-detect main `.tex`** | Yes (with `--main` override) | Specify input folder manually |
-| **Brace-balanced config matcher** | Handles `\deleted{see \cite{x}}` correctly | Regex-based |
-| **BibTeX normalization** | Field ordering, dedup, private-field strip | Preserves or deletes `.bib` |
-| **`\pdfoutput=1` auto-injection** | Yes | No |
-| **`--dry-run` preview** | Yes | No |
-| **Built-in demo** (`--demo`) | Yes — `latex2arxiv --demo --compile` | No |
-| **Image resizing** | Yes (Pillow) | Yes (Pillow); also PDF compression via Ghostscript |
-| **PDF/Ghostscript compression** | No | Yes |
-| **PNG → JPG conversion** | No | Yes |
-
-When to pick `arxiv_latex_cleaner` instead: you need PDF compression via Ghostscript, PNG→JPG conversion, or you want the most battle-tested option.
-
-When to pick `latex2arxiv`: you want pre-flight errors that block submission to fail your CI, you want a one-command zip-in/zip-out workflow, or you submit revisions with `\deleted{}` / `\added{}` markup that needs nested-brace handling.
+| Output format | `.zip` → `.zip` | Cleaned directory |
+| Pre-flight `[error]` / `[warn]` | ✅ | ❌ |
+| Non-zero exit on errors | ✅ | ❌ |
+| `--compile` preview | ✅ | ❌ |
+| Auto-detect main `.tex` | ✅ | ❌ |
+| Brace-balanced config | ✅ | ❌ |
+| BibTeX normalization | ✅ | ❌ |
+| `\pdfoutput=1` injection | ✅ | ❌ |
+| `--dry-run` | ✅ | ❌ |
+| Built-in `--demo` | ✅ | ❌ |
+| Image resizing (Pillow) | ✅ | ✅ |
+| PDF compression (Ghostscript) | ❌ | ✅ |
+| PNG → JPG conversion | ❌ | ✅ |
+| Maturity | New (0.5.0) | ~5k★, years |
 
 ## Installation
 
@@ -75,7 +87,7 @@ When to pick `latex2arxiv`: you want pre-flight errors that block submission to 
 pip install latex2arxiv
 ```
 
-On macOS, if you get an `externally-managed-environment` error, use [`pipx`](https://pipx.pypa.io/) instead:
+On macOS, if you get an `externally-managed-environment` error, use [`pipx`](https://pipx.pypa.io/):
 
 ```bash
 brew install pipx
@@ -90,7 +102,15 @@ cd latex2arxiv
 pip install .
 ```
 
-`pdflatex` is required only for the `--compile` flag (install via [TeX Live](https://tug.org/texlive/) or [MacTeX](https://tug.org/mactex/)).
+`pdflatex` is required only for `--compile` (install via [TeX Live](https://tug.org/texlive/) or [MacTeX](https://tug.org/mactex/)).
+
+Once installed, try the built-in demo to see the tool in action — no input file needed:
+
+```bash
+latex2arxiv --demo --compile
+```
+
+This processes a bundled self-documenting paper and opens the cleaned PDF.
 
 ## Usage
 
@@ -110,31 +130,19 @@ latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--config FIL
 **Examples**
 
 ```bash
-# Basic conversion (auto-detect main file)
-latex2arxiv paper.zip
-
-# Specify main file and compile for review
-latex2arxiv paper.zip arxiv_ready.zip --main main.tex --compile
-
-# Resize large images to reduce submission size
-latex2arxiv paper.zip --resize 1600 --compile
-
-# Apply custom removal rules
-latex2arxiv paper.zip --config arxiv_config.yaml --compile
-
-# Preview what would be removed without writing any output
-latex2arxiv paper.zip --dry-run
-
-# Run the built-in demo (no input file needed)
-latex2arxiv --demo --compile
+latex2arxiv paper.zip                                  # auto-detect main, basic conversion
+latex2arxiv paper.zip out.zip --main main.tex --compile
+latex2arxiv paper.zip --resize 1600 --compile          # shrink images
+latex2arxiv paper.zip --config arxiv_config.yaml       # custom rules
+latex2arxiv paper.zip --dry-run                        # preview without writing
+latex2arxiv --demo --compile                           # run the built-in demo
 ```
 
-The tool exits non-zero if any pre-flight error fires (e.g. `\usepackage{minted}` detected) — useful for CI gating. Warnings do not affect the exit code.
+The tool exits non-zero if any pre-flight error fires (e.g. `\usepackage{minted}`) — useful for CI gating. Warnings do not affect the exit code.
 
 ## Custom removal rules (`--config`)
 
-For revision markup and other project-specific cleanup, create a YAML config file.
-A template is provided in [`arxiv_config.yaml`](arxiv_config.yaml).
+For revision markup and other project-specific cleanup, create a YAML config file. A template is in [`arxiv_config.yaml`](arxiv_config.yaml).
 
 ```yaml
 # Remove command AND its argument (text is lost)
@@ -158,25 +166,17 @@ replacements:
     replacement: '\1'
 ```
 
-No extra dependencies required — the config parser is built in.
+The config parser is built in (no extra dependencies). The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`.
 
-## Caveats
+## Known limitations
 
-**Dynamically constructed filenames** — if your code uses a macro for an image path (e.g. `\includegraphics{\figpath/fig1}`), the tool cannot resolve it statically and will delete the image. Expand macros before running the converter.
+**Dynamically constructed filenames** — `\includegraphics{\figpath/fig1}` cannot be resolved statically and the image will be deleted. Expand path macros before running.
 
-**Custom verbatim environments** — comments inside standard `verbatim`, `lstlisting`, and `minted` blocks are preserved. Non-standard verbatim-like environments may not be protected.
+**`\subfile` vs `\input` path resolution** — `\input`/`\include` paths resolve relative to the project root; `\subfile` paths resolve relative to the subfile's own directory. Unusual nested setups may cause images to be incorrectly pruned; use `--compile` to verify.
 
-**`\subfile` vs `\input` path resolution** — image paths in `\input`/`\include`d files are resolved relative to the project root (how LaTeX works). Paths in `\subfile` documents are resolved relative to the subfile's own directory. Unusual nested path setups may cause images to be incorrectly pruned; use `--compile` to verify.
+**Inline `\verb|...|`** — comment-stripping and draft-removal don't currently protect inline `\verb|...|`. A `%` or `\todo{...}` inside `\verb|...|` may get mangled. Standard `verbatim`, `lstlisting`, and `minted` *block* environments are protected.
 
-**BibTeX normalization requires `bibtexparser`** — install with `pip install bibtexparser`. If not installed, the `.bib` file is passed through unchanged.
-
-**`--compile` is a local sanity check** — a successful local compile does not guarantee arXiv will compile it. arXiv uses specific TeX Live versions with fixed package sets. Always check the [arXiv submission preview](https://arxiv.org/help/submit) after uploading.
-
-**Custom style/class files** — if your project includes a `.cls` or `.sty` file, the tool keeps it and warns you. Verify it is not already provided by TeX Live; if it is, remove it from your submission to avoid conflicts.
-
-**Double-spaced / referee mode** — the tool warns if it detects `referee`, `doublespace`, or `\doublespacing` in your source. arXiv requires single-spaced submissions.
-
-**`\today` in `\date`** — arXiv occasionally rebuilds PDFs, which will change the displayed date. The tool warns if it detects `\today` in `\date`.
+**`--compile` is a local sanity check** — a successful local compile doesn't guarantee arXiv will compile it. arXiv pins specific TeX Live versions. Always check the [arXiv submission preview](https://arxiv.org/help/submit) after uploading.
 
 ## Project structure
 
