@@ -50,6 +50,10 @@
 
 # Remove whole \begin{name}...\end{name} blocks by environment name.
 # Useful for response-to-reviewers sections kept in the same source file.
+# Limitation: nested same-name environments are not handled — given
+# \begin{comment}A\begin{comment}B\end{comment}C\end{comment}, the matcher
+# closes at the first \end{comment} and leaves the outer C\end{comment}
+# orphaned. Standard envs (response, changes) don't nest in practice.
 # environments_to_delete:
 #   - response        # response-to-reviewers blocks
 #   - changes         # changes package's \begin{changes}...\end{changes}
@@ -58,6 +62,13 @@
 # Raw Python regex find/replace. Power tool — prefer the structured sections
 # above when they fit. Each rule is independent; a malformed pattern emits
 # a [warn] naming the rule index and is skipped. Capture groups: \1, \2, ...
+#
+# Recipe: any-color \textcolor → unwrapped text.
+# Use this when you have multiple colors (\textcolor{red}, \textcolor{blue},
+# ...) and don't want one commands_to_unwrap line per literal. Caveat:
+# the [^}]* inside the second group can't span nested braces, so this
+# mangles \textcolor{red}{see \cite{x}}. For arguments containing nested
+# commands, fall back to one commands_to_unwrap entry per color.
 # replacements:
-#   - pattern: '\\highlight\{([^}]*)\}'   # \highlight{text} → text
+#   - pattern: '\\textcolor\{[^}]*\}\{([^}]*)\}'
 #     replacement: '\1'
