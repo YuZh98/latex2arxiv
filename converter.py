@@ -155,7 +155,8 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
     m = re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b(xr-hyper|xr)\b[^}]*\}', combined_nc)
     if m:
         issues.warn(f"\\usepackage{{{m.group(1)}}} detected — file paths/locations differ "
-                    "on arXiv and external-document references will likely break")
+                    "on arXiv and external-document references will likely break; "
+                    "see https://info.arxiv.org/help/submit_tex.html for the recommended workaround")
 
     # arXiv compiles from the submission root; main.tex in a subdirectory will not be found.
     if main_tex.parent != root:
@@ -168,13 +169,16 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
     # Without them, the printed section silently disappears.
     if re.search(r'\\printindex\b', combined_nc) and not any(root.glob('*.ind')):
         issues.warn("\\printindex used but no .ind file at root — arXiv does not run "
-                    "makeindex; build locally and include the .ind file")
+                    "makeindex; build locally and re-run latex2arxiv (the .ind will be "
+                    "included automatically)")
     if re.search(r'\\printglossar(?:y|ies)\b', combined_nc) and not any(root.glob('*.gls')):
         issues.warn("\\printglossary used but no .gls file at root — arXiv does not run "
-                    "the glossaries processor; build locally and include the .gls file")
+                    "the glossaries processor; build locally and re-run latex2arxiv (the "
+                    ".gls will be included automatically)")
     if re.search(r'\\printnomenclature\b', combined_nc) and not any(root.glob('*.nls')):
         issues.warn("\\printnomenclature used but no .nls file at root — arXiv does not "
-                    "run makeindex for nomencl; build locally and include the .nls file")
+                    "run makeindex for nomencl; build locally and re-run latex2arxiv (the "
+                    ".nls will be included automatically)")
 
     # biblatex detected: recommend shipping .bbl as a defensive measure.
     if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}', combined_nc) \
@@ -400,6 +404,36 @@ def _open_file(path: Path) -> None:
         subprocess.run(['xdg-open', str(path)])
 
 
+def _format_pdflatex_errors(stdout: str, max_errors: int = 5) -> str:
+    """Pair each ``! ...`` error in pdflatex stdout with its file/line context.
+
+    Per error, returns a 3-line block: the ``!`` line, the ``l.NN <prefix>``
+    line marker, and the source-line suffix pdflatex prints below it. The
+    lookahead from a ``!`` line stops at the next ``!``, the ``l.NN`` line,
+    or 6 lines, whichever comes first — so cascading errors with no marker
+    yield just their ``!`` line rather than borrowing the next error's marker.
+    Capped at ``max_errors`` blocks; blocks are joined by a blank line.
+    """
+    lines = stdout.splitlines()
+    blocks: list[str] = []
+    for i, line in enumerate(lines):
+        if not line.startswith('!'):
+            continue
+        block = [line]
+        for j in range(i + 1, min(i + 7, len(lines))):
+            if lines[j].startswith('!'):
+                break
+            if lines[j].startswith('l.'):
+                block.append(lines[j])
+                if j + 1 < len(lines):
+                    block.append(lines[j + 1])
+                break
+        blocks.append('\n'.join(block))
+        if len(blocks) >= max_errors:
+            break
+    return '\n\n'.join(blocks)
+
+
 def _compile(output_zip: Path, main_hint: str | None):
     """Extract output zip, run pdflatex twice, and open the resulting PDF."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -426,19 +460,26 @@ def _compile(output_zip: Path, main_hint: str | None):
         bib_stem = main_tex.stem
 
         def run_pdflatex(final=False):
-            result = subprocess.run(
-                ['pdflatex', '-interaction=nonstopmode', tex_name],
-                cwd=run_dir, capture_output=True
-            )
+            try:
+                result = subprocess.run(
+                    ['pdflatex', '-interaction=nonstopmode', tex_name],
+                    cwd=run_dir, capture_output=True
+                )
+            except FileNotFoundError:
+                print("  [compile] pdflatex not found — install TeX Live "
+                      "(https://tug.org/texlive/) or MacTeX to use --compile.")
+                return False
             stdout = result.stdout.decode('utf-8', errors='replace')
             if final and ('! Fatal error' in stdout or ('! ' in stdout and 'Output written' not in stdout)):
-                errors = [line for line in stdout.splitlines() if line.startswith('!')]
                 print("  [compile] pdflatex errors:")
-                print('\n'.join(errors[:10]))
+                print(_format_pdflatex_errors(stdout))
                 return False
             return True
 
-        run_pdflatex()
+        if not run_pdflatex():
+            # pdflatex not installed — abort early; subsequent calls would print the
+            # same error twice more.
+            return
 
         # Run biber for biblatex projects, else bibtex.
         bib_files = list(run_dir.rglob('*.bib'))
@@ -451,8 +492,14 @@ def _compile(output_zip: Path, main_hint: str | None):
             )
             cmd = 'biber' if uses_biblatex else 'bibtex'
             print(f"  Running {cmd} ...")
-            result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True)
-            if result.returncode != 0:
+            try:
+                result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True)
+            except FileNotFoundError:
+                print(f"  [compile] {cmd} not found — install it (part of TeX Live) "
+                      f"or pre-compile your .bbl and ship it. Continuing without "
+                      f"bibliography processing; citations will be unresolved.")
+                result = None
+            if result is not None and result.returncode != 0:
                 # biber emits to stderr; bibtex emits to stdout — pick whichever has content.
                 err = result.stderr.decode('utf-8', errors='replace').strip()
                 out = result.stdout.decode('utf-8', errors='replace').strip()

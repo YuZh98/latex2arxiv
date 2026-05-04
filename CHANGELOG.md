@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- **`pdflatex` / `biber` / `bibtex` not installed now prints a clear message** — `FileNotFoundError` is caught and surfaces an actionable install hint instead of a Python traceback. For `pdflatex`, compilation aborts immediately (no repeated messages). For the bib tool, compilation continues without bibliography processing.
+- **makeindex/glossary warnings now say "re-run latex2arxiv"** — previously said "include the .ind/.gls/.nls file", implying manual zip editing. The tool picks up these files automatically on re-run.
+
+### Added
+- **Better pdflatex error reporting in `--compile`** — each `! error` line is now paired with its `l.NN <prefix>` line marker and source-line suffix, giving the exact file location. Capped at 5 error blocks. Previously only the bare `!` lines were shown.
+- **`\usepackage{xr}` warning links to arXiv docs** — points users to the recommended `subfiles` workaround at `info.arxiv.org/help/submit_tex.html`.
+
+### Fixed
 - **00README files no longer stripped** — `00README` and `00README.XXX` at the submission root are now preserved. arXiv reads these for processor hints, encoding declarations, and auxiliary file lists; silently deleting them was a data-loss bug for power users.
 - **`\pdfoutput=0` (or any non-1 value) now corrected** — `ensure_pdfoutput` previously only injected `\pdfoutput=1` when absent; a user-supplied `\pdfoutput=0` slipped through and forced DVI mode. Now strips any existing `\pdfoutput=N` before prepending `\pdfoutput=1`.
 - **`\addbibresource` with subdirectory paths** — `find_used_bib_files()` now strips directory components so `\addbibresource{bib/refs.bib}` correctly keeps `bib/refs.bib` in the output zip.
