@@ -13,3 +13,19 @@ jobs:
       - run: pip install pytest bibtexparser Pillow ruff
       - run: ruff check .
       - run: pytest tests/ -v
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Build wheel
+        run: pip install build && python -m build --wheel
+      - name: Verify demo_project.zip is in wheel
+        run: unzip -l dist/*.whl | grep demo_project.zip
+      - name: Smoke test installed package
+        run: |
+          pip install dist/*.whl
+          latex2arxiv --demo --dry-run
