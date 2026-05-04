@@ -4,13 +4,13 @@
 [![PyPI](https://img.shields.io/pypi/v/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-A command-line tool that converts a LaTeX `.zip` project into an arXiv-ready `.zip` in one command.
+**Validates arXiv compatibility and cleans your LaTeX project in one command.** Built for the Overleaf-export workflow: drop in a `.zip`, get an arXiv-ready `.zip` back, with pre-flight checks that catch submission-blocking issues before you upload.
 
 ```bash
-latex2arxiv paper.zip --main main.tex --compile
+latex2arxiv paper.zip --compile
 ```
 
-Works with any LaTeX `.zip` — including projects exported directly from Overleaf.
+📄 **See what the cleaned output looks like** — the bundled demo's compiled PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) (`demo_project_arxiv.pdf`). One click, no install.
 
 ---
 
@@ -42,6 +42,32 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 **Real-world results on a statistics paper:**
 - 950 files → 40 files
 - 82 MB → 3 MB
+
+## How does this compare to `arxiv_latex_cleaner`?
+
+[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the established tool in this space. It's been around for years, is Google-backed, and has thousands of stars. If maturity and community size are your top priorities, use it.
+
+`latex2arxiv` is newer (just released) and overlaps in scope, but takes a different stance: **submission validation first, cleanup second.** The differences below are the ones a researcher about to upload to arXiv tonight is most likely to feel.
+
+| | `latex2arxiv` | `arxiv_latex_cleaner` |
+|---|---|---|
+| **Maturity** | New (0.5.0) | Years of usage, ~5k★ |
+| **Output** | `.zip` in → `.zip` out | Cleaned directory (you zip yourself) |
+| **Pre-flight checks** | `[error]` and `[warn]` severity, non-zero exit on errors | None |
+| **Compile preview** (`--compile`) | Runs `pdflatex` and opens the PDF | Not built in |
+| **Auto-detect main `.tex`** | Yes (with `--main` override) | Specify input folder manually |
+| **Brace-balanced config matcher** | Handles `\deleted{see \cite{x}}` correctly | Regex-based |
+| **BibTeX normalization** | Field ordering, dedup, private-field strip | Preserves or deletes `.bib` |
+| **`\pdfoutput=1` auto-injection** | Yes | No |
+| **`--dry-run` preview** | Yes | No |
+| **Built-in demo** (`--demo`) | Yes — `latex2arxiv --demo --compile` | No |
+| **Image resizing** | Yes (Pillow) | Yes (Pillow); also PDF compression via Ghostscript |
+| **PDF/Ghostscript compression** | No | Yes |
+| **PNG → JPG conversion** | No | Yes |
+
+When to pick `arxiv_latex_cleaner` instead: you need PDF compression via Ghostscript, PNG→JPG conversion, or you want the most battle-tested option.
+
+When to pick `latex2arxiv`: you want pre-flight errors that block submission to fail your CI, you want a one-command zip-in/zip-out workflow, or you submit revisions with `\deleted{}` / `\added{}` markup that needs nested-brace handling.
 
 ## Installation
 
