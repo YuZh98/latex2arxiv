@@ -196,13 +196,17 @@ commands_to_unwrap:
 environments_to_delete:
   - response
 
-# Raw regex replacements
+# Raw regex (last resort — prefer the verbs above when they fit).
+# Recipe: any-color \textcolor → unwrapped text. Won't span nested
+# commands like \cite — for those, use one commands_to_unwrap per color.
 replacements:
-  - pattern: '\\added\{([^}]*)\}'
+  - pattern: '\\textcolor\{[^}]*\}\{([^}]*)\}'
     replacement: '\1'
 ```
 
 The config parser is built in (no extra dependencies). The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`.
+
+**Safety guarantees.** Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op. A malformed regex in any `replacements` rule emits a `[warn]` naming the rule's index, then skips just that rule; other rules still apply.
 
 ## Caveats ⚠️
 
