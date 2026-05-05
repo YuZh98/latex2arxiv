@@ -1,0 +1,20 @@
+# Pre-commit hook definitions for latex2arxiv
+#
+# Note: latex2arxiv expects a .zip as input, so this hook is best suited for
+# repos that keep an arXiv submission zip checked in (e.g. as a build
+# artifact). For paper repos that store .tex sources directly, the GitHub
+# Action gate (uses: YuZh98/latex2arxiv@<rev>) is a better fit — it can zip
+# the repo on the fly.
+
+- id: latex2arxiv-dryrun
+  name: latex2arxiv pre-flight (dry run)
+  description: >
+    Validates a checked-in arXiv submission zip against arXiv's LaTeX
+    submission requirements. Exits non-zero on [error] lines (e.g. minted,
+    psfig). Pass the zip path(s) via `args:` in your .pre-commit-config.yaml.
+  entry: latex2arxiv
+  language: python
+  args: ['--dry-run']
+  files: \.zip$
+  pass_filenames: true
+  require_serial: true

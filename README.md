@@ -1,7 +1,9 @@
 # latex2arxiv
 
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
+[![Downloads](https://img.shields.io/pypi/dm/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
+[![Tests](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml/badge.svg)](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **Validates arXiv compatibility and cleans your LaTeX project in one command — zip in, zip out.**
@@ -21,7 +23,7 @@ latex2arxiv --demo --compile
 
 This processes a bundled self-documenting paper and opens the cleaned PDF. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
 
-[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [Pre-flight checks](#pre-flight-checks) • [vs `arxiv_latex_cleaner`](#latex2arxiv-vs-arxiv_latex_cleaner)
+[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [Pre-flight checks](#pre-flight-checks) • [Overleaf quickstart](docs/overleaf.md) • [CI integration](#ci--pre-commit-integration) • [vs `arxiv_latex_cleaner`](#latex2arxiv-vs-arxiv_latex_cleaner)
 
 ## Before / After
 
@@ -43,6 +45,12 @@ On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 | ... (and ~930 more) | |
 | **934 files, 80.6 MB** | **40 files, 3.1 MB** |
 
+## Who is this for?
+
+- **You wrote your paper in Overleaf** and need a clean, arXiv-ready zip without manually pruning files. → [Overleaf → arXiv quickstart](docs/overleaf.md)
+- **You want to gate a paper repo's CI on arXiv compliance** so a bad merge can't slip through. → `--dry-run` + non-zero exit on `[error]` ([details](#pre-flight-checks))
+- **Your paper uses custom revision-tracking macros** (`\added`, `\deleted`, `\textcolor{red}{...}`) that you need stripped before submission. → [Custom removal rules](#custom-removal-rules---config)
+
 ## What it does
 
 | Feature | What it does |
@@ -58,7 +66,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 
 ## `latex2arxiv` vs. `arxiv_latex_cleaner`
 
-[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the established tool in this space — Google-backed, ~5k★, years of usage. If you want the most battle-tested option, use it.
+[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the incumbent in this space — Google-backed and mature. It cleans well, but it stops there: it won't tell you that `\usepackage{minted}` will fail on arXiv, won't produce the actual `.zip` you upload, and has no exit code for CI gating. `latex2arxiv` is built around catching the submission errors that bounce papers off arXiv — locally, before you upload — and emitting the upload-ready zip in one command.
 
 ### Where `latex2arxiv` is different
 
@@ -93,7 +101,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 | Image resizing (Pillow) | ✅ | ✅ |
 | PDF compression (Ghostscript) | ❌ | ✅ |
 | PNG → JPG conversion | ❌ | ✅ |
-| Maturity | New (0.5.0) | ~5k★, years |
+| Maturity | 128 tests, 5 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
 
 ## Installation
 
@@ -154,6 +162,21 @@ latex2arxiv --demo --compile                           # run the built-in demo
 
 Before producing the output zip, latex2arxiv validates the project against [arXiv's LaTeX submission guide](https://info.arxiv.org/help/submit_tex.html). `[error]` lines block submission (the tool exits non-zero, useful for CI gating); `[warn]` lines are advisory and do not affect the exit code.
 
+Output on a project with several submission issues looks like this:
+
+```text
+$ latex2arxiv paper.zip --dry-run
+  [error] \usepackage{minted} requires shell-escape — arXiv compiles without it; this submission will fail to build
+  [error] \usepackage{psfig} — arXiv no longer supports the psfig package
+  [warn]  \today used in \date — arXiv may rebuild the PDF and the date will change
+  [warn]  .eps image found: photo.eps — pdflatex does not support .eps; convert to .pdf or .png
+  [warn]  \printindex used but no .ind file at root — build locally and re-run latex2arxiv
+
+Summary: 2 errors, 7 warnings
+```
+
+Either `[error]` line would have caused arXiv to reject the submission after upload. The exit code is non-zero on errors, so a CI step like `latex2arxiv paper.zip --dry-run` fails the build before the bad submission ever leaves the repo.
+
 | Severity | Trigger | Why it matters |
 |---|---|---|
 | 🛑 error | `\usepackage{minted}` / `pythontex` / `shellesc` | Require `--shell-escape`; arXiv compiles without it. |
@@ -208,7 +231,69 @@ The config parser is built in (no extra dependencies). The brace-balanced matche
 
 **Safety guarantees.** Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op. A malformed regex in any `replacements` rule emits a `[warn]` naming the rule's index, then skips just that rule; other rules still apply.
 
-## Caveats ⚠️
+## CI / pre-commit integration
+
+For paper repos under version control, you can wire the pre-flight check into a hook so a bad submission can't be merged.
+
+### GitHub Action
+
+The recommended path for paper repos. Drop this into a workflow file (e.g. `.github/workflows/arxiv-check.yml`):
+
+```yaml
+name: arXiv pre-flight
+on: [push, pull_request]
+
+jobs:
+  arxiv-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: YuZh98/latex2arxiv@main  # pin to a release tag once one is published — see Releases
+        with:
+          input: paper/        # directory of .tex sources, or a .zip path
+          main: main.tex       # optional; auto-detected from \documentclass
+```
+
+The action accepts a directory or a `.zip` for `input`. If a directory, it's zipped on the fly. By default it runs in `--dry-run` mode (no output written, but `[error]` lines fail the job). Set `dry-run: 'false'` to actually emit the cleaned zip — useful in a release workflow:
+
+```yaml
+      - uses: YuZh98/latex2arxiv@main
+        id: clean
+        with:
+          input: paper/
+          dry-run: 'false'
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.clean.outputs.cleaned-zip }}
+```
+
+| Input | Default | Description |
+|---|---|---|
+| `input` | (required) | Path to the input — `.zip` file or directory of LaTeX sources. |
+| `main` | (auto-detect) | Main `.tex` filename. |
+| `config` | (none) | Path to a YAML config for custom removal rules. |
+| `dry-run` | `'true'` | If `'false'`, emit the cleaned zip alongside the input. |
+| `version` | (latest) | Pin a specific `latex2arxiv` version (e.g. `'0.6.0'`). |
+| `python-version` | `'3.12'` | Python version used to install `latex2arxiv`. |
+
+**Output:** `cleaned-zip` — path to the cleaned zip when `dry-run: 'false'` (empty otherwise).
+
+### `pre-commit` hook
+
+For repos that keep a built submission zip checked in:
+
+```yaml
+repos:
+  - repo: https://github.com/YuZh98/latex2arxiv
+    rev: v0.6.0  # use a tagged release
+    hooks:
+      - id: latex2arxiv-dryrun
+        files: paper\.zip$  # restrict to your submission zip
+```
+
+For paper repos that store `.tex` sources directly (the more common case), prefer the GitHub Action above — it can zip on the fly.
+
+## Known limitations
 
 **Dynamically constructed filenames** — `\includegraphics{\figpath/fig1}` cannot be resolved statically and the image will be deleted. Expand path macros before running.
 
@@ -217,19 +302,6 @@ The config parser is built in (no extra dependencies). The brace-balanced matche
 **Inline `\verb|...|`** — comment-stripping and draft-removal don't currently protect inline `\verb|...|`. A `%` or `\todo{...}` inside `\verb|...|` may get mangled. Standard `verbatim`, `lstlisting`, and `minted` *block* environments are protected.
 
 **`--compile` is a local sanity check** — a successful local compile doesn't guarantee arXiv will compile it. arXiv pins specific TeX Live versions. Always check the [arXiv submission preview](https://arxiv.org/help/submit) after uploading.
-
-## Project structure
-
-```
-converter.py        # CLI entry point
-pipeline/
-    tex.py          # Comment stripping, draft annotation removal
-    bibtex.py       # BibTeX normalization
-    deps.py         # Dependency graph (tex includes, images, bib files)
-    images.py       # Image resizing
-    config.py       # User-defined removal rules
-arxiv_config.yaml   # Sample config file
-```
 
 [^main]: `JASA_main.tex` is identified as the main file via auto-detection (or pass `--main JASA_main.tex` to be explicit).
 [^supp]: `Supplementary_Materials.tex` is kept because it's a `\subfile` dependency of the main file.
