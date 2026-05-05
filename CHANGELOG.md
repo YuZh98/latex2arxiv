@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [0.6.0] - 2026-05-05
+
 ### Added
 - GitHub Action (`action.yml`): composite action for CI pre-flight; accepts `.zip` or directory input; emits `cleaned-zip` output for release workflows
 - `pre-commit` hook: `latex2arxiv-dryrun` for repos with a checked-in submission zip
