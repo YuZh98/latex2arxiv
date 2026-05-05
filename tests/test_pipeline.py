@@ -1338,7 +1338,6 @@ class TestInputResolution:
 
     def test_directory_input_full_pipeline(self, tmp_path):
         """End-to-end: convert() works on a zip produced from a directory."""
-        import tempfile
         from converter import convert, _zip_directory
         # Set up a directory
         src = tmp_path / 'project'
