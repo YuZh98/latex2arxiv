@@ -12,6 +12,25 @@ pip install latex2arxiv
 
 (Python 3.10+. On macOS with `externally-managed-environment` errors, use [`pipx`](https://pipx.pypa.io/) instead — see the [main README](../README.md#installation).)
 
+## Quickstart (3 steps)
+
+If you've never done this before, here's the whole thing:
+
+1. **In Overleaf**, click **Menu** (top-left) → under **Download**, click **Source**. Your browser saves a file like `my_project.zip` to your Downloads folder.
+2. **Open a terminal** in the folder where the zip lives, then type this command and press Enter:
+   ```bash
+   latex2arxiv my_project.zip --compile
+   ```
+   Replace `my_project` with whatever Overleaf actually named your file. (For example, if your file is `JASA_paper.zip`, type `latex2arxiv JASA_paper.zip --compile`.)
+3. **A new file appears next to the input: `my_project_arxiv.zip`.** That's the cleaned, arXiv-ready version. Upload it at [arxiv.org/submit](https://arxiv.org/submit).
+
+> **How do I open a terminal in a folder?**
+> - **macOS:** in Finder, right-click the folder → **New Terminal at Folder**. If you don't see that option, enable it once under **System Settings → Keyboard → Keyboard Shortcuts… → Services → Files and Folders → New Terminal at Folder**.
+> - **Windows 11:** in File Explorer, hold Shift and right-click inside the folder → **Open in Terminal**. (On Windows 10 you'll see **Open PowerShell window here** instead — that works too.)
+> - **Linux:** most file managers offer **Open in Terminal** on right-click.
+
+That's it for the happy path. If your terminal says `command not found: latex2arxiv`, the install didn't put the tool on your PATH — see the [installation notes](../README.md#installation). If `latex2arxiv` prints `[error]` lines, or you want to know what each step does and how to handle revision macros, biblatex, or journal templates, keep reading.
+
 ## Step 1 — Download your project as a `.zip` from Overleaf
 
 In your Overleaf project:
