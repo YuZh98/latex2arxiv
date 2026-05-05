@@ -5,57 +5,33 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Security
-- **Zip-slip protection** — member paths validated before extraction; `..` and absolute-path escapes abort with `sys.exit(1)`.
+- **Zip-slip protection** — member paths validated before extraction; `..` and absolute-path escapes abort with `sys.exit(1)` before any file is written.
 
 ### Fixed
+- **`\newcommand`/`\def`/`\let` definitions no longer mangled by config rules** — `remove_cmd`, `unwrap_cmd`, and `remove_bare_cmd` skip matches inside 7 recognised definition forms. Best-effort heuristic; `\NewDocumentCommand` (xparse) not covered — documented in template.
 - **macOS Finder zips unwrap correctly** — `__MACOSX/` and `.DS_Store` ignored by the single-directory unwrap heuristic.
 - **Non-UTF-8 source files emit `[warn]`** — per-file U+FFFD detection surfaces encoding issues so users know to re-save as UTF-8.
 - **Empty / no-.tex zip exits cleanly** — `sys.exit(1)` with clear message instead of traceback.
-- **`\newcommand`/`\def`/`\let` definitions no longer mangled by config rules** — `remove_cmd`, `unwrap_cmd`, and new `remove_bare_cmd` skip matches inside 7 recognised definition forms (`\newcommand`, `\renewcommand`, `\providecommand`, `\DeclareRobustCommand`, `\def`/`\edef`/`\xdef`/`\gdef`, `\protected\def`, `\let`). Best-effort heuristic; `\NewDocumentCommand` (xparse) not covered — documented in template.
 - **`pdflatex`/`biber`/`bibtex` not installed prints a clear message** — `FileNotFoundError` caught; `pdflatex` aborts early (no repeated messages), bib tool continues without bibliography processing.
 - **makeindex/glossary warnings now say "re-run latex2arxiv"** — clarifies the tool picks up `.ind`/`.gls`/`.nls` automatically on re-run.
+- **`\usepackage{xr}` warning links to arXiv docs** — points to the recommended `subfiles` workaround.
+- **00README files no longer stripped** — `00README` / `00README.XXX` at submission root preserved for arXiv processor hints.
+- **`\pdfoutput=0` (or any non-1 value) now corrected** — strips any existing `\pdfoutput=N` before prepending `\pdfoutput=1`.
+- **`\addbibresource` with subdirectory paths** — `find_used_bib_files()` strips directory components so `\addbibresource{bib/refs.bib}` correctly keeps the file.
+- **Config `None` values / malformed rules no longer crash** — null keys, non-dict rules, empty patterns, bad regex, and top-level non-dict config all emit `[warn]` and continue instead of raising.
 
 ### Added
 - **Better pdflatex error reporting** — each `!` error paired with its `l.NN` line marker and source-line suffix; capped at 5 blocks.
-- **`\usepackage{xr}` warning links to arXiv docs** — points to the recommended `subfiles` workaround.
-- **`tests/fixtures/`** — 5 self-contained fixture projects with documented expected outcomes and regression anchors; `run_all.sh` runner with color + summary table.
-- **`fixtures-smoke` CI job** — runs fixture suite in dry-run mode and asserts per-fixture outcomes; no TeX Live needed (~10 sec).
-
-### Security
-- **Zip-slip protection** — member paths are validated before extraction; any path escaping the temp root via `..` or absolute paths aborts with `sys.exit(1)` and a clear message. No files are written before the check completes.
-
-### Fixed
-- **macOS Finder zips unwrap correctly** — `__MACOSX/` metadata sibling and `.DS_Store` at the zip root are now ignored by the single-directory unwrap heuristic, so Finder-created zips no longer leave the main `.tex` in a subdirectory.
-- **Non-UTF-8 source files surface a warning** — files decoded with replacement characters (U+FFFD) now emit `[warn]` naming the file, so users know to re-save as UTF-8 rather than silently shipping corrupted accented characters.
-
-### Added
-- **Empty zip / no-.tex zip exits cleanly** — produces `sys.exit(1)` with "no .tex file found" instead of a traceback.
-
-### Fixed
-- **`pdflatex` / `biber` / `bibtex` not installed now prints a clear message** — `FileNotFoundError` is caught and surfaces an actionable install hint instead of a Python traceback. For `pdflatex`, compilation aborts immediately (no repeated messages). For the bib tool, compilation continues without bibliography processing.
-- **makeindex/glossary warnings now say "re-run latex2arxiv"** — previously said "include the .ind/.gls/.nls file", implying manual zip editing. The tool picks up these files automatically on re-run.
-
-### Added
-- **Better pdflatex error reporting in `--compile`** — each `! error` line is now paired with its `l.NN <prefix>` line marker and source-line suffix, giving the exact file location. Capped at 5 error blocks. Previously only the bare `!` lines were shown.
-- **`\usepackage{xr}` warning links to arXiv docs** — points users to the recommended `subfiles` workaround at `info.arxiv.org/help/submit_tex.html`.
-
-### Fixed
-- **00README files no longer stripped** — `00README` and `00README.XXX` at the submission root are now preserved. arXiv reads these for processor hints, encoding declarations, and auxiliary file lists; silently deleting them was a data-loss bug for power users.
-- **`\pdfoutput=0` (or any non-1 value) now corrected** — `ensure_pdfoutput` previously only injected `\pdfoutput=1` when absent; a user-supplied `\pdfoutput=0` slipped through and forced DVI mode. Now strips any existing `\pdfoutput=N` before prepending `\pdfoutput=1`.
-- **`\addbibresource` with subdirectory paths** — `find_used_bib_files()` now strips directory components so `\addbibresource{bib/refs.bib}` correctly keeps `bib/refs.bib` in the output zip.
-- **Config `None` values no longer crash** — a YAML key with no value (e.g. `commands_to_delete:` alone) parses as `None`; `config.get(key) or []` now treats it the same as an absent key instead of raising `TypeError`.
-- **Non-dict / null / empty `replacements` rules skipped gracefully** — a string, `~`, or missing-`pattern` item in the `replacements` list now emits `[warn]` and continues instead of crashing or silently corrupting the source.
-- **Malformed `replacements` regex warns and skips** — a bad regex pattern emits `[warn]` naming the rule index and continues processing subsequent rules instead of crashing.
-- **Top-level non-dict config warns and is ignored** — a root-level YAML list or scalar now emits `[warn]` and returns `{}` instead of raising `AttributeError` downstream.
-
-### Added
-- **biblatex/biber support in `--compile`** — detects `\usepackage{biblatex}` or `\addbibresource` and runs `biber` instead of `bibtex`; prints error output on non-zero exit for both tools.
-- **`\usepackage{psfig}` → `[error]`** — arXiv explicitly dropped psfig support; submissions using it will fail to build.
-- **`\usepackage{xr}` / `xr-hyper` → `[warn]`** — file paths differ on arXiv's servers; external-document references will break. Warning names the exact package detected.
-- **makeindex/glossary without pre-built files → `[warn]`** — arXiv does not run `makeindex` or glossary processors. Detects `\printindex` without `.ind`, `\printglossary`/`\printglossaries` without `.gls`, and `\printnomenclature` without `.nls` at root.
-- **Main tex not at submission root → `[warn]`** — arXiv compiles from the zip root; a main file in a subdirectory will not be found.
-- **Unknown config keys warn** — a typo like `command_to_delete` (singular) now prints `[warn] unknown config key` listing valid options, preventing silent no-ops.
-- **Rewritten `arxiv_config.yaml` template** — decision tree explaining delete vs. unwrap vs. environments vs. replacements; inline before/after examples for each entry.
+- **biblatex/biber support in `--compile`** — detects `\usepackage{biblatex}` or `\addbibresource` and runs `biber` instead of `bibtex`.
+- **`\usepackage{psfig}` → `[error]`** — arXiv no longer supports psfig.
+- **`\usepackage{xr}` / `xr-hyper` → `[warn]`** — external-document references break on arXiv; warning names the exact package.
+- **makeindex/glossary without pre-built files → `[warn]`** — detects `\printindex` without `.ind`, `\printglossary`/`\printglossaries` without `.gls`, `\printnomenclature` without `.nls`.
+- **Main tex not at submission root → `[warn]`** — arXiv compiles from zip root.
+- **Unknown config keys warn** — typo like `command_to_delete` (singular) now prints `[warn]` listing valid options.
+- **Rewritten `arxiv_config.yaml` template** — decision tree, inline before/after examples, definition-context caveat, `\textcolor{*}` wildcard recipe.
+- **`tests/fixtures/`** — 5 fixture projects with documented expected outcomes, regression anchors, and `run_all.sh` runner.
+- **`fixtures-smoke` CI job** — fixture regression net, no TeX Live needed.
+- **`compile-smoke` CI job** — live TeX Live + biber end-to-end test.
 
 ---
 
