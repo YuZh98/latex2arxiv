@@ -115,8 +115,10 @@ latex2arxiv --demo --compile
 ## Usage
 
 ```bash
-latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--config FILE] [--compile]
+latex2arxiv input [output.zip] [--main MAIN_TEX] [--resize PX] [--config FILE] [--compile]
 ```
+
+`input` can be a `.zip` file, a directory of LaTeX sources, or a git URL (https or ssh). Directories are zipped internally; git URLs are cloned with `--depth 1`.
 
 | Flag | Description |
 |---|---|
@@ -130,7 +132,9 @@ latex2arxiv input.zip [output.zip] [--main MAIN_TEX] [--resize PX] [--config FIL
 **Examples**
 
 ```bash
-latex2arxiv paper.zip                                  # auto-detect main, basic conversion
+latex2arxiv paper.zip                                  # zip input
+latex2arxiv paper/                                     # directory input
+latex2arxiv https://github.com/user/paper.git          # git URL input
 latex2arxiv paper.zip out.zip --main main.tex --compile
 latex2arxiv paper.zip --resize 1600 --compile          # shrink images
 latex2arxiv paper.zip --config arxiv_config.yaml       # custom rules

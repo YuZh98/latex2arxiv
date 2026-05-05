@@ -552,9 +552,55 @@ def _compile(output_zip: Path, main_hint: str | None):
             print("  [compile] PDF not produced")
 
 
+def _is_git_url(s: str) -> bool:
+    """Return True if s looks like a git remote URL."""
+    return s.startswith(('https://', 'http://', 'git@', 'ssh://')) or s.endswith('.git')
+
+
+def _zip_directory(directory: Path, tmp_list: list[str]) -> Path:
+    """Zip a directory into a temp file and return the zip Path."""
+    tmp = tempfile.mkdtemp()
+    tmp_list.append(tmp)
+    zip_path = Path(tmp) / (directory.name + '.zip')
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for file in sorted(directory.rglob('*')):
+            if file.is_file() and '.git' not in file.parts:
+                zf.write(file, file.relative_to(directory))
+    return zip_path
+
+
+def _resolve_input(inp_raw: str, tmp_list: list[str]) -> Path:
+    """Normalize input (zip path, directory, or git URL) to a zip Path."""
+    if _is_git_url(inp_raw):
+        print(f"  Cloning {inp_raw} ...")
+        clone_dir = tempfile.mkdtemp()
+        tmp_list.append(clone_dir)
+        try:
+            subprocess.run(
+                ['git', 'clone', '--depth', '1', inp_raw, clone_dir],
+                check=True, capture_output=True,
+            )
+        except FileNotFoundError:
+            print("ERROR: git not found — install git to use URL input")
+            sys.exit(1)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: git clone failed:\n{e.stderr.decode('utf-8', errors='replace').strip()}")
+            sys.exit(1)
+        return _zip_directory(Path(clone_dir), tmp_list)
+
+    inp = Path(inp_raw)
+    if inp.is_dir():
+        return _zip_directory(inp, tmp_list)
+
+    if not inp.exists():
+        print(f"ERROR: {inp} not found")
+        sys.exit(1)
+    return inp
+
+
 def main():
     parser = argparse.ArgumentParser(description='Convert LaTeX zip to arXiv-ready zip')
-    parser.add_argument('input', nargs='?', help='Input .zip file')
+    parser.add_argument('input', nargs='?', help='Input .zip file, directory, or git URL')
     parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
     parser.add_argument('--main', help='Filename of the main .tex file (e.g. JASA_main.tex)')
     parser.add_argument('--compile', action='store_true', help='Compile output with pdflatex and open PDF')
@@ -604,14 +650,30 @@ def main():
     if not args.input:
         parser.error("the following arguments are required: input")
 
-    inp = Path(args.input)
-    out = Path(args.output) if args.output else inp.with_stem(inp.stem + '_arxiv')
-    config_path = Path(args.config) if args.config else None
-    print(f"Converting {inp} → {out}\n")
-    issues = convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
-                     resize=args.resize, config_path=config_path, dry_run=args.dry_run)
-    if issues.errors:
-        sys.exit(1)
+    inp_raw = args.input
+    _cleanup_tmp: list[str] = []  # temp dirs to clean up at exit
+
+    try:
+        inp = _resolve_input(inp_raw, _cleanup_tmp)
+        if args.output:
+            out = Path(args.output)
+        elif _is_git_url(inp_raw):
+            # Derive name from the repo URL
+            repo_name = inp_raw.rstrip('/').rsplit('/', 1)[-1].removesuffix('.git')
+            out = Path(f"{repo_name}_arxiv.zip")
+        elif Path(inp_raw).is_dir():
+            out = Path(f"{Path(inp_raw).name}_arxiv.zip")
+        else:
+            out = inp.with_stem(inp.stem + '_arxiv')
+        config_path = Path(args.config) if args.config else None
+        print(f"Converting {inp_raw} → {out}\n")
+        issues = convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
+                         resize=args.resize, config_path=config_path, dry_run=args.dry_run)
+        if issues.errors:
+            sys.exit(1)
+    finally:
+        for d in _cleanup_tmp:
+            shutil.rmtree(d, ignore_errors=True)
 
 
 if __name__ == '__main__':
