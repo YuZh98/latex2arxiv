@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **GitHub Action** (`action.yml`) — `uses: YuZh98/latex2arxiv@main` runs pre-flight checks in CI; accepts `.zip` or directory input, `dry-run`, `main`, `config`, `version`, and `python-version` inputs; emits `cleaned-zip` output for release workflows.
+- **`pre-commit` hook** (`.pre-commit-hooks.yaml`) — `latex2arxiv-dryrun` hook for repos that keep a submission zip checked in.
+- **Overleaf → arXiv quickstart** (`docs/overleaf.md`) — step-by-step guide covering the Overleaf export flow, common pre-flight errors, and biblatex/subfile/revision-markup edge cases.
+- **`action-smoke` CI job** — smoke-tests `action.yml` against fixture projects; verifies clean fixture passes and error fixture exits non-zero.
+- **README: CI / pre-commit integration section** — GitHub Action usage with inputs table, `cleaned-zip` release-pipeline example, and pre-commit hook snippet.
+- **README: "Who is this for?" section** — three reader personas (Overleaf user, CI gating, revision macros) with direct links.
+- **README: Overleaf quickstart and CI integration links** added to top nav bar.
+
+### Fixed
+- **`actions/checkout` and `actions/setup-python` pinned to current stable versions** (`@v4` / `@v5`) throughout `test.yml` and `action.yml`; previous `@v6` references would have caused CI failures.
+
 ### Security
 - **Zip-slip protection** — member paths validated before extraction; `..` and absolute-path escapes abort with `sys.exit(1)` before any file is written.
 

@@ -39,7 +39,7 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
 
@@ -68,7 +68,10 @@ runs:
         if [ -d "$INPUT_PATH" ]; then
           TMP="$(mktemp -d)"
           ZIP_PATH="$TMP/_latex2arxiv_input.zip"
-          (cd "$INPUT_PATH" && zip -qr "$ZIP_PATH" .)
+          # Exclude common repo metadata so we don't ship .git/ pack files into
+          # latex2arxiv (it'd extract them and emit non-UTF-8 [warn] noise).
+          (cd "$INPUT_PATH" && zip -qr "$ZIP_PATH" . \
+            -x '.git/*' '.github/*' '__pycache__/*' '*.pyc' '.DS_Store' '*/.DS_Store' 'Thumbs.db' '*/Thumbs.db')
           INPUT_PATH="$ZIP_PATH"
         fi
         OUTPUT_PATH="$RUNNER_TEMP/latex2arxiv-output.zip"

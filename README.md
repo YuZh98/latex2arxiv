@@ -247,7 +247,7 @@ jobs:
   arxiv-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - uses: YuZh98/latex2arxiv@main  # pin to a release tag once one is published — see Releases
         with:
           input: paper/        # directory of .tex sources, or a .zip path
