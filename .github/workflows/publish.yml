@@ -25,7 +25,29 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+      - name: Install TeX Live for demo PDF
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-base \
+            texlive-latex-recommended \
+            texlive-latex-extra \
+            texlive-bibtex-extra
+          # Stub xdg-open (headless runner)
+          mkdir -p "$HOME/bin"
+          printf '#!/bin/sh\nexit 0\n' > "$HOME/bin/xdg-open"
+          chmod +x "$HOME/bin/xdg-open"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Generate demo_project_arxiv.pdf
+        run: |
+          pip install dist/*.whl
+          latex2arxiv --demo --compile
+          test -f demo_project_arxiv.pdf
+          test "$(stat -c%s demo_project_arxiv.pdf)" -gt 10000
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          files: demo_project_arxiv.pdf
