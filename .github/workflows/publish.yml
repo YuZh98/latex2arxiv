@@ -46,8 +46,17 @@ jobs:
           test -f demo_project_arxiv.pdf
           test "$(stat -c%s demo_project_arxiv.pdf)" -gt 10000
 
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NOTES=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          echo "notes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.notes }}
           files: demo_project_arxiv.pdf
