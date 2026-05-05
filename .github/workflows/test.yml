@@ -120,3 +120,41 @@ jobs:
           latex2arxiv /tmp/biber.zip /tmp/biber_arxiv.zip --compile
           test -f /tmp/biber_arxiv.pdf
           test "$(stat -c%s /tmp/biber_arxiv.pdf)" -gt 5000
+
+  action-smoke:
+    # Smoke-tests action.yml against fixture projects.
+    # We pre-install latex2arxiv from local source so the action's own
+    # `pip install latex2arxiv` step is a no-op — that way we test the
+    # composite-action shape against the LOCAL tool, not whatever PyPI
+    # currently ships.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install local latex2arxiv (so the action's install becomes a no-op)
+        run: pip install .
+
+      - name: Clean fixture should pass
+        uses: ./
+        with:
+          input: tests/fixtures/01-minimal
+          main: main.tex
+
+      - name: Error fixture should fail (job must continue to assert)
+        id: error-fixture
+        uses: ./
+        with:
+          input: tests/fixtures/05-pre-flight-warnings
+          main: main.tex
+        continue-on-error: true
+
+      - name: Verify error fixture exited non-zero
+        run: |
+          if [ "${{ steps.error-fixture.outcome }}" != "failure" ]; then
+            echo "Expected error fixture to fail (2 [error] lines), but the action succeeded."
+            exit 1
+          fi
+          echo "Error fixture failed as expected."

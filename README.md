@@ -23,7 +23,7 @@ latex2arxiv --demo --compile
 
 This processes a bundled self-documenting paper and opens the cleaned PDF. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
 
-[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [Pre-flight checks](#pre-flight-checks) • [vs `arxiv_latex_cleaner`](#latex2arxiv-vs-arxiv_latex_cleaner)
+[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [Pre-flight checks](#pre-flight-checks) • [Overleaf quickstart](docs/overleaf.md) • [CI integration](#ci--pre-commit-integration) • [vs `arxiv_latex_cleaner`](#latex2arxiv-vs-arxiv_latex_cleaner)
 
 ## Before / After
 
@@ -47,7 +47,7 @@ On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 
 ## Who is this for?
 
-- **You wrote your paper in Overleaf** and need a clean, arXiv-ready zip without manually pruning files. → [Quickstart](#installation)
+- **You wrote your paper in Overleaf** and need a clean, arXiv-ready zip without manually pruning files. → [Overleaf → arXiv quickstart](docs/overleaf.md)
 - **You want to gate a paper repo's CI on arXiv compliance** so a bad merge can't slip through. → `--dry-run` + non-zero exit on `[error]` ([details](#pre-flight-checks))
 - **Your paper uses custom revision-tracking macros** (`\added`, `\deleted`, `\textcolor{red}{...}`) that you need stripped before submission. → [Custom removal rules](#custom-removal-rules---config)
 
@@ -230,6 +230,68 @@ replacements:
 The config parser is built in (no extra dependencies). The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`.
 
 **Safety guarantees.** Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op. A malformed regex in any `replacements` rule emits a `[warn]` naming the rule's index, then skips just that rule; other rules still apply.
+
+## CI / pre-commit integration
+
+For paper repos under version control, you can wire the pre-flight check into a hook so a bad submission can't be merged.
+
+### GitHub Action
+
+The recommended path for paper repos. Drop this into a workflow file (e.g. `.github/workflows/arxiv-check.yml`):
+
+```yaml
+name: arXiv pre-flight
+on: [push, pull_request]
+
+jobs:
+  arxiv-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: YuZh98/latex2arxiv@main  # pin to a release tag once one is published — see Releases
+        with:
+          input: paper/        # directory of .tex sources, or a .zip path
+          main: main.tex       # optional; auto-detected from \documentclass
+```
+
+The action accepts a directory or a `.zip` for `input`. If a directory, it's zipped on the fly. By default it runs in `--dry-run` mode (no output written, but `[error]` lines fail the job). Set `dry-run: 'false'` to actually emit the cleaned zip — useful in a release workflow:
+
+```yaml
+      - uses: YuZh98/latex2arxiv@main
+        id: clean
+        with:
+          input: paper/
+          dry-run: 'false'
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.clean.outputs.cleaned-zip }}
+```
+
+| Input | Default | Description |
+|---|---|---|
+| `input` | (required) | Path to the input — `.zip` file or directory of LaTeX sources. |
+| `main` | (auto-detect) | Main `.tex` filename. |
+| `config` | (none) | Path to a YAML config for custom removal rules. |
+| `dry-run` | `'true'` | If `'false'`, emit the cleaned zip alongside the input. |
+| `version` | (latest) | Pin a specific `latex2arxiv` version (e.g. `'0.6.0'`). |
+| `python-version` | `'3.12'` | Python version used to install `latex2arxiv`. |
+
+**Output:** `cleaned-zip` — path to the cleaned zip when `dry-run: 'false'` (empty otherwise).
+
+### `pre-commit` hook
+
+For repos that keep a built submission zip checked in:
+
+```yaml
+repos:
+  - repo: https://github.com/YuZh98/latex2arxiv
+    rev: v0.6.0  # use a tagged release
+    hooks:
+      - id: latex2arxiv-dryrun
+        files: paper\.zip$  # restrict to your submission zip
+```
+
+For paper repos that store `.tex` sources directly (the more common case), prefer the GitHub Action above — it can zip on the fly.
 
 ## Known limitations
 

@@ -1,0 +1,88 @@
+name: 'latex2arxiv pre-flight'
+description: 'Validate arXiv compatibility of a LaTeX project. Fails the build on submission-blocking errors (minted, psfig, ...).'
+author: 'Yu (Hugh) Zheng'
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+
+inputs:
+  input:
+    description: 'Path to the input — either a .zip file or a directory of LaTeX sources. Relative to $GITHUB_WORKSPACE.'
+    required: true
+  main:
+    description: 'Filename of the main .tex file. Auto-detected via \documentclass if omitted.'
+    required: false
+  config:
+    description: 'Path to a YAML config file for custom removal rules.'
+    required: false
+  dry-run:
+    description: 'Run pre-flight checks without writing output. "true" or "false". Default: true.'
+    required: false
+    default: 'true'
+  version:
+    description: 'latex2arxiv version to install (e.g. "0.6.0"). Default: latest from PyPI.'
+    required: false
+    default: ''
+  python-version:
+    description: 'Python version to install. Default: 3.12.'
+    required: false
+    default: '3.12'
+
+outputs:
+  cleaned-zip:
+    description: >
+      Path to the cleaned arXiv-ready zip. Populated only when `dry-run` is
+      `'false'`. Useful for chaining into a release-upload step.
+    value: ${{ steps.run.outputs.cleaned-zip }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install latex2arxiv
+      shell: bash
+      env:
+        L2A_VERSION: ${{ inputs.version }}
+      run: |
+        if [ -z "$L2A_VERSION" ]; then
+          pip install latex2arxiv
+        else
+          pip install "latex2arxiv==$L2A_VERSION"
+        fi
+
+    - name: Run pre-flight
+      id: run
+      shell: bash
+      env:
+        L2A_INPUT: ${{ inputs.input }}
+        L2A_MAIN: ${{ inputs.main }}
+        L2A_CONFIG: ${{ inputs.config }}
+        L2A_DRY_RUN: ${{ inputs.dry-run }}
+      run: |
+        set -e
+        INPUT_PATH="$L2A_INPUT"
+        if [ -d "$INPUT_PATH" ]; then
+          TMP="$(mktemp -d)"
+          ZIP_PATH="$TMP/_latex2arxiv_input.zip"
+          (cd "$INPUT_PATH" && zip -qr "$ZIP_PATH" .)
+          INPUT_PATH="$ZIP_PATH"
+        fi
+        OUTPUT_PATH="$RUNNER_TEMP/latex2arxiv-output.zip"
+        ARGS=()
+        if [ "$L2A_DRY_RUN" = "true" ]; then
+          ARGS+=(--dry-run)
+        fi
+        if [ -n "$L2A_MAIN" ]; then
+          ARGS+=(--main "$L2A_MAIN")
+        fi
+        if [ -n "$L2A_CONFIG" ]; then
+          ARGS+=(--config "$L2A_CONFIG")
+        fi
+        latex2arxiv "$INPUT_PATH" "$OUTPUT_PATH" "${ARGS[@]}"
+        if [ "$L2A_DRY_RUN" != "true" ]; then
+          echo "cleaned-zip=$OUTPUT_PATH" >> "$GITHUB_OUTPUT"
+        fi

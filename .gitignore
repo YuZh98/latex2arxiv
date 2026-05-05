@@ -9,3 +9,4 @@ build/
 .DS_Store
 test_input/
 test_output/
+discoverability/
