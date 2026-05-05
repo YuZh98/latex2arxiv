@@ -7,11 +7,22 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **GitHub Action** (`action.yml`) — `uses: YuZh98/latex2arxiv@main` runs pre-flight checks in CI; accepts `.zip` or directory input, `dry-run`, `main`, `config`, `version`, and `python-version` inputs; emits `cleaned-zip` output for release workflows.
 - **`pre-commit` hook** (`.pre-commit-hooks.yaml`) — `latex2arxiv-dryrun` hook for repos that keep a submission zip checked in.
-- **Overleaf → arXiv quickstart** (`docs/overleaf.md`) — step-by-step guide covering the Overleaf export flow, common pre-flight errors, and biblatex/subfile/revision-markup edge cases.
+- **Overleaf → arXiv quickstart** (`docs/overleaf.md`) — step-by-step guide covering the Overleaf export flow, common pre-flight errors, and biblatex/subfile/revision-markup edge cases. Includes a 3-step Quickstart at the top for first-time/non-CLI users with platform-specific "open a terminal in this folder" instructions.
 - **`action-smoke` CI job** — smoke-tests `action.yml` against fixture projects; verifies clean fixture passes and error fixture exits non-zero.
 - **README: CI / pre-commit integration section** — GitHub Action usage with inputs table, `cleaned-zip` release-pipeline example, and pre-commit hook snippet.
 - **README: "Who is this for?" section** — three reader personas (Overleaf user, CI gating, revision macros) with direct links.
 - **README: Overleaf quickstart and CI integration links** added to top nav bar.
+- **Better pdflatex error reporting** — each `!` error paired with its `l.NN` line marker and source-line suffix; capped at 5 blocks.
+- **biblatex/biber support in `--compile`** — detects `\usepackage{biblatex}` or `\addbibresource` and runs `biber` instead of `bibtex`.
+- **`\usepackage{psfig}` → `[error]`** — arXiv no longer supports psfig.
+- **`\usepackage{xr}` / `xr-hyper` → `[warn]`** — external-document references break on arXiv; warning names the exact package.
+- **makeindex/glossary without pre-built files → `[warn]`** — detects `\printindex` without `.ind`, `\printglossary`/`\printglossaries` without `.gls`, `\printnomenclature` without `.nls`.
+- **Main tex not at submission root → `[warn]`** — arXiv compiles from zip root.
+- **Unknown config keys warn** — typo like `command_to_delete` (singular) now prints `[warn]` listing valid options.
+- **Rewritten `arxiv_config.yaml` template** — decision tree, inline before/after examples, definition-context caveat, `\textcolor{*}` wildcard recipe.
+- **`tests/fixtures/`** — 5 fixture projects with documented expected outcomes, regression anchors, and `run_all.sh` runner.
+- **`fixtures-smoke` CI job** — fixture regression net, no TeX Live needed.
+- **`compile-smoke` CI job** — live TeX Live + biber end-to-end test.
 
 ### Security
 - **Zip-slip protection** — member paths validated before extraction; `..` and absolute-path escapes abort with `sys.exit(1)` before any file is written.
@@ -28,19 +39,6 @@ All notable changes to this project will be documented in this file.
 - **`\pdfoutput=0` (or any non-1 value) now corrected** — strips any existing `\pdfoutput=N` before prepending `\pdfoutput=1`.
 - **`\addbibresource` with subdirectory paths** — `find_used_bib_files()` strips directory components so `\addbibresource{bib/refs.bib}` correctly keeps the file.
 - **Config `None` values / malformed rules no longer crash** — null keys, non-dict rules, empty patterns, bad regex, and top-level non-dict config all emit `[warn]` and continue instead of raising.
-
-### Added
-- **Better pdflatex error reporting** — each `!` error paired with its `l.NN` line marker and source-line suffix; capped at 5 blocks.
-- **biblatex/biber support in `--compile`** — detects `\usepackage{biblatex}` or `\addbibresource` and runs `biber` instead of `bibtex`.
-- **`\usepackage{psfig}` → `[error]`** — arXiv no longer supports psfig.
-- **`\usepackage{xr}` / `xr-hyper` → `[warn]`** — external-document references break on arXiv; warning names the exact package.
-- **makeindex/glossary without pre-built files → `[warn]`** — detects `\printindex` without `.ind`, `\printglossary`/`\printglossaries` without `.gls`, `\printnomenclature` without `.nls`.
-- **Main tex not at submission root → `[warn]`** — arXiv compiles from zip root.
-- **Unknown config keys warn** — typo like `command_to_delete` (singular) now prints `[warn]` listing valid options.
-- **Rewritten `arxiv_config.yaml` template** — decision tree, inline before/after examples, definition-context caveat, `\textcolor{*}` wildcard recipe.
-- **`tests/fixtures/`** — 5 fixture projects with documented expected outcomes, regression anchors, and `run_all.sh` runner.
-- **`fixtures-smoke` CI job** — fixture regression net, no TeX Live needed.
-- **`compile-smoke` CI job** — live TeX Live + biber end-to-end test.
 
 ---
 
