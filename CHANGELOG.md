@@ -4,16 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
----
-
-## [0.6.0] - 2026-05-05
-
 ### Added
 - GitHub Action (`action.yml`): composite action for CI pre-flight; accepts `.zip` or directory input; emits `cleaned-zip` output for release workflows
 - `pre-commit` hook: `latex2arxiv-dryrun` for repos with a checked-in submission zip
 - Overleaf → arXiv quickstart (`docs/overleaf.md`): 3-step guide for non-CLI users with biblatex/subfile/revision-markup walkthroughs
 - README: CI/pre-commit integration section, "Who is this for?" personas, top-nav links
 - `action-smoke` CI job: tests `action.yml` against clean and error fixtures
+
+---
+
+## [0.6.0] - 2026-05-04
+
+### Added
 - `fixtures-smoke` CI job: fixture regression tests without TeX Live
 - `compile-smoke` CI job: live end-to-end test with TeX Live and biber
 - `tests/fixtures/`: 5 fixture projects with `run_all.sh` runner
