@@ -54,33 +54,29 @@ All notable changes to this project will be documented in this file.
 ## [0.5.0] - 2026-05-03
 
 ### Added
-- **Pre-flight checks**: structured `[error]` / `[warn]` output after processing. Errors cause a non-zero exit code (CI-friendly). Checks include:
-  - `[error]` `\usepackage{minted}`, `pythontex`, `shellesc` — require `--shell-escape`; arXiv compiles without it
-  - `[warn]` biblatex detected without a `.bbl` fallback
-  - `[warn]` output zip > 50 MB advisory threshold
-  - `[warn]` filenames with spaces or non-ASCII characters
-- **Conversion summary line**: every run ends with `Summary: N removed, N kept | X.X MB → Y.Y MB | N errors, N warnings`. Size segment omitted in `--dry-run`.
-- **`convert()` returns `Issues`**: callers can inspect errors and warnings programmatically.
+- Pre-flight checks: structured `[error]` / `[warn]` output after processing; errors cause a non-zero exit code for CI gating. Checks: `\usepackage{minted}` / `pythontex` / `shellesc` → `[error]`; biblatex without `.bbl`, zip > 50 MB, filenames with spaces or non-ASCII → `[warn]`
+- Conversion summary line: every run ends with `Summary: N removed, N kept | X.X MB → Y.Y MB | N errors, N warnings` (size omitted in `--dry-run`)
+- `convert()` returns an `Issues` object so callers can inspect errors and warnings programmatically
 
 ### Fixed
-- **Brace-balanced matcher for `--config`**: `commands_to_delete` and `commands_to_unwrap` in user config files now correctly handle nested braces (e.g. `\deleted{see \cite{smith}}`). Previously the naive `\{[^{}]*\}` regex silently left nested content behind.
+- Brace-balanced matcher for `--config`: `commands_to_delete` and `commands_to_unwrap` now correctly handle nested braces (e.g. `\deleted{see \cite{smith}}`)
 
 ### Changed
-- **Demo restructured**: sections reordered by user value (pruning → arXiv compatibility → tex cleanup → revision markup → BibTeX → CLI tools). `arxiv_config.yaml` bundled inside `demo_project.zip` and auto-applied by `--demo` so live `\deleted{}`/`\added{}` markup is demonstrated without requiring `--config`. Headline numbers (950→40 files, 82→3 MB) moved to the abstract.
-- README: pre-flight checks added to the "What it does" table; exit code behavior documented for CI users; removed outdated "50 MB limit" framing for `--resize`.
+- Demo restructured: sections reordered by user value; `arxiv_config.yaml` bundled inside `demo_project.zip` and auto-applied by `--demo`
+- README: pre-flight checks added to the "What it does" table; exit code behavior documented for CI users
 
 ---
 
 ## [0.4.2] - 2026-05-03
 
 ### Fixed
-- **Main tex auto-detection**: projects with multiple `\documentclass` files (e.g. main paper + response letter + supplement) now correctly prefer `arxiv_*` files, then `*main*` files, and deprioritize response/backup/supplement files. Falls back with a `--main` hint warning when ambiguous.
-- **`\subfile` bibliography warning**: warns when a `\subfile`'d document contains `\bibliographystyle` — a common cause of duplicate bibliography commands and arXiv BibTeX failures.
-- **`\graphicspath` support**: images referenced without directory prefix (e.g. `\includegraphics{fig}` with `\graphicspath{{figures/}}`) are now correctly resolved and kept instead of being silently deleted.
-- **Nested braces in draft annotations**: `\todo{fix \textbf{this}}` and `\todo{see \cite{smith2020}}` are now correctly removed using a brace-balanced matcher instead of a regex that stopped at the first `}`.
+- Main tex auto-detection: projects with multiple `\documentclass` files now prefer `arxiv_*`, then `*main*`, and deprioritize response/backup/supplement files; falls back with a `--main` hint warning when ambiguous
+- `\subfile` bibliography warning: warns when a `\subfile`'d document contains `\bibliographystyle`
+- `\graphicspath` support: images referenced without a directory prefix are now correctly resolved and kept
+- Nested braces in draft annotations: `\todo{fix \textbf{this}}` and similar are correctly removed using a brace-balanced matcher
 
 ### Internal
-- Pinned `bibtexparser` to `>=1.4,<2` to prevent accidental installation of the v2 beta, which has a breaking API change.
+- Pinned `bibtexparser` to `>=1.4,<2` to avoid the breaking API change in v2
 
 ---
 
