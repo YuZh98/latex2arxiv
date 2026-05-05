@@ -13,9 +13,6 @@ All notable changes to this project will be documented in this file.
 - **README: "Who is this for?" section** — three reader personas (Overleaf user, CI gating, revision macros) with direct links.
 - **README: Overleaf quickstart and CI integration links** added to top nav bar.
 
-### Fixed
-- **`actions/checkout` and `actions/setup-python` pinned to current stable versions** (`@v4` / `@v5`) throughout `test.yml` and `action.yml`; previous `@v6` references would have caused CI failures.
-
 ### Security
 - **Zip-slip protection** — member paths validated before extraction; `..` and absolute-path escapes abort with `sys.exit(1)` before any file is written.
 
