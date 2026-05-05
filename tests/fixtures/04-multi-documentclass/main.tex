@@ -1,0 +1,18 @@
+\documentclass{article}
+\title{Main paper}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+This is the actual paper to submit. The fixture also ships a backup file
+(\texttt{main\_backup.tex}), a response letter (\texttt{response.tex}),
+and a supplement (\texttt{Supplementary\_Materials.tex}) — all containing
+\verb|\documentclass|. The auto-detect heuristic should rank
+\texttt{main.tex} highest because the filename contains ``main'' and none
+of the de-prioritized keywords (response/backup/supplement).
+
+If the heuristic ever regresses and picks the wrong file, this fixture
+will catch it on a quick \texttt{--dry-run}.
+
+\end{document}

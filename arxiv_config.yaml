@@ -10,6 +10,22 @@
 # All sections are optional; uncomment what you want. Unknown top-level keys
 # warn (typos won't silently no-op). Bad regex in a replacements rule warns
 # and skips that rule, rather than crashing the whole conversion.
+#
+# Definition-context handling: command rules try to skip occurrences inside
+# a TeX definition, so an inline definition of a command listed in your
+# config survives intact. Recognised forms:
+#
+#   \newcommand{\added}[1]{...}     \renewcommand{\added}[1]{...}
+#   \providecommand{\added}[1]{...} \DeclareRobustCommand\added[1]{...}
+#   \def\added#1{...}               \protected\def\added#1{...}
+#   \edef \xdef \gdef variants      \let\added\foo
+#
+# This is a best-effort heuristic, not a real LaTeX parser. Less common
+# definition forms (e.g. xparse's \NewDocumentCommand) are not recognised
+# and will still be mangled. If you hit one, the robust workaround is to
+# use a package (e.g. `changes`) that defines the commands — the main
+# pipeline strips draft packages on the way out, so the cleaned source
+# compiles without the package being installed downstream.
 
 
 # ─── Decision tree ────────────────────────────────────────────────────────────

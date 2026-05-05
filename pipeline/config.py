@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from pipeline.tex import remove_cmd, unwrap_cmd
+from pipeline.tex import remove_cmd, remove_bare_cmd, unwrap_cmd
 
 try:
     import yaml
@@ -102,7 +102,9 @@ def apply_config(source: str, config: dict) -> str:
     for cmd in config.get('commands_to_delete') or []:
         base = _make_cmd_pattern(cmd)
         source = remove_cmd(source, re.compile(base + r'(?:\[[^\]]*\])?'))
-        source = re.sub(base, '', source)
+        # remove_bare_cmd (instead of plain re.sub) so a bare \cmd inside
+        # a definition context (\newcommand{\cmd}, \def\cmd, ...) survives.
+        source = remove_bare_cmd(source, re.compile(base))
 
     # 2. commands_to_unwrap: remove \cmd but keep its argument text.
     # Brace-balanced; falls back to bare-switch removal when no arg follows.

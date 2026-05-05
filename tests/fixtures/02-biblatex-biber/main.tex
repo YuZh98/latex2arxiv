@@ -1,0 +1,20 @@
+\documentclass{article}
+\usepackage[backend=biber,style=authoryear]{biblatex}
+\addbibresource{bib/refs.bib}
+
+\title{biblatex + biber, with .bib in subdirectory}
+\author{Test Author}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+This fixture exercises the biber code path in \texttt{\textbackslash compile}
+and the subdirectory \texttt{\textbackslash addbibresource} handling shipped
+together. The bibliography file lives at \texttt{bib/refs.bib} rather than
+the project root, which historically broke \texttt{find\_used\_bib\_files}.
+
+The relevant work appears in \autocite{einstein1905, smith2020, doe2024}.
+
+\printbibliography
+\end{document}

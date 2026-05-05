@@ -52,17 +52,50 @@ def find_balanced(s: str, start: int) -> int:
     return -1
 
 
+# Best-effort skip-list for command-rule transformations: when our pattern
+# matches inside one of these definition contexts, we leave the match alone
+# instead of mangling the definition. Covers the common forms; xparse-style
+# \NewDocumentCommand is intentionally not listed (rare; users should use
+# package-defined commands when possible).
+_DEF_PREFIX_RE = re.compile(
+    r'(?:'
+    r'\\(?:new|renew|provide)command\*?\s*\{'    # \newcommand{\foo}, \renewcommand{\foo}, \providecommand{\foo}
+    r'|\\DeclareRobustCommand\*?\s*'             # \DeclareRobustCommand\foo or \DeclareRobustCommand{\foo}
+    r'|(?:\\protected\s*)?\\(?:e|x|g)?def\s*'    # \def\foo, \edef\foo, \xdef\foo, \gdef\foo, \protected\def\foo
+    r'|\\let\s*'                                 # \let\foo\bar
+    r')$'
+)
+
+
+def _in_definition_context(source: str, match_start: int) -> bool:
+    """True if the match is preceded by a recognised TeX definition prefix.
+
+    The window of 40 chars is a heuristic — long enough to span any common
+    prefix (\\protected\\def is 14 chars), short enough that unrelated
+    earlier text rarely produces false positives. Comments are stripped
+    before this runs, so commented-out '\\newcommand' lines do not bite.
+    """
+    look = source[max(0, match_start - 40):match_start]
+    return _DEF_PREFIX_RE.search(look) is not None
+
+
 def remove_cmd(source: str, pattern: re.Pattern) -> str:
     """Remove all occurrences of a command with a brace-balanced argument.
 
     For each regex match, deletes the match plus the immediately-following
     {...} group (handling nested braces). If no '{' follows the match, the
-    match itself is left untouched.
+    match itself is left untouched. Matches that sit inside a definition
+    context (\\newcommand{\\foo}, \\def\\foo, etc.) are left alone so the
+    definition is not mangled.
     """
     result = []
     pos = 0
     for m in pattern.finditer(source):
         result.append(source[pos:m.start()])
+        if _in_definition_context(source, m.start()):
+            result.append(m.group(0))
+            pos = m.end()
+            continue
         brace_start = source.find('{', m.end())
         if brace_start == -1 or brace_start > m.end() + 1:
             result.append(m.group(0))
@@ -74,18 +107,37 @@ def remove_cmd(source: str, pattern: re.Pattern) -> str:
     return ''.join(result)
 
 
+def remove_bare_cmd(source: str, pattern: re.Pattern) -> str:
+    """Strip bare occurrences of a command (no brace-balanced arg expected).
+
+    Used by ``apply_config`` as a follow-up after ``remove_cmd`` to clear any
+    \\cmd text that wasn't followed by a {...}. Like ``remove_cmd``, leaves
+    matches inside a definition context untouched.
+    """
+    def _replace(m):
+        if _in_definition_context(source, m.start()):
+            return m.group(0)
+        return ''
+    return pattern.sub(_replace, source)
+
+
 def unwrap_cmd(source: str, pattern: re.Pattern) -> str:
     """Replace `\\cmd{inner}` with `inner`, using a brace-balanced matcher.
 
     For each regex match, looks for an immediately-following '{'. If found,
     substitutes the match plus its balanced group with the group's contents.
     If no '{' follows (a switch like `\\color{red}` written literally as the
-    pattern), the match is removed entirely.
+    pattern), the match is removed entirely. Matches inside a definition
+    context (\\newcommand{\\foo}, \\def\\foo, etc.) are left alone.
     """
     result = []
     pos = 0
     for m in pattern.finditer(source):
         result.append(source[pos:m.start()])
+        if _in_definition_context(source, m.start()):
+            result.append(m.group(0))
+            pos = m.end()
+            continue
         brace_start = source.find('{', m.end())
         if brace_start == -1 or brace_start > m.end() + 1:
             # No following arg group: treat as switch, remove the match.

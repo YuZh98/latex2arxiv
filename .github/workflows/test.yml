@@ -30,6 +30,32 @@ jobs:
           pip install dist/*.whl
           latex2arxiv --demo --dry-run
 
+  fixtures-smoke:
+    # Lightweight regression net — runs the fixture suite in --dry-run mode
+    # and asserts each fixture's summary-table row matches expectations.
+    # Catches changes to file pruning, pre-flight checks, and config
+    # application without needing TeX Live. The runner gates ANSI colors on
+    # `[ -t 1 ]`, so under `tee` the output is plain text and grep works.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: pip install .
+      - name: Run fixture smoke and assert per-fixture outcomes
+        run: |
+          set -e
+          bash tests/fixtures/run_all.sh | tee /tmp/fixture_out.txt
+          grep -F "01-minimal" /tmp/fixture_out.txt | grep -F "✓ clean"
+          grep -F "02-biblatex-biber" /tmp/fixture_out.txt | grep -F "1 warning"
+          grep -F "03-revision-markup" /tmp/fixture_out.txt | grep -F "✓ clean"
+          grep -F "04-multi-documentclass" /tmp/fixture_out.txt | grep -F "✓ clean"
+          grep -E "05-pre-flight-warnings.*2 error.*7 warning" /tmp/fixture_out.txt
+          grep -F "5 fixtures ran" /tmp/fixture_out.txt
+
   compile-smoke:
     # Live --compile end-to-end test against real TeX Live + biber. Catches
     # regressions in _compile() that unit tests can't (subprocess interaction,
