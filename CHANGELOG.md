@@ -5,49 +5,49 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **GitHub Action** (`action.yml`) — composite action runs pre-flight in CI; `.zip` or directory input; emits `cleaned-zip` for release chaining.
-- **`pre-commit` hook** — `latex2arxiv-dryrun` for repos with a checked-in submission zip.
-- **Overleaf → arXiv quickstart** (`docs/overleaf.md`) — 3-step Quickstart for non-CLI users plus full walkthrough with biblatex/subfile/revision-markup edge cases.
-- **README** — CI/pre-commit integration section, "Who is this for?" personas, top-nav links to Overleaf and CI.
-- **`action-smoke` CI job** — exercises `action.yml` against clean and error fixtures.
-- **`fixtures-smoke` CI job** — fixture regression net (no TeX Live).
-- **`compile-smoke` CI job** — live TeX Live + biber end-to-end test.
-- **`tests/fixtures/`** — 5 fixture projects with `run_all.sh` runner.
-- **biblatex/biber support in `--compile`** — runs `biber` when `\usepackage{biblatex}` or `\addbibresource` detected.
-- **Better pdflatex error reporting** — `!` errors paired with `l.NN` line markers and source-line suffix; capped at 5 blocks.
-- **`\usepackage{psfig}` → `[error]`** — no longer supported by arXiv.
-- **`\usepackage{xr}` / `xr-hyper` → `[warn]`** — external-document references break on arXiv.
-- **`\printindex`/`\printglossary`/`\printnomenclature` without pre-built files → `[warn]`**.
-- **Main tex not at submission root → `[warn]`** — arXiv compiles from zip root.
-- **Unknown config keys warn** — typo like `command_to_delete` (singular) no longer silently no-ops.
-- **Rewritten `arxiv_config.yaml` template** — decision tree, before/after examples, definition-context caveat, `\textcolor{*}` recipe.
+- GitHub Action (`action.yml`): composite action for CI pre-flight; accepts `.zip` or directory input; emits `cleaned-zip` output for release workflows
+- `pre-commit` hook: `latex2arxiv-dryrun` for repos with a checked-in submission zip
+- Overleaf → arXiv quickstart (`docs/overleaf.md`): 3-step guide for non-CLI users with biblatex/subfile/revision-markup walkthroughs
+- README: CI/pre-commit integration section, "Who is this for?" personas, top-nav links
+- `action-smoke` CI job: tests `action.yml` against clean and error fixtures
+- `fixtures-smoke` CI job: fixture regression tests without TeX Live
+- `compile-smoke` CI job: live end-to-end test with TeX Live and biber
+- `tests/fixtures/`: 5 fixture projects with `run_all.sh` runner
+- `--compile` now runs `biber` when `\usepackage{biblatex}` or `\addbibresource` is detected
+- pdflatex error reporting: `!` errors paired with `l.NN` line markers, capped at 5 blocks
+- `\usepackage{psfig}` raises `[error]`: no longer supported by arXiv
+- `\usepackage{xr}` / `xr-hyper` raises `[warn]`: external-document references break on arXiv
+- `\printindex`, `\printglossary`, `\printnomenclature` without pre-built index files raises `[warn]`
+- Main `.tex` not at submission root raises `[warn]`
+- Unknown config keys now warn instead of silently no-oping
+- `arxiv_config.yaml` template rewritten with decision tree, before/after examples, and `\textcolor{*}` recipe
 
 ### Security
-- **Zip-slip protection** — member paths validated before extraction; `..` and absolute-path escapes abort with `sys.exit(1)`.
+- Zip-slip protection: member paths validated before extraction; `..` and absolute-path members abort with a non-zero exit
 
 ### Fixed
-- **`\newcommand`/`\def`/`\let` definitions preserved by config rules** — skip across 7 definition forms; `\NewDocumentCommand` (xparse) not covered.
-- **macOS Finder zips unwrap correctly** — `__MACOSX/` and `.DS_Store` ignored.
-- **Non-UTF-8 source files emit `[warn]`** — per-file U+FFFD detection.
-- **Empty / no-`.tex` zip exits cleanly** — `sys.exit(1)` instead of traceback.
-- **`pdflatex`/`biber`/`bibtex` not installed prints clear message** — `FileNotFoundError` caught; bib tools degrade gracefully.
-- **makeindex/glossary warnings say "re-run latex2arxiv"** — `.ind`/`.gls`/`.nls` picked up automatically.
-- **`\usepackage{xr}` warning links to arXiv docs** — points to `subfiles` workaround.
-- **00README files preserved** — `00README` / `00README.XXX` at root kept for arXiv processor hints.
-- **`\pdfoutput=N` corrected** — strips any existing value before prepending `\pdfoutput=1`.
-- **`\addbibresource{bib/refs.bib}` resolves** — `find_used_bib_files()` strips directory components.
-- **Config `None`/malformed rules no longer crash** — null keys, non-dict rules, empty patterns, bad regex, non-dict root all warn and continue.
+- `\newcommand`, `\def`, `\let` definition lines are skipped by config removal rules to avoid corrupting macro definitions
+- macOS Finder zips: `__MACOSX/` entries and `.DS_Store` files are ignored
+- Non-UTF-8 source files emit `[warn]` instead of crashing
+- Empty or no-`.tex` zip exits cleanly with a non-zero code instead of a traceback
+- Missing `pdflatex`, `biber`, or `bibtex` prints a clear message; bib tools degrade gracefully
+- makeindex/glossary warnings now say "re-run latex2arxiv" since `.ind`/`.gls`/`.nls` are picked up automatically
+- `\usepackage{xr}` warning links to the `subfiles` workaround in arXiv docs
+- `00README` and `00README.XXX` files at root are preserved for arXiv processor hints
+- `\pdfoutput=N` with any value is normalized to `\pdfoutput=1`
+- `\addbibresource{bib/refs.bib}` now resolves correctly by stripping directory components
+- Malformed config rules (null keys, bad regex, non-dict entries) warn and skip instead of crashing
 
 ---
 
 ## [0.5.1] - 2026-05-04
 
 ### Fixed
-- **`--demo` broken on PyPI installs** — `demo_project.zip` was never included in the wheel because `package-data` globs only work inside Python package directories, not at the project root. Moved `demo_project.zip` into `pipeline/` and updated the `importlib.resources` lookup accordingly.
+- `--demo` broken on PyPI installs: `demo_project.zip` was missing from the wheel; moved into `pipeline/` and updated `importlib.resources` lookup
 
 ### Changed
-- README rewritten: result-first headline with real numbers (950→40 files, 82→3 MB), terminal output snippet, restructured comparison vs. `arxiv_latex_cleaner` (prose bullets + ✅/❌ table), "Known limitations" replacing "Caveats".
-- PyPI keywords and classifiers added for discoverability.
+- README rewritten with result-first headline, terminal output snippet, restructured comparison vs. `arxiv_latex_cleaner`, and "Known limitations" section
+- PyPI keywords and classifiers added for discoverability
 
 ---
 
