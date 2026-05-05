@@ -23,8 +23,6 @@ latex2arxiv --demo --compile
 
 This processes a bundled self-documenting paper and opens the cleaned PDF. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
 
-[What it does](#what-it-does) • [Before/After](#before--after) • [Install](#installation) • [Usage](#usage) • [Pre-flight checks](#pre-flight-checks) • [Overleaf quickstart](docs/overleaf.md) • [CI integration](#ci--pre-commit-integration) • [vs `arxiv_latex_cleaner`](#latex2arxiv-vs-arxiv_latex_cleaner)
-
 ## Before / After
 
 On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
@@ -47,9 +45,9 @@ On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 
 ## Who is this for?
 
-- **You wrote your paper in Overleaf** and need a clean, arXiv-ready zip without manually pruning files. → [Overleaf → arXiv quickstart](docs/overleaf.md)
-- **You want to gate a paper repo's CI on arXiv compliance** so a bad merge can't slip through. → `--dry-run` + non-zero exit on `[error]` ([details](#pre-flight-checks))
-- **Your paper uses custom revision-tracking macros** (`\added`, `\deleted`, `\textcolor{red}{...}`) that you need stripped before submission. → [Custom removal rules](#custom-removal-rules---config)
+- You wrote your paper in Overleaf and need a clean, arXiv-ready zip without manually pruning files. → [Overleaf → arXiv quickstart](docs/overleaf.md)
+- You want to gate a paper repo's CI on arXiv compliance so a bad merge can't slip through. → `--dry-run` + non-zero exit on `[error]` ([details](#pre-flight-checks))
+- Your paper uses custom revision-tracking macros (`\added`, `\deleted`, `\textcolor{red}{...}`) that you need stripped before submission. → [Custom removal rules](#custom-removal-rules---config)
 
 ## What it does
 
@@ -66,25 +64,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 
 ## `latex2arxiv` vs. `arxiv_latex_cleaner`
 
-[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the incumbent in this space — Google-backed and mature. It cleans well, but it stops there: it won't tell you that `\usepackage{minted}` will fail on arXiv, won't produce the actual `.zip` you upload, and has no exit code for CI gating. `latex2arxiv` is built around catching the submission errors that bounce papers off arXiv — locally, before you upload — and emitting the upload-ready zip in one command.
-
-### Where `latex2arxiv` is different
-
-| ❌ Without `latex2arxiv` | ✅ With `latex2arxiv` |
-|---|---|
-| You upload, wait for arXiv to compile, get a cryptic failure email about `\usepackage{minted}`, re-upload and wait again. | Pre-flight checks catch it locally with a clear `[error]` message. Exits non-zero so your CI catches it too. |
-| `arxiv_latex_cleaner` cleans into a directory — you still figure out what to zip, hope you didn't miss a `.bbl`. | The output *is* the file you upload. Nothing to figure out. |
-| `\deleted{see \cite{smith}}` silently leaves `\cite{smith}` in your paper — PDF looks fine locally, reviewer sees a stray citation. | Brace-balanced matcher removes the whole nested expression correctly. |
-
-### Where `arxiv_latex_cleaner` is stronger
-
-| Advantage | Notes |
-|---|---|
-| **Maturity** | Thousands of papers cleaned, larger contributor pool, more edge cases discovered. |
-| **Ghostscript-based PDF compression** | We don't bundle this. |
-| **PNG → JPG conversion** | We don't do this. |
-
-### Full feature comparison
+[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the incumbent — Google-backed, mature, and cleans well. The key difference: it won't tell you that `\usepackage{minted}` will fail on arXiv, won't produce the `.zip` you upload, and has no exit code for CI gating.
 
 | | `latex2arxiv` | `arxiv_latex_cleaner` |
 |---|---|---|
@@ -229,7 +209,7 @@ replacements:
 
 The config parser is built in (no extra dependencies). The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`.
 
-**Safety guarantees.** Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op. A malformed regex in any `replacements` rule emits a `[warn]` naming the rule's index, then skips just that rule; other rules still apply.
+Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op. A malformed regex in any `replacements` rule emits a `[warn]` naming the rule's index, then skips just that rule; other rules still apply.
 
 ## CI / pre-commit integration
 
@@ -248,7 +228,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: YuZh98/latex2arxiv@main  # pin to a release tag once one is published — see Releases
+      - uses: YuZh98/latex2arxiv@main  # or pin to a release tag, e.g. @v0.5.1
         with:
           input: paper/        # directory of .tex sources, or a .zip path
           main: main.tex       # optional; auto-detected from \documentclass
@@ -301,7 +281,7 @@ For paper repos that store `.tex` sources directly (the more common case), prefe
 
 **Inline `\verb|...|`** — comment-stripping and draft-removal don't currently protect inline `\verb|...|`. A `%` or `\todo{...}` inside `\verb|...|` may get mangled. Standard `verbatim`, `lstlisting`, and `minted` *block* environments are protected.
 
-**`--compile` is a local sanity check** — a successful local compile doesn't guarantee arXiv will compile it. arXiv pins specific TeX Live versions. Always check the [arXiv submission preview](https://arxiv.org/help/submit) after uploading.
+**`--compile` is a local sanity check** — a successful local compile doesn't guarantee arXiv will compile it. arXiv pins specific TeX Live versions. Always check the [arXiv submission preview](https://arxiv.org/submit) after uploading.
 
 [^main]: `JASA_main.tex` is identified as the main file via auto-detection (or pass `--main JASA_main.tex` to be explicit).
 [^supp]: `Supplementary_Materials.tex` is kept because it's a `\subfile` dependency of the main file.
