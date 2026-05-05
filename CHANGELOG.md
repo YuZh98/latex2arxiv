@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Security
+- **Zip-slip protection** — member paths validated before extraction; `..` and absolute-path escapes abort with `sys.exit(1)`.
+
+### Fixed
+- **macOS Finder zips unwrap correctly** — `__MACOSX/` and `.DS_Store` ignored by the single-directory unwrap heuristic.
+- **Non-UTF-8 source files emit `[warn]`** — per-file U+FFFD detection surfaces encoding issues so users know to re-save as UTF-8.
+- **Empty / no-.tex zip exits cleanly** — `sys.exit(1)` with clear message instead of traceback.
+- **`\newcommand`/`\def`/`\let` definitions no longer mangled by config rules** — `remove_cmd`, `unwrap_cmd`, and new `remove_bare_cmd` skip matches inside 7 recognised definition forms (`\newcommand`, `\renewcommand`, `\providecommand`, `\DeclareRobustCommand`, `\def`/`\edef`/`\xdef`/`\gdef`, `\protected\def`, `\let`). Best-effort heuristic; `\NewDocumentCommand` (xparse) not covered — documented in template.
+- **`pdflatex`/`biber`/`bibtex` not installed prints a clear message** — `FileNotFoundError` caught; `pdflatex` aborts early (no repeated messages), bib tool continues without bibliography processing.
+- **makeindex/glossary warnings now say "re-run latex2arxiv"** — clarifies the tool picks up `.ind`/`.gls`/`.nls` automatically on re-run.
+
+### Added
+- **Better pdflatex error reporting** — each `!` error paired with its `l.NN` line marker and source-line suffix; capped at 5 blocks.
+- **`\usepackage{xr}` warning links to arXiv docs** — points to the recommended `subfiles` workaround.
+- **`tests/fixtures/`** — 5 self-contained fixture projects with documented expected outcomes and regression anchors; `run_all.sh` runner with color + summary table.
+- **`fixtures-smoke` CI job** — runs fixture suite in dry-run mode and asserts per-fixture outcomes; no TeX Live needed (~10 sec).
+
+### Security
 - **Zip-slip protection** — member paths are validated before extraction; any path escaping the temp root via `..` or absolute paths aborts with `sys.exit(1)` and a clear message. No files are written before the check completes.
 
 ### Fixed

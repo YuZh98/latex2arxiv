@@ -1,0 +1,9 @@
+# Config that strips the revision markup defined inline in main.tex.
+# Pass with: latex2arxiv project.zip --config arxiv_config.yaml
+
+commands_to_delete:
+  - \deleted        # \deleted{...} text disappears entirely
+
+commands_to_unwrap:
+  - \added          # \added{x} → x
+  - \textcolor{red} # \textcolor{red}{x} → x  (exact color literal)

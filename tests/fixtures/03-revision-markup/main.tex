@@ -1,0 +1,35 @@
+\documentclass{article}
+% \added and \deleted come from the changes package, not inline \newcommand
+% definitions — this matters because the regex-based config also matches
+% command names inside \newcommand{\added}{...} bodies, which would mangle
+% the definitions. Using a real package keeps both the original AND the
+% cleaned source compilable.
+\usepackage{changes}
+\usepackage{xcolor}
+
+\title{Revision-markup demo}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+This paragraph contains a normal sentence
+\added{plus a sentence reviewers asked us to add}
+and \deleted{a sentence reviewers asked us to remove (this whole clause
+should disappear after the converter runs).} The surrounding prose stays
+intact.
+
+\textcolor{red}{Red-highlighted phrasing} also gets unwrapped by the
+config — only the inner text survives.
+
+The brace-balanced matcher correctly handles
+\added{nested commands like \emph{this italic} and \textbf{this bold}},
+which a naive regex would mangle.
+
+\section{Discussion}
+% Comments like this one are stripped by the main pipeline, regardless of
+% whether the user supplies a config.
+The pipeline removes the markup wrappers but preserves the surviving
+prose, so the arXiv version reads as a clean paper without a noisy diff.
+
+\end{document}

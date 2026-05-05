@@ -448,6 +448,81 @@ class TestApplyConfig:
         assert result == "hi"
         assert "missing or empty 'pattern'" in capsys.readouterr().out
 
+    # ── Definition-context skip ───────────────────────────────────────────────
+    # When a command rule matches the command's name inside its own
+    # definition (\newcommand{\foo}{...}, \def\foo, \let\foo\bar, etc.), we
+    # leave the match alone so the definition isn't mangled. Body usages of
+    # the same command should still be transformed normally.
+
+    def test_unwrap_skips_newcommand_definition(self):
+        src = (
+            r"\newcommand{\added}[1]{\textcolor{blue}{#1}}" "\n"
+            r"\added{body usage}"
+        )
+        result = apply_config(src, {"commands_to_unwrap": ["\\added"]})
+        # Definition preserved verbatim
+        assert r"\newcommand{\added}[1]{\textcolor{blue}{#1}}" in result
+        # Body usage unwrapped
+        assert "body usage" in result and r"\added{body usage}" not in result
+
+    def test_unwrap_skips_renewcommand_definition(self):
+        src = r"\renewcommand{\added}[1]{#1}" "\n" r"\added{x}"
+        result = apply_config(src, {"commands_to_unwrap": ["\\added"]})
+        assert r"\renewcommand{\added}[1]{#1}" in result
+        assert "\nx" in result
+
+    def test_unwrap_skips_providecommand_definition(self):
+        src = r"\providecommand{\added}[1]{#1}" "\n" r"\added{x}"
+        result = apply_config(src, {"commands_to_unwrap": ["\\added"]})
+        assert r"\providecommand{\added}[1]{#1}" in result
+        assert "\nx" in result
+
+    def test_unwrap_skips_def_definition(self):
+        src = r"\def\added#1{\textcolor{blue}{#1}}" "\n" r"\added{x}"
+        result = apply_config(src, {"commands_to_unwrap": ["\\added"]})
+        assert r"\def\added#1{\textcolor{blue}{#1}}" in result
+        assert "\nx" in result
+
+    def test_unwrap_skips_protected_def_definition(self):
+        src = r"\protected\def\added#1{#1}" "\n" r"\added{x}"
+        result = apply_config(src, {"commands_to_unwrap": ["\\added"]})
+        assert r"\protected\def\added#1{#1}" in result
+        assert "\nx" in result
+
+    def test_unwrap_skips_let_definition(self):
+        src = r"\let\added\foo" "\n" r"\added{x}"
+        result = apply_config(src, {"commands_to_unwrap": ["\\added"]})
+        assert r"\let\added\foo" in result
+        assert "\nx" in result
+
+    def test_unwrap_skips_declarerobustcommand(self):
+        src = r"\DeclareRobustCommand\added[1]{#1}" "\n" r"\added{x}"
+        result = apply_config(src, {"commands_to_unwrap": ["\\added"]})
+        assert r"\DeclareRobustCommand\added[1]{#1}" in result
+        assert "\nx" in result
+
+    def test_delete_skips_newcommand_definition(self):
+        # Same protection for commands_to_delete (uses remove_cmd internally).
+        src = r"\newcommand{\deleted}[1]{}" "\n" r"\deleted{old text}"
+        result = apply_config(src, {"commands_to_delete": ["\\deleted"]})
+        assert r"\newcommand{\deleted}[1]{}" in result
+        # Body usage was deleted (text gone)
+        assert "old text" not in result
+
+    def test_unwrap_handles_whitespace_in_def_form(self):
+        # \def\added (no space) and \def \added (with space) both common.
+        src = r"\def \added #1{#1}" "\n" r"\added{x}"
+        result = apply_config(src, {"commands_to_unwrap": ["\\added"]})
+        assert r"\def \added #1{#1}" in result
+        assert "\nx" in result
+
+    def test_unwrap_does_not_skip_when_prefix_too_far_back(self):
+        # If the definition prefix is more than ~40 chars before the match,
+        # it's likely unrelated context and we transform normally.
+        src = "\\newcommand{\\foo}{x}" + " " * 60 + "\\added{y}"
+        result = apply_config(src, {"commands_to_unwrap": ["\\added"]})
+        assert "y" in result and r"\added{y}" not in result
+
 
 # ── bibtex.py ─────────────────────────────────────────────────────────────────
 

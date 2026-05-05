@@ -1,0 +1,21 @@
+\documentclass{article}
+\title{Minimal Smoke Test}
+\author{Test Author}
+\date{2026-05-04}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+This is the smallest viable LaTeX project — one main file, no bibliography,
+no figures, no markup. It exists to smoke-test the entire conversion
+pipeline end-to-end. If \texttt{latex2arxiv} fails on this, something is
+deeply broken.
+
+\section{Body}
+The cleaning pipeline strips comments, ensures pdfLaTeX output mode by
+prepending the appropriate directive to the main file, and packages
+everything into an arXiv-ready zip. This document tests that the
+round-trip leaves the source readable and pdfLaTeX still compiles.
+
+\end{document}

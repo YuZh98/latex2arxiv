@@ -1,0 +1,25 @@
+\documentclass[referee]{article}
+% This fixture deliberately triggers as many pre-flight checks as possible
+% so the [error]/[warn] surface is easy to inspect end-to-end.
+
+\usepackage{minted}        % shell-escape → [error]
+\usepackage{psfig}         % no-longer-supported → [error]
+\usepackage{xr}            % external refs break on arXiv → [warn]
+\usepackage{makeidx}
+\makeindex
+\usepackage{glossaries}
+\makeglossaries
+
+\title{Pre-flight checks demo}
+\date{\today}              % \today inside \date → [warn]
+
+\begin{document}
+\maketitle
+
+\section{Body}
+\includegraphics{photo.eps}  % .eps figure → [warn]
+
+\printindex                  % \printindex without .ind shipped → [warn]
+\printglossary               % \printglossary without .gls shipped → [warn]
+
+\end{document}
