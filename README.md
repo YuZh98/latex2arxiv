@@ -1,7 +1,9 @@
 # latex2arxiv
 
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![PyPI](https://img.shields.io/pypi/v/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
+[![Downloads](https://img.shields.io/pypi/dm/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
+[![Tests](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml/badge.svg)](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 **Validates arXiv compatibility and cleans your LaTeX project in one command — zip in, zip out.**
@@ -43,6 +45,12 @@ On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 | ... (and ~930 more) | |
 | **934 files, 80.6 MB** | **40 files, 3.1 MB** |
 
+## Who is this for?
+
+- **You wrote your paper in Overleaf** and need a clean, arXiv-ready zip without manually pruning files. → [Quickstart](#installation)
+- **You want to gate a paper repo's CI on arXiv compliance** so a bad merge can't slip through. → `--dry-run` + non-zero exit on `[error]` ([details](#pre-flight-checks))
+- **Your paper uses custom revision-tracking macros** (`\added`, `\deleted`, `\textcolor{red}{...}`) that you need stripped before submission. → [Custom removal rules](#custom-removal-rules---config)
+
 ## What it does
 
 | Feature | What it does |
@@ -58,7 +66,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 
 ## `latex2arxiv` vs. `arxiv_latex_cleaner`
 
-[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the established tool in this space — Google-backed, ~5k★, years of usage. If you want the most battle-tested option, use it.
+[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the incumbent in this space — Google-backed and mature. It cleans well, but it stops there: it won't tell you that `\usepackage{minted}` will fail on arXiv, won't produce the actual `.zip` you upload, and has no exit code for CI gating. `latex2arxiv` is built around catching the submission errors that bounce papers off arXiv — locally, before you upload — and emitting the upload-ready zip in one command.
 
 ### Where `latex2arxiv` is different
 
@@ -93,7 +101,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 | Image resizing (Pillow) | ✅ | ✅ |
 | PDF compression (Ghostscript) | ❌ | ✅ |
 | PNG → JPG conversion | ❌ | ✅ |
-| Maturity | New (0.5.0) | ~5k★, years |
+| Maturity | 128 tests, 5 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
 
 ## Installation
 
@@ -154,6 +162,21 @@ latex2arxiv --demo --compile                           # run the built-in demo
 
 Before producing the output zip, latex2arxiv validates the project against [arXiv's LaTeX submission guide](https://info.arxiv.org/help/submit_tex.html). `[error]` lines block submission (the tool exits non-zero, useful for CI gating); `[warn]` lines are advisory and do not affect the exit code.
 
+Output on a project with several submission issues looks like this:
+
+```text
+$ latex2arxiv paper.zip --dry-run
+  [error] \usepackage{minted} requires shell-escape — arXiv compiles without it; this submission will fail to build
+  [error] \usepackage{psfig} — arXiv no longer supports the psfig package
+  [warn]  \today used in \date — arXiv may rebuild the PDF and the date will change
+  [warn]  .eps image found: photo.eps — pdflatex does not support .eps; convert to .pdf or .png
+  [warn]  \printindex used but no .ind file at root — build locally and re-run latex2arxiv
+
+Summary: 2 errors, 7 warnings
+```
+
+Either `[error]` line would have caused arXiv to reject the submission after upload. The exit code is non-zero on errors, so a CI step like `latex2arxiv paper.zip --dry-run` fails the build before the bad submission ever leaves the repo.
+
 | Severity | Trigger | Why it matters |
 |---|---|---|
 | 🛑 error | `\usepackage{minted}` / `pythontex` / `shellesc` | Require `--shell-escape`; arXiv compiles without it. |
@@ -208,7 +231,7 @@ The config parser is built in (no extra dependencies). The brace-balanced matche
 
 **Safety guarantees.** Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op. A malformed regex in any `replacements` rule emits a `[warn]` naming the rule's index, then skips just that rule; other rules still apply.
 
-## Caveats ⚠️
+## Known limitations
 
 **Dynamically constructed filenames** — `\includegraphics{\figpath/fig1}` cannot be resolved statically and the image will be deleted. Expand path macros before running.
 
@@ -217,19 +240,6 @@ The config parser is built in (no extra dependencies). The brace-balanced matche
 **Inline `\verb|...|`** — comment-stripping and draft-removal don't currently protect inline `\verb|...|`. A `%` or `\todo{...}` inside `\verb|...|` may get mangled. Standard `verbatim`, `lstlisting`, and `minted` *block* environments are protected.
 
 **`--compile` is a local sanity check** — a successful local compile doesn't guarantee arXiv will compile it. arXiv pins specific TeX Live versions. Always check the [arXiv submission preview](https://arxiv.org/help/submit) after uploading.
-
-## Project structure
-
-```
-converter.py        # CLI entry point
-pipeline/
-    tex.py          # Comment stripping, draft annotation removal
-    bibtex.py       # BibTeX normalization
-    deps.py         # Dependency graph (tex includes, images, bib files)
-    images.py       # Image resizing
-    config.py       # User-defined removal rules
-arxiv_config.yaml   # Sample config file
-```
 
 [^main]: `JASA_main.tex` is identified as the main file via auto-detection (or pass `--main JASA_main.tex` to be explicit).
 [^supp]: `Supplementary_Materials.tex` is kept because it's a `\subfile` dependency of the main file.
