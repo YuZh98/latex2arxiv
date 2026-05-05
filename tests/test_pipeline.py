@@ -1272,3 +1272,91 @@ class TestDemoFlag:
         output = captured.getvalue()
         assert '[dry-run]' in output
         assert 'No output written' in output
+
+
+# ── Input resolution (directory / git URL) ────────────────────────────────────
+
+class TestInputResolution:
+    """Tests for _is_git_url, _zip_directory, and _resolve_input."""
+
+    def test_is_git_url_https(self):
+        from converter import _is_git_url
+        assert _is_git_url('https://github.com/user/repo.git')
+        assert _is_git_url('https://github.com/user/repo')
+
+    def test_is_git_url_ssh(self):
+        from converter import _is_git_url
+        assert _is_git_url('git@github.com:user/repo.git')
+
+    def test_is_git_url_plain_path(self):
+        from converter import _is_git_url
+        assert not _is_git_url('paper.zip')
+        assert not _is_git_url('/home/user/paper/')
+
+    def test_zip_directory(self, tmp_path):
+        from converter import _zip_directory
+        # Create a small directory with a .tex file
+        (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}hi\end{document}')
+        (tmp_path / 'fig.png').write_bytes(b'PNG')
+        (tmp_path / '.git').mkdir()
+        (tmp_path / '.git' / 'config').write_text('gitconfig')
+
+        cleanup = []
+        zip_path = _zip_directory(tmp_path, cleanup)
+        assert zip_path.exists()
+        with zipfile.ZipFile(zip_path) as zf:
+            names = zf.namelist()
+        assert 'main.tex' in names
+        assert 'fig.png' in names
+        # .git should be excluded
+        assert not any('.git' in n for n in names)
+        # Cleanup
+        for d in cleanup:
+            import shutil
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_resolve_input_directory(self, tmp_path):
+        from converter import _resolve_input
+        (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}hi\end{document}')
+        cleanup = []
+        result = _resolve_input(str(tmp_path), cleanup)
+        assert result.exists()
+        assert result.suffix == '.zip'
+        for d in cleanup:
+            import shutil
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_resolve_input_zip(self, tmp_path):
+        from converter import _resolve_input
+        zip_path = tmp_path / 'paper.zip'
+        with zipfile.ZipFile(zip_path, 'w') as zf:
+            zf.writestr('main.tex', r'\documentclass{article}\begin{document}hi\end{document}')
+        cleanup = []
+        result = _resolve_input(str(zip_path), cleanup)
+        assert result == zip_path
+        assert cleanup == []
+
+    def test_directory_input_full_pipeline(self, tmp_path):
+        """End-to-end: convert() works on a zip produced from a directory."""
+        from converter import convert, _zip_directory
+        # Set up a directory
+        src = tmp_path / 'project'
+        src.mkdir()
+        (src / 'main.tex').write_text(
+            r'\documentclass{article}\begin{document}\includegraphics{fig}\end{document}'
+        )
+        (src / 'fig.png').write_bytes(b'PNG')
+        (src / 'unused.png').write_bytes(b'PNG')
+
+        cleanup = []
+        zip_path = _zip_directory(src, cleanup)
+        out = tmp_path / 'out.zip'
+        convert(zip_path, out)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+        assert 'main.tex' in names
+        assert 'fig.png' in names
+        assert 'unused.png' not in names
+        for d in cleanup:
+            import shutil
+            shutil.rmtree(d, ignore_errors=True)
