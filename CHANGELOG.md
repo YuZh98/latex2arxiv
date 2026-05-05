@@ -5,40 +5,38 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **GitHub Action** (`action.yml`) — `uses: YuZh98/latex2arxiv@main` runs pre-flight checks in CI; accepts `.zip` or directory input, `dry-run`, `main`, `config`, `version`, and `python-version` inputs; emits `cleaned-zip` output for release workflows.
-- **`pre-commit` hook** (`.pre-commit-hooks.yaml`) — `latex2arxiv-dryrun` hook for repos that keep a submission zip checked in.
-- **Overleaf → arXiv quickstart** (`docs/overleaf.md`) — step-by-step guide covering the Overleaf export flow, common pre-flight errors, and biblatex/subfile/revision-markup edge cases. Includes a 3-step Quickstart at the top for first-time/non-CLI users with platform-specific "open a terminal in this folder" instructions.
-- **`action-smoke` CI job** — smoke-tests `action.yml` against fixture projects; verifies clean fixture passes and error fixture exits non-zero.
-- **README: CI / pre-commit integration section** — GitHub Action usage with inputs table, `cleaned-zip` release-pipeline example, and pre-commit hook snippet.
-- **README: "Who is this for?" section** — three reader personas (Overleaf user, CI gating, revision macros) with direct links.
-- **README: Overleaf quickstart and CI integration links** added to top nav bar.
-- **Better pdflatex error reporting** — each `!` error paired with its `l.NN` line marker and source-line suffix; capped at 5 blocks.
-- **biblatex/biber support in `--compile`** — detects `\usepackage{biblatex}` or `\addbibresource` and runs `biber` instead of `bibtex`.
-- **`\usepackage{psfig}` → `[error]`** — arXiv no longer supports psfig.
-- **`\usepackage{xr}` / `xr-hyper` → `[warn]`** — external-document references break on arXiv; warning names the exact package.
-- **makeindex/glossary without pre-built files → `[warn]`** — detects `\printindex` without `.ind`, `\printglossary`/`\printglossaries` without `.gls`, `\printnomenclature` without `.nls`.
-- **Main tex not at submission root → `[warn]`** — arXiv compiles from zip root.
-- **Unknown config keys warn** — typo like `command_to_delete` (singular) now prints `[warn]` listing valid options.
-- **Rewritten `arxiv_config.yaml` template** — decision tree, inline before/after examples, definition-context caveat, `\textcolor{*}` wildcard recipe.
-- **`tests/fixtures/`** — 5 fixture projects with documented expected outcomes, regression anchors, and `run_all.sh` runner.
-- **`fixtures-smoke` CI job** — fixture regression net, no TeX Live needed.
+- **GitHub Action** (`action.yml`) — composite action runs pre-flight in CI; `.zip` or directory input; emits `cleaned-zip` for release chaining.
+- **`pre-commit` hook** — `latex2arxiv-dryrun` for repos with a checked-in submission zip.
+- **Overleaf → arXiv quickstart** (`docs/overleaf.md`) — 3-step Quickstart for non-CLI users plus full walkthrough with biblatex/subfile/revision-markup edge cases.
+- **README** — CI/pre-commit integration section, "Who is this for?" personas, top-nav links to Overleaf and CI.
+- **`action-smoke` CI job** — exercises `action.yml` against clean and error fixtures.
+- **`fixtures-smoke` CI job** — fixture regression net (no TeX Live).
 - **`compile-smoke` CI job** — live TeX Live + biber end-to-end test.
+- **`tests/fixtures/`** — 5 fixture projects with `run_all.sh` runner.
+- **biblatex/biber support in `--compile`** — runs `biber` when `\usepackage{biblatex}` or `\addbibresource` detected.
+- **Better pdflatex error reporting** — `!` errors paired with `l.NN` line markers and source-line suffix; capped at 5 blocks.
+- **`\usepackage{psfig}` → `[error]`** — no longer supported by arXiv.
+- **`\usepackage{xr}` / `xr-hyper` → `[warn]`** — external-document references break on arXiv.
+- **`\printindex`/`\printglossary`/`\printnomenclature` without pre-built files → `[warn]`**.
+- **Main tex not at submission root → `[warn]`** — arXiv compiles from zip root.
+- **Unknown config keys warn** — typo like `command_to_delete` (singular) no longer silently no-ops.
+- **Rewritten `arxiv_config.yaml` template** — decision tree, before/after examples, definition-context caveat, `\textcolor{*}` recipe.
 
 ### Security
-- **Zip-slip protection** — member paths validated before extraction; `..` and absolute-path escapes abort with `sys.exit(1)` before any file is written.
+- **Zip-slip protection** — member paths validated before extraction; `..` and absolute-path escapes abort with `sys.exit(1)`.
 
 ### Fixed
-- **`\newcommand`/`\def`/`\let` definitions no longer mangled by config rules** — `remove_cmd`, `unwrap_cmd`, and `remove_bare_cmd` skip matches inside 7 recognised definition forms. Best-effort heuristic; `\NewDocumentCommand` (xparse) not covered — documented in template.
-- **macOS Finder zips unwrap correctly** — `__MACOSX/` and `.DS_Store` ignored by the single-directory unwrap heuristic.
-- **Non-UTF-8 source files emit `[warn]`** — per-file U+FFFD detection surfaces encoding issues so users know to re-save as UTF-8.
-- **Empty / no-.tex zip exits cleanly** — `sys.exit(1)` with clear message instead of traceback.
-- **`pdflatex`/`biber`/`bibtex` not installed prints a clear message** — `FileNotFoundError` caught; `pdflatex` aborts early (no repeated messages), bib tool continues without bibliography processing.
-- **makeindex/glossary warnings now say "re-run latex2arxiv"** — clarifies the tool picks up `.ind`/`.gls`/`.nls` automatically on re-run.
-- **`\usepackage{xr}` warning links to arXiv docs** — points to the recommended `subfiles` workaround.
-- **00README files no longer stripped** — `00README` / `00README.XXX` at submission root preserved for arXiv processor hints.
-- **`\pdfoutput=0` (or any non-1 value) now corrected** — strips any existing `\pdfoutput=N` before prepending `\pdfoutput=1`.
-- **`\addbibresource` with subdirectory paths** — `find_used_bib_files()` strips directory components so `\addbibresource{bib/refs.bib}` correctly keeps the file.
-- **Config `None` values / malformed rules no longer crash** — null keys, non-dict rules, empty patterns, bad regex, and top-level non-dict config all emit `[warn]` and continue instead of raising.
+- **`\newcommand`/`\def`/`\let` definitions preserved by config rules** — skip across 7 definition forms; `\NewDocumentCommand` (xparse) not covered.
+- **macOS Finder zips unwrap correctly** — `__MACOSX/` and `.DS_Store` ignored.
+- **Non-UTF-8 source files emit `[warn]`** — per-file U+FFFD detection.
+- **Empty / no-`.tex` zip exits cleanly** — `sys.exit(1)` instead of traceback.
+- **`pdflatex`/`biber`/`bibtex` not installed prints clear message** — `FileNotFoundError` caught; bib tools degrade gracefully.
+- **makeindex/glossary warnings say "re-run latex2arxiv"** — `.ind`/`.gls`/`.nls` picked up automatically.
+- **`\usepackage{xr}` warning links to arXiv docs** — points to `subfiles` workaround.
+- **00README files preserved** — `00README` / `00README.XXX` at root kept for arXiv processor hints.
+- **`\pdfoutput=N` corrected** — strips any existing value before prepending `\pdfoutput=1`.
+- **`\addbibresource{bib/refs.bib}` resolves** — `find_used_bib_files()` strips directory components.
+- **Config `None`/malformed rules no longer crash** — null keys, non-dict rules, empty patterns, bad regex, non-dict root all warn and continue.
 
 ---
 
