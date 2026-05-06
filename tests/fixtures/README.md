@@ -19,6 +19,8 @@ logic.
 | 03 | `03-revision-markup/` | `\added`/`\deleted`/`\textcolor{red}` markup with bundled `arxiv_config.yaml`. Tests config-driven cleanup and brace-balanced matcher (nested `\emph`, `\textbf`). |
 | 04 | `04-multi-documentclass/` | Four files with `\documentclass` (`main.tex`, `main_backup.tex`, `response.tex`, `Supplementary_Materials.tex`). Tests the main-tex auto-detect heuristic ranking. |
 | 05 | `05-pre-flight-warnings/` | Deliberately triggers most pre-flight checks at once: `minted` + `psfig` (errors), `xr` + `referee` + `\today`-in-`\date` + `.eps` + custom `.sty` + `\printindex` without `.ind` + `\printglossary` without `.gls` (warns). |
+| 06 | `06-inline-verbatim/` | `\verb`, `\verb*`, `\lstinline`, `\mintinline` with `%` and `\todo{}` inside. Tests inline-code protection during comment stripping and draft removal. |
+| 07 | `07-fontspec-xelatex/` | `\usepackage{fontspec}` + `\usepackage{unicode-math}`. Tests the XeLaTeX/LuaLaTeX pre-flight `[error]` check. |
 
 ## How to run
 
@@ -146,3 +148,32 @@ real images unless the test depends on image content — placeholder bytes
 or synthetic stubs are fine. Add a row to the "What's covered" table above,
 a section under "Expected outcomes" naming the regression anchor, and a
 brief note in the "Why" section.
+
+### 06-inline-verbatim
+
+- **Kept:** `main.tex` (1 file).
+- **Removed:** none.
+- **Errors / warnings:** 0 / 0.
+- **Cleaned-source notes:**
+  - `\verb|%|` preserved (not treated as comment).
+  - `\verb+\todo{x}+` preserved (todo not removed from verb content).
+  - `\lstinline|%foo|` and `\lstinline{\todo{bar}}` preserved.
+  - `\verb|\todo{this}|` preserved.
+  - Real `% comments` stripped normally.
+  - Standalone `\todo{...}` removed normally.
+  - `verbatim` block content preserved.
+- **Regression anchor:** if any `\verb`, `\lstinline`, or `\mintinline`
+  content is mangled (% stripped, \todo removed), the inline-code protection
+  in `pipeline/tex.py:_protect_verbatim` has regressed.
+
+### 07-fontspec-xelatex
+
+- **Kept:** `main.tex` (1 file).
+- **Removed:** none.
+- **Errors:** 2.
+  - `\usepackage{fontspec} requires XeLaTeX or LuaLaTeX — arXiv defaults to pdfLaTeX and this submission will fail to build`
+  - `\usepackage{unicode-math} requires XeLaTeX or LuaLaTeX — arXiv defaults to pdfLaTeX and this submission will fail to build`
+- **Warnings:** 0.
+- **Regression anchor:** if either `[error]` line goes missing, the
+  fontspec/unicode-math check in `converter.py:_check_compliance` has
+  regressed.

@@ -101,4 +101,4 @@ for entry in "${STATUSES[@]}"; do
     printf "  %-28s  %s\n" "$name" "$status"
 done
 echo
-echo "$TOTAL fixtures ran, $NONZERO with non-zero exit (05-pre-flight-warnings is expected)."
+echo "$TOTAL fixtures ran, $NONZERO with non-zero exit (05-pre-flight-warnings and 07-fontspec-xelatex are expected)."

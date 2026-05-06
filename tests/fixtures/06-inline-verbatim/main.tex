@@ -1,0 +1,29 @@
+\pdfoutput=1
+\documentclass{article}
+\usepackage{listings}
+
+\begin{document}
+
+\section{Inline code protection}
+
+Use \verb|%| for comments in LaTeX.
+
+The starred form shows spaces: \verb*|x = y|.
+
+With different delimiters: \verb+\todo{x}+ should survive.
+
+Using lstinline: \lstinline|%foo| and \lstinline{\todo{bar}}.
+
+% This is a real comment that should be stripped.
+Some text. % trailing comment
+
+\todo{This todo should be removed}
+
+But \verb|\todo{this}| should NOT be removed.
+
+\begin{verbatim}
+% This percent in verbatim stays
+\todo{This todo in verbatim stays}
+\end{verbatim}
+
+\end{document}
