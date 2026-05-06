@@ -1292,6 +1292,7 @@ class TestInputResolution:
         from converter import _is_git_url
         assert not _is_git_url('paper.zip')
         assert not _is_git_url('/home/user/paper/')
+        assert not _is_git_url('./my-project.git')  # local bare repo, not a URL
 
     def test_zip_directory(self, tmp_path):
         from converter import _zip_directory
@@ -1311,6 +1312,22 @@ class TestInputResolution:
         # .git should be excluded
         assert not any('.git' in n for n in names)
         # Cleanup
+        for d in cleanup:
+            import shutil
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_zip_directory_excludes_symlinks(self, tmp_path):
+        from converter import _zip_directory
+        (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}hi\end{document}')
+        # Create a symlink pointing outside the project
+        (tmp_path / 'link.txt').symlink_to('/etc/hosts')
+
+        cleanup = []
+        zip_path = _zip_directory(tmp_path, cleanup)
+        with zipfile.ZipFile(zip_path) as zf:
+            names = zf.namelist()
+        assert 'main.tex' in names
+        assert 'link.txt' not in names
         for d in cleanup:
             import shutil
             shutil.rmtree(d, ignore_errors=True)

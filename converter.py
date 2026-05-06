@@ -554,7 +554,7 @@ def _compile(output_zip: Path, main_hint: str | None):
 
 def _is_git_url(s: str) -> bool:
     """Return True if s looks like a git remote URL."""
-    return s.startswith(('https://', 'http://', 'git@', 'ssh://')) or s.endswith('.git')
+    return s.startswith(('https://', 'http://', 'git@', 'ssh://'))
 
 
 def _zip_directory(directory: Path, tmp_list: list[str]) -> Path:
@@ -564,7 +564,7 @@ def _zip_directory(directory: Path, tmp_list: list[str]) -> Path:
     zip_path = Path(tmp) / (directory.name + '.zip')
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
         for file in sorted(directory.rglob('*')):
-            if file.is_file() and '.git' not in file.parts:
+            if file.is_file() and not file.is_symlink() and '.git' not in file.parts:
                 zf.write(file, file.relative_to(directory))
     return zip_path
 
@@ -658,8 +658,11 @@ def main():
         if args.output:
             out = Path(args.output)
         elif _is_git_url(inp_raw):
-            # Derive name from the repo URL
-            repo_name = inp_raw.rstrip('/').rsplit('/', 1)[-1].removesuffix('.git')
+            # Derive name from the repo URL (handles both https and git@host:user/repo)
+            name_part = inp_raw.rstrip('/').rsplit('/', 1)[-1]
+            if ':' in name_part:
+                name_part = name_part.rsplit(':', 1)[-1].rsplit('/', 1)[-1]
+            repo_name = name_part.removesuffix('.git')
             out = Path(f"{repo_name}_arxiv.zip")
         elif Path(inp_raw).is_dir():
             out = Path(f"{Path(inp_raw).name}_arxiv.zip")
