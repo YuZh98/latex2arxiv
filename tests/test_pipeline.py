@@ -36,6 +36,16 @@ class TestStripComments:
         src = "\\begin{verbatim}\n% keep this\n\\end{verbatim}"
         assert "% keep this" in strip_comments(src)
 
+    def test_preserves_verb_inline(self):
+        src = r"Use \verb|%foo| for percent"
+        result = strip_comments(src)
+        assert r"\verb|%foo|" in result
+
+    def test_preserves_verb_with_other_delimiter(self):
+        src = r"Use \verb+\todo{x}+ here"
+        result = strip_comments(src)
+        assert r"\verb+\todo{x}+" in result
+
     def test_removes_full_comment_line(self):
         result = strip_comments("% entire line\ncode")
         assert "entire line" not in result
@@ -77,6 +87,11 @@ class TestRemoveDraftAnnotations:
 
     def test_removes_hl_with_nested_braces(self):
         assert remove_draft_annotations(r"\hl{some \emph{important} text}") == ""
+
+    def test_preserves_verb_containing_todo(self):
+        src = r"Use \verb|\todo{x}| in code"
+        result = remove_draft_annotations(src)
+        assert r"\verb|\todo{x}|" in result
 
 
 class TestRemoveCommentEnvironments:
@@ -756,6 +771,20 @@ class TestPreflightChecks:
         }
         issues, _ = self._run(files)
         assert any('psfig' in e for e in issues.errors)
+
+    def test_fontspec_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{fontspec}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('fontspec' in e for e in issues.errors)
+
+    def test_unicode_math_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{unicode-math}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('unicode-math' in e for e in issues.errors)
 
     def test_xr_warns(self):
         files = {

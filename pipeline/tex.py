@@ -7,15 +7,36 @@ _VERBATIM_ENVS = re.compile(
     re.DOTALL
 )
 
+# Inline \verb|...| (any delimiter character)
+_VERB_INLINE = re.compile(r'\\verb([^a-zA-Z*\s]).*?\1')
 
-def strip_comments(source: str) -> str:
-    """Remove LaTeX comments (% ...) while preserving \\% and verbatim blocks."""
+
+def _protect_verbatim(source: str):
+    """Replace verbatim environments and \\verb|...| with placeholders.
+    Returns (protected_source, placeholders_dict).
+    """
     placeholders = {}
+
     def protect(m):
         key = f"\x00VERBATIM{len(placeholders)}\x00"
         placeholders[key] = m.group(0)
         return key
-    protected = _VERBATIM_ENVS.sub(protect, source)
+
+    source = _VERBATIM_ENVS.sub(protect, source)
+    source = _VERB_INLINE.sub(protect, source)
+    return source, placeholders
+
+
+def _restore_verbatim(source: str, placeholders: dict) -> str:
+    """Restore placeholders back to original content."""
+    for key, val in placeholders.items():
+        source = source.replace(key, val)
+    return source
+
+
+def strip_comments(source: str) -> str:
+    """Remove LaTeX comments (% ...) while preserving \\% and verbatim blocks."""
+    protected, placeholders = _protect_verbatim(source)
 
     result_lines = []
     for line in protected.splitlines(keepends=True):
@@ -28,11 +49,7 @@ def strip_comments(source: str) -> str:
         result_lines.append(stripped)
 
     stripped = ''.join(result_lines)
-
-    for key, val in placeholders.items():
-        stripped = stripped.replace(key, val)
-
-    return stripped
+    return _restore_verbatim(stripped, placeholders)
 
 
 def find_balanced(s: str, start: int) -> int:
@@ -157,11 +174,13 @@ def unwrap_cmd(source: str, pattern: re.Pattern) -> str:
 def remove_draft_annotations(source: str) -> str:
     """Remove common draft-only commands: \\todo, \\hl, \\note, \\fixme.
     Uses a brace-balanced matcher to handle nested braces correctly.
+    Protects \\verb|...| content from being mangled.
     """
+    source, placeholders = _protect_verbatim(source)
     source = remove_cmd(source, re.compile(r'\\todo(?:\[[^\]]*\])?(?=\{)'))
     for cmd in ('hl', 'note', 'fixme'):
         source = remove_cmd(source, re.compile(r'\\' + cmd + r'(?=\{)'))
-    return source
+    return _restore_verbatim(source, placeholders)
 
 
 def remove_draft_packages(source: str) -> str:
