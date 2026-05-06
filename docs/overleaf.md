@@ -71,6 +71,13 @@ Supported. `latex2arxiv --compile` detects `\usepackage{biblatex}` or `\addbibre
 **Overleaf project has `__MACOSX/` and `.DS_Store` files**  
 If you ever round-trip through macOS Finder, those folders end up in the zip. `latex2arxiv` ignores them.
 
+**Project is linked to a git remote (GitHub, GitLab, etc.)**  
+If your Overleaf project syncs to a git repo, you can skip the zip download entirely:
+
+```bash
+latex2arxiv https://github.com/user/paper.git --compile
+```
+
 ## Going further
 
 See the [main README](../README.md) for the full pre-flight check reference, custom removal rules, and known limitations.
