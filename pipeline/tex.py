@@ -7,8 +7,11 @@ _VERBATIM_ENVS = re.compile(
     re.DOTALL
 )
 
-# Inline \verb|...| and \verb*|...| (any delimiter character)
-_VERB_INLINE = re.compile(r'\\verb\*?([^a-zA-Z\s]).*?\1')
+# Inline \verb|...|, \verb*|...|, \lstinline|...|, \mintinline{lang}|...| (any delimiter)
+_VERB_INLINE = re.compile(
+    r'\\(?:verb\*?|lstinline\*?(?:\[[^\]]*\])?|mintinline\*?(?:\[[^\]]*\])?\{[^}]*\})'
+    r'([^a-zA-Z\s]).*?\1'
+)
 
 
 def _protect_verbatim(source: str):
