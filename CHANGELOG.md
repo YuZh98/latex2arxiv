@@ -4,12 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [0.7.0] - 2026-05-06
+
 ### Added
+- Directory and git URL input: `latex2arxiv paper/` and `latex2arxiv https://github.com/user/paper.git` now work alongside `.zip` input
 - GitHub Action (`action.yml`): composite action for CI pre-flight; accepts `.zip` or directory input; emits `cleaned-zip` output for release workflows
 - `pre-commit` hook: `latex2arxiv-dryrun` for repos with a checked-in submission zip
-- Overleaf → arXiv quickstart (`docs/overleaf.md`): 3-step guide for non-CLI users with biblatex/subfile/revision-markup walkthroughs
-- README: CI/pre-commit integration section, "Who is this for?" personas, top-nav links
+- Overleaf → arXiv quickstart (`docs/overleaf.md`): 3-step guide for non-CLI users
 - `action-smoke` CI job: tests `action.yml` against clean and error fixtures
+- `\usepackage{fontspec}` / `unicode-math` raises `[error]`: requires XeLaTeX/LuaLaTeX but arXiv defaults to pdfLaTeX
+- 2 new regression fixtures: `06-inline-verbatim`, `07-fontspec-xelatex`
+
+### Fixed
+- `\verb|...|`, `\verb*|...|`, `\lstinline`, and `\mintinline` (both delimiter and brace forms) are now protected during comment stripping and draft annotation removal
+- Directory zipping excludes `__pycache__`, `.DS_Store`, `Thumbs.db`, `*.pyc`; symlinks pointing outside the project are excluded while in-project symlinks are kept
+- SSH-style git URL name derivation (`git@host:user/repo.git` → `repo_arxiv.zip`)
+- `git clone` has a 5-minute timeout to prevent indefinite hangs
 
 ---
 

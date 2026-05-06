@@ -81,7 +81,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 | Image resizing (Pillow) | ✅ | ✅ |
 | PDF compression (Ghostscript) | ❌ | ✅ |
 | PNG → JPG conversion | ❌ | ✅ |
-| Maturity | 128 tests, 5 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
+| Maturity | 150 tests, 7 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
 
 ## Installation
 
@@ -165,6 +165,7 @@ Either `[error]` line would have caused arXiv to reject the submission after upl
 |---|---|---|
 | 🛑 error | `\usepackage{minted}` / `pythontex` / `shellesc` | Require `--shell-escape`; arXiv compiles without it. |
 | 🛑 error | `\usepackage{psfig}` | arXiv no longer supports the psfig package. |
+| 🛑 error | `\usepackage{fontspec}` / `unicode-math` | Require XeLaTeX or LuaLaTeX; arXiv defaults to pdfLaTeX. |
 | ⚠️ warn | `\usepackage{xr}` or `xr-hyper` | File paths/locations differ on arXiv; external-document references break. |
 | ⚠️ warn | Main `.tex` not at the submission root | arXiv compiles from root; subdirectory main files aren't found. |
 | ⚠️ warn | `\printindex` / `\printglossary` / `\printnomenclature` without matching `.ind` / `.gls` / `.nls` | arXiv doesn't run makeindex or glossary processors; the printed section silently disappears. |
@@ -232,8 +233,6 @@ The exit code is non-zero on `[error]`, so this fails the job automatically.
 **Dynamically constructed filenames** — `\includegraphics{\figpath/fig1}` cannot be resolved statically and the image will be deleted. Expand path macros before running.
 
 **`\subfile` vs `\input` path resolution** — `\input`/`\include` paths resolve relative to the project root; `\subfile` paths resolve relative to the subfile's own directory. Unusual nested setups may cause images to be incorrectly pruned; use `--compile` to verify.
-
-**Inline `\verb|...|`** — comment-stripping and draft-removal don't currently protect inline `\verb|...|`. A `%` or `\todo{...}` inside `\verb|...|` may get mangled. Standard `verbatim`, `lstlisting`, and `minted` *block* environments are protected.
 
 **`--compile` is a local sanity check** — a successful local compile doesn't guarantee arXiv will compile it. arXiv pins specific TeX Live versions. Always check the [arXiv submission preview](https://arxiv.org/submit) after uploading.
 
