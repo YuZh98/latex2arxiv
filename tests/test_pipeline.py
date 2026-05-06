@@ -51,6 +51,16 @@ class TestStripComments:
         result = strip_comments(src)
         assert r"\verb*|%foo|" in result
 
+    def test_preserves_lstinline(self):
+        src = r"Use \lstinline|%foo| for code"
+        result = strip_comments(src)
+        assert r"\lstinline|%foo|" in result
+
+    def test_preserves_mintinline(self):
+        src = r"Use \mintinline{python}|%foo| for code"
+        result = strip_comments(src)
+        assert r"\mintinline{python}|%foo|" in result
+
     def test_removes_full_comment_line(self):
         result = strip_comments("% entire line\ncode")
         assert "entire line" not in result
