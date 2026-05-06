@@ -554,7 +554,13 @@ def _compile(output_zip: Path, main_hint: str | None):
 
 def _is_git_url(s: str) -> bool:
     """Return True if s looks like a git remote URL."""
-    return s.startswith(('https://', 'http://', 'git@', 'ssh://'))
+    return s.startswith(('https://', 'http://', 'git://', 'git@', 'ssh://'))
+
+
+# Directories and files to exclude when zipping a directory input.
+_ZIP_EXCLUDE_DIRS = {'.git', '__pycache__', '__MACOSX', '.DS_Store'}
+_ZIP_EXCLUDE_SUFFIXES = {'.pyc', '.pyo'}
+_ZIP_EXCLUDE_NAMES = {'.DS_Store', 'Thumbs.db'}
 
 
 def _zip_directory(directory: Path, tmp_list: list[str]) -> Path:
@@ -562,10 +568,25 @@ def _zip_directory(directory: Path, tmp_list: list[str]) -> Path:
     tmp = tempfile.mkdtemp()
     tmp_list.append(tmp)
     zip_path = Path(tmp) / (directory.name + '.zip')
+    root_resolved = directory.resolve()
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
         for file in sorted(directory.rglob('*')):
-            if file.is_file() and not file.is_symlink() and '.git' not in file.parts:
-                zf.write(file, file.relative_to(directory))
+            if not file.is_file():
+                continue
+            # Skip symlinks that point outside the project
+            if file.is_symlink():
+                try:
+                    file.resolve().relative_to(root_resolved)
+                except ValueError:
+                    continue
+            # Skip junk directories and files
+            if _ZIP_EXCLUDE_DIRS & set(file.parts):
+                continue
+            if file.suffix in _ZIP_EXCLUDE_SUFFIXES:
+                continue
+            if file.name in _ZIP_EXCLUDE_NAMES:
+                continue
+            zf.write(file, file.relative_to(directory))
     return zip_path
 
 
@@ -578,10 +599,13 @@ def _resolve_input(inp_raw: str, tmp_list: list[str]) -> Path:
         try:
             subprocess.run(
                 ['git', 'clone', '--depth', '1', inp_raw, clone_dir],
-                check=True, capture_output=True,
+                check=True, capture_output=True, timeout=300,
             )
         except FileNotFoundError:
             print("ERROR: git not found — install git to use URL input")
+            sys.exit(1)
+        except subprocess.TimeoutExpired:
+            print("ERROR: git clone timed out after 5 minutes")
             sys.exit(1)
         except subprocess.CalledProcessError as e:
             print(f"ERROR: git clone failed:\n{e.stderr.decode('utf-8', errors='replace').strip()}")

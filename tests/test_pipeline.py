@@ -1316,18 +1316,44 @@ class TestInputResolution:
             import shutil
             shutil.rmtree(d, ignore_errors=True)
 
-    def test_zip_directory_excludes_symlinks(self, tmp_path):
+    def test_zip_directory_excludes_external_symlinks(self, tmp_path):
         from converter import _zip_directory
         (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}hi\end{document}')
-        # Create a symlink pointing outside the project
-        (tmp_path / 'link.txt').symlink_to('/etc/hosts')
+        # External symlink — should be excluded
+        (tmp_path / 'external.txt').symlink_to('/etc/hosts')
+        # In-project symlink — should be included
+        (tmp_path / 'fig.png').write_bytes(b'PNG')
+        (tmp_path / 'link_fig.png').symlink_to(tmp_path / 'fig.png')
 
         cleanup = []
         zip_path = _zip_directory(tmp_path, cleanup)
         with zipfile.ZipFile(zip_path) as zf:
             names = zf.namelist()
         assert 'main.tex' in names
-        assert 'link.txt' not in names
+        assert 'link_fig.png' in names  # in-project symlink kept
+        assert 'external.txt' not in names  # external symlink excluded
+        for d in cleanup:
+            import shutil
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_zip_directory_excludes_junk(self, tmp_path):
+        from converter import _zip_directory
+        (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}hi\end{document}')
+        (tmp_path / '__pycache__').mkdir()
+        (tmp_path / '__pycache__' / 'mod.cpython-313.pyc').write_bytes(b'\x00')
+        (tmp_path / '.DS_Store').write_bytes(b'\x00')
+        (tmp_path / 'Thumbs.db').write_bytes(b'\x00')
+        (tmp_path / 'helper.pyc').write_bytes(b'\x00')
+
+        cleanup = []
+        zip_path = _zip_directory(tmp_path, cleanup)
+        with zipfile.ZipFile(zip_path) as zf:
+            names = zf.namelist()
+        assert 'main.tex' in names
+        assert not any('__pycache__' in n for n in names)
+        assert '.DS_Store' not in names
+        assert 'Thumbs.db' not in names
+        assert 'helper.pyc' not in names
         for d in cleanup:
             import shutil
             shutil.rmtree(d, ignore_errors=True)
