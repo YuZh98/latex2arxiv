@@ -150,6 +150,12 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
         issues.error("\\usepackage{psfig} — arXiv no longer supports the psfig package; "
                      "convert figure inclusions to \\includegraphics from graphicx")
 
+    # fontspec / unicode-math require XeLaTeX or LuaLaTeX; arXiv defaults to pdfLaTeX.
+    for pkg in ('fontspec', 'unicode-math'):
+        if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b' + pkg + r'\b[^}]*\}', combined_nc):
+            issues.error(f"\\usepackage{{{pkg}}} requires XeLaTeX or LuaLaTeX — "
+                         "arXiv defaults to pdfLaTeX and this submission will fail to build")
+
     # xr / xr-hyper break because file paths/locations differ on arXiv's servers.
     # Longer alternative listed first so the captured group prefers xr-hyper over xr.
     m = re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b(xr-hyper|xr)\b[^}]*\}', combined_nc)
