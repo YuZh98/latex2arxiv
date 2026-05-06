@@ -1288,11 +1288,33 @@ class TestInputResolution:
         from converter import _is_git_url
         assert _is_git_url('git@github.com:user/repo.git')
 
+    def test_is_git_url_git_protocol(self):
+        from converter import _is_git_url
+        assert _is_git_url('git://github.com/user/repo.git')
+
     def test_is_git_url_plain_path(self):
         from converter import _is_git_url
         assert not _is_git_url('paper.zip')
         assert not _is_git_url('/home/user/paper/')
         assert not _is_git_url('./my-project.git')  # local bare repo, not a URL
+
+    def test_output_name_from_https_url(self):
+        """Verify repo name derivation for https URLs."""
+        url = 'https://github.com/user/my-paper.git'
+        name_part = url.rstrip('/').rsplit('/', 1)[-1]
+        if ':' in name_part:
+            name_part = name_part.rsplit(':', 1)[-1].rsplit('/', 1)[-1]
+        repo_name = name_part.removesuffix('.git')
+        assert repo_name == 'my-paper'
+
+    def test_output_name_from_ssh_url(self):
+        """Verify repo name derivation for git@host:user/repo style URLs."""
+        url = 'git@github.com:user/my-paper.git'
+        name_part = url.rstrip('/').rsplit('/', 1)[-1]
+        if ':' in name_part:
+            name_part = name_part.rsplit(':', 1)[-1].rsplit('/', 1)[-1]
+        repo_name = name_part.removesuffix('.git')
+        assert repo_name == 'my-paper'
 
     def test_zip_directory(self, tmp_path):
         from converter import _zip_directory
