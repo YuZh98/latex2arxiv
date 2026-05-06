@@ -118,6 +118,16 @@ class TestRemoveDraftAnnotations:
         result = remove_draft_annotations(src)
         assert r"\verb|\todo{x}|" in result
 
+    def test_preserves_lstinline_braces_containing_todo(self):
+        src = r"Use \lstinline{\todo{x}} in code"
+        result = remove_draft_annotations(src)
+        assert r"\todo{x}" in result
+
+    def test_preserves_mintinline_braces_containing_hl(self):
+        src = r"Use \mintinline{python}{\hl{x}} in code"
+        result = remove_draft_annotations(src)
+        assert r"\hl{x}" in result
+
 
 class TestRemoveCommentEnvironments:
     def test_removes_comment_block(self):
