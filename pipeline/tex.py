@@ -13,6 +13,14 @@ _VERB_INLINE = re.compile(
     r'([^a-zA-Z\s]).*?\1'
 )
 
+# Brace-delimited forms: \lstinline{...} and \mintinline{lang}{...}
+_LSTINLINE_BRACE = re.compile(
+    r'\\lstinline\*?(?:\[[^\]]*\])?\{'
+)
+_MINTINLINE_BRACE = re.compile(
+    r'\\mintinline\*?(?:\[[^\]]*\])?\{[^}]*\}\{'
+)
+
 
 def _protect_verbatim(source: str):
     """Replace verbatim environments and \\verb|...| with placeholders.
@@ -27,6 +35,24 @@ def _protect_verbatim(source: str):
 
     source = _VERBATIM_ENVS.sub(protect, source)
     source = _VERB_INLINE.sub(protect, source)
+
+    # Brace-delimited forms: \lstinline{...} and \mintinline{lang}{...}
+    # These need brace-balanced matching, so we can't use a simple regex.
+    for pattern in (_LSTINLINE_BRACE, _MINTINLINE_BRACE):
+        while True:
+            m = pattern.search(source)
+            if not m:
+                break
+            # The match ends at the opening '{' of the code content.
+            # find_balanced expects the index of that '{'.
+            brace_start = m.end() - 1
+            end = find_balanced(source, brace_start)
+            if end == -1:
+                break
+            key = f"\x00VERBATIM{len(placeholders)}\x00"
+            placeholders[key] = source[m.start():end]
+            source = source[:m.start()] + key + source[end:]
+
     return source, placeholders
 
 
