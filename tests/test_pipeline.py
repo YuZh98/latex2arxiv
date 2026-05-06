@@ -46,6 +46,11 @@ class TestStripComments:
         result = strip_comments(src)
         assert r"\verb+\todo{x}+" in result
 
+    def test_preserves_verb_star(self):
+        src = r"Use \verb*|%foo| for percent"
+        result = strip_comments(src)
+        assert r"\verb*|%foo|" in result
+
     def test_removes_full_comment_line(self):
         result = strip_comments("% entire line\ncode")
         assert "entire line" not in result
