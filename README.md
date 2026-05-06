@@ -6,12 +6,14 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Validates arXiv compatibility and cleans your LaTeX project in one command — zip in, zip out.**
+**Validates arXiv compatibility and cleans your LaTeX project in one command — project in, arXiv-ready zip out.**
 
-If you submit papers to arXiv, this tool is for you. Drop in a `.zip`, get a new arXiv-ready `.zip` back — your input is never overwritten — with pre-flight checks that catch submission-blocking issues before you upload.
+If you submit papers to arXiv, this tool is for you. Point it at a zip, a directory, or a git URL — get a clean, arXiv-ready `.zip` back with pre-flight checks that catch submission-blocking issues before you upload. Your input is never overwritten.
 
 ```bash
-latex2arxiv paper.zip --compile
+latex2arxiv paper.zip --compile          # zip
+latex2arxiv paper/ --compile             # directory
+latex2arxiv https://github.com/u/p.git   # git URL
 ```
 
 Try the built-in demo:
@@ -53,7 +55,7 @@ On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 
 | Feature | What it does |
 |---|---|
-| 📦 **One-command zip-in / zip-out** | No directory dance, no manual repack; optionally compiles and opens the PDF for review |
+| 📦 **One command, any input** | Accepts a `.zip`, directory, or git URL; outputs an arXiv-ready `.zip`; optionally compiles and opens the PDF for review |
 | ✂️ **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
 | 🧹 **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
 | 🚨 **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, missing index files, oversized output, problematic filenames — [full list](#pre-flight-checks) |
@@ -68,7 +70,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 
 | | `latex2arxiv` | `arxiv_latex_cleaner` |
 |---|---|---|
-| Output format | `.zip` → `.zip` | Cleaned directory |
+| Output format | Any input → `.zip` | Cleaned directory |
 | Pre-flight `[error]` / `[warn]` ([details](#pre-flight-checks)) | ✅ | ❌ |
 | Non-zero exit on errors | ✅ | ❌ |
 | `--compile` preview | ✅ | ❌ |
@@ -195,9 +197,9 @@ Unknown top-level keys warn — typos like `command_to_delete` (singular) no lon
 
 ## CI / pre-commit integration
 
-A GitHub Action and `pre-commit` hook are coming in v0.7.0. See [docs/ci.md](docs/ci.md) for details and usage examples.
+A GitHub Action and `pre-commit` hook are available for paper repos. See [docs/ci.md](docs/ci.md) for full setup with examples.
 
-In the meantime, you can use `latex2arxiv` directly in any CI script:
+You can also use `latex2arxiv` directly in any CI script:
 
 ```yaml
 - run: pip install latex2arxiv && latex2arxiv paper.zip --dry-run
