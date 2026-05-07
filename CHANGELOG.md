@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.8.0] - 2026-05-07
+
+### Added
+- **MCP server**: AI agents (Claude, Cursor, Zed, Copilot) can now validate and clean
+  submissions directly via `latex2arxiv-mcp`. Install with `pip install "latex2arxiv[mcp]"`.
+  Two tools: `validate_submission` (dry-run pre-flight) and `clean_submission` (full conversion).
+  See [docs/mcp.md](docs/mcp.md) for setup.
+- MCP documentation (`docs/mcp.md`) with Claude Desktop, Cursor, and Zed setup instructions
+
+### Changed
+- README rewritten: "Works everywhere" hero section (CLI/CI/AI), decision-funnel structure,
+  Integrations table with roadmap
+- Comparison table: corrected BibTeX normalization (both tools have it), added MCP and
+  GitHub Action rows
+
+---
+
 ## [0.7.1] - 2026-05-07
 
 ### Added
