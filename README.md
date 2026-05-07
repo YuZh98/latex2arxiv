@@ -81,6 +81,8 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 | `--dry-run` | ✅ | ❌ |
 | Built-in `--demo` | ✅ | ❌ |
 | Image resizing (Pillow) | ✅ | ✅ |
+| MCP server (AI agent integration) | ✅ | ❌ |
+| GitHub Action + `pre-commit` hook | ✅ | ❌ |
 | PDF compression (Ghostscript) | ❌ | ✅ |
 | PNG → JPG conversion | ❌ | ✅ |
 | Maturity | 7 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
