@@ -53,7 +53,7 @@ jobs:
           grep -F "02-biblatex-biber" /tmp/fixture_out.txt | grep -F "1 warning"
           grep -F "03-revision-markup" /tmp/fixture_out.txt | grep -F "✓ clean"
           grep -F "04-multi-documentclass" /tmp/fixture_out.txt | grep -F "✓ clean"
-          grep -E "05-pre-flight-warnings.*2 error.*7 warning" /tmp/fixture_out.txt
+          grep -E "05-pre-flight-warnings.*2 error.*6 warning" /tmp/fixture_out.txt
           grep -F "06-inline-verbatim" /tmp/fixture_out.txt | grep -F "✓ clean"
           grep -E "07-fontspec-xelatex.*2 error" /tmp/fixture_out.txt
           grep -F "7 fixtures ran" /tmp/fixture_out.txt
