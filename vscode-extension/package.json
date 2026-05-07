@@ -1,0 +1,50 @@
+{
+  "name": "latex2arxiv",
+  "displayName": "latex2arxiv",
+  "description": "arXiv pre-flight validation for LaTeX projects",
+  "version": "0.1.0",
+  "publisher": "YuZh98",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YuZh98/latex2arxiv"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Linters"],
+  "keywords": ["latex", "arxiv", "linter", "pre-flight"],
+  "activationEvents": ["workspaceContains:**/*.tex"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "latex2arxiv.validate", "title": "latex2arxiv: Validate" },
+      { "command": "latex2arxiv.clean", "title": "latex2arxiv: Clean for arXiv" }
+    ],
+    "configuration": {
+      "title": "latex2arxiv",
+      "properties": {
+        "latex2arxiv.executablePath": {
+          "type": "string",
+          "default": "latex2arxiv",
+          "description": "Path to the latex2arxiv executable. Use an absolute path if the CLI is not on PATH."
+        },
+        "latex2arxiv.validateOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run validation automatically when a .tex file is saved."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
