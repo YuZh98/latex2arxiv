@@ -83,7 +83,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 | Image resizing (Pillow) | ✅ | ✅ |
 | PDF compression (Ghostscript) | ❌ | ✅ |
 | PNG → JPG conversion | ❌ | ✅ |
-| Maturity | 150 tests, 7 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
+| Maturity | 7 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
 
 ## Installation
 
