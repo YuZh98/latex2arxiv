@@ -6,9 +6,7 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Validates arXiv compatibility and cleans your LaTeX project in one command — project in, arXiv-ready zip out.**
-
-If you submit papers to arXiv, this tool is for you. Point it at a zip, a directory, or a git URL — get a clean, arXiv-ready `.zip` back with pre-flight checks that catch submission-blocking issues before you upload. Your input is never overwritten.
+**The arXiv submission pipeline — CLI, CI, and AI. Project in, arXiv-ready zip out.**
 
 ```bash
 latex2arxiv paper.zip --compile          # zip
@@ -23,7 +21,7 @@ pip install latex2arxiv
 latex2arxiv --demo --compile
 ```
 
-This processes a bundled self-documenting paper and opens the cleaned PDF. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf` — see the output without installing.
+This processes a bundled self-documenting paper and opens the cleaned PDF. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf`.
 
 ## Before / After
 
@@ -34,9 +32,9 @@ On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 | Before (Overleaf export) | After (latex2arxiv output) |
 |---|---|
 | 📁 Images/ | 📁 Images/ |
-| 📄 JASA_main.tex | 📄 JASA_main.tex[^main] |
+| 📄 JASA_main.tex | 📄 JASA_main.tex |
 | 📄 JASA_main_backup.tex | 📄 ref.bib |
-| 📄 main_bak_svm.tex | 📄 Supplementary_Materials.tex[^supp] |
+| 📄 main_bak_svm.tex | 📄 Supplementary_Materials.tex |
 | 📄 cover_letter.md | |
 | 📄 response.tex | |
 | 📄 ref.bib | |
@@ -44,6 +42,30 @@ On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 | 📁 jasa_comments/, jasa_revision/ | |
 | ... (and ~930 more) | |
 | **934 files, 80.6 MB** | **40 files, 3.1 MB** |
+
+## Works everywhere
+
+**Terminal** — one command, any input format:
+
+```bash
+latex2arxiv paper.zip --compile
+```
+
+**CI** — gate your paper repo on arXiv compliance:
+
+```yaml
+- run: pip install latex2arxiv && latex2arxiv paper.zip --dry-run
+```
+
+**AI agents** — Claude, Cursor, or Copilot validate and fix issues in conversation:
+
+```bash
+pip install "latex2arxiv[mcp]"
+```
+
+```json
+{"mcpServers": {"latex2arxiv": {"command": "latex2arxiv-mcp"}}}
+```
 
 ## Who is this for?
 
@@ -186,48 +208,23 @@ environments_to_delete:
   - response
 
 # Raw regex (last resort — prefer the verbs above when they fit).
-# Recipe: any-color \textcolor → unwrapped text. Won't span nested
-# commands like \cite — for those, use one commands_to_unwrap per color.
 replacements:
   - pattern: '\\textcolor\{[^}]*\}\{([^}]*)\}'
     replacement: '\1'
 ```
 
-The config parser is built in (no extra dependencies). The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`.
+The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`. Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op.
 
-Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op. A malformed regex in any `replacements` rule emits a `[warn]` naming the rule's index, then skips just that rule; other rules still apply.
+## Integrations
 
-## MCP server (AI agent integration)
-
-`latex2arxiv` ships an [MCP](https://modelcontextprotocol.io) server so AI agents (Claude, Copilot, Cursor, etc.) can validate and clean submissions directly:
-
-```bash
-pip install "latex2arxiv[mcp]"
-```
-
-Add to Claude Desktop config:
-
-```json
-{
-  "mcpServers": {
-    "latex2arxiv": { "command": "latex2arxiv-mcp" }
-  }
-}
-```
-
-See [docs/mcp.md](docs/mcp.md) for full setup and available tools.
-
-## CI / pre-commit integration
-
-A GitHub Action and `pre-commit` hook are available for paper repos. See [docs/ci.md](docs/ci.md) for full setup with examples.
-
-You can also use `latex2arxiv` directly in any CI script:
-
-```yaml
-- run: pip install latex2arxiv && latex2arxiv paper.zip --dry-run
-```
-
-The exit code is non-zero on `[error]`, so this fails the job automatically.
+| Surface | Status | Details |
+|---|---|---|
+| CLI | ✅ | `pip install latex2arxiv` |
+| GitHub Action | ✅ | [`action.yml`](docs/ci.md) |
+| `pre-commit` hook | ✅ | [`latex2arxiv-dryrun`](docs/ci.md) |
+| MCP server (AI agents) | ✅ | `pip install "latex2arxiv[mcp]"` — [setup](docs/mcp.md) |
+| VS Code extension | 🔜 | Planned |
+| Homebrew formula | 🔜 | Planned |
 
 ## Known limitations
 
@@ -236,6 +233,3 @@ The exit code is non-zero on `[error]`, so this fails the job automatically.
 **`\subfile` vs `\input` path resolution** — `\input`/`\include` paths resolve relative to the project root; `\subfile` paths resolve relative to the subfile's own directory. Unusual nested setups may cause images to be incorrectly pruned; use `--compile` to verify.
 
 **`--compile` is a local sanity check** — a successful local compile doesn't guarantee arXiv will compile it. arXiv pins specific TeX Live versions. Always check the [arXiv submission preview](https://arxiv.org/submit) after uploading.
-
-[^main]: `JASA_main.tex` is identified as the main file via auto-detection (or pass `--main JASA_main.tex` to be explicit).
-[^supp]: `Supplementary_Materials.tex` is kept because it's a `\subfile` dependency of the main file.
