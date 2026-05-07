@@ -105,18 +105,13 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
     # Comment-stripped source for package detection (don't flag commented-out usepackage lines).
     combined_nc = re.sub(r'(?<!\\)%[^\n]*', '', combined)
 
-    # Double-spacing / referee mode
-    if re.search(r'\\documentclass\[[^\]]*\b(referee|doublespace|doubleblind)\b', combined):
+    # Double-spacing / referee mode. ('doubleblind' is an anonymization flag in
+    # classes like acmart, not a spacing flag — do not match it here.)
+    if re.search(r'\\documentclass\[[^\]]*\b(referee|doublespace)\b', combined):
         issues.warn("'referee' or 'doublespace' option detected in \\documentclass — "
                     "arXiv requires single-spaced submissions")
     if re.search(r'\\(doublespacing|setstretch\s*\{[2-9])', combined):
         issues.warn("double-spacing command detected — arXiv requires single-spaced submissions")
-
-    # Custom style/class files included
-    for path in root.rglob('*'):
-        if path.suffix.lower() in {'.cls', '.sty'}:
-            issues.warn(f"custom style file kept: {path.relative_to(root)} — "
-                        "verify this is not already provided by TeX Live")
 
     # \today in \date
     if re.search(r'\\date\s*\{[^}]*\\today', combined):
@@ -165,10 +160,14 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
                      "convert figure inclusions to \\includegraphics from graphicx")
 
     # fontspec / unicode-math require XeLaTeX or LuaLaTeX; arXiv defaults to pdfLaTeX.
+    # XeLaTeX is available via a 00README.XXX directive (``nohypertex,xelatex``);
+    # without that directive the build will fail.
     for pkg in ('fontspec', 'unicode-math'):
         if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b' + pkg + r'\b[^}]*\}', combined_nc):
             issues.error(f"\\usepackage{{{pkg}}} requires XeLaTeX or LuaLaTeX — "
-                         "arXiv defaults to pdfLaTeX and this submission will fail to build")
+                         "arXiv defaults to pdfLaTeX; ship a 00README.XXX with "
+                         "'nohypertex,xelatex' to opt into XeLaTeX, otherwise "
+                         "this submission will fail to build")
 
     # xr / xr-hyper break because file paths/locations differ on arXiv's servers.
     # Longer alternative listed first so the captured group prefers xr-hyper over xr.
@@ -201,13 +200,16 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
                     ".nls will be included automatically)")
 
     # biblatex detected: recommend shipping .bbl as a defensive measure.
+    # arXiv runs Biber, but Biber/biblatex version mismatches between your
+    # local TeX Live and arXiv's can break the bibliography; the .bbl is the
+    # robust fallback.
     if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}', combined_nc) \
             or re.search(r'\\addbibresource\{', combined_nc):
         bbl = root / f"{main_stem}.bbl"
         if not bbl.exists():
             issues.warn(f"biblatex detected but no {main_stem}.bbl shipped — "
-                        "if arXiv cannot resolve any .bib file, it will block your submission; "
-                        "include the .bbl as a fallback")
+                        "arXiv runs Biber, but biblatex/Biber version mismatches can "
+                        "break the bibliography; ship the .bbl as a fallback")
 
     # TikZ externalization needs shell-escape to (re)build figures; arXiv won't run it.
     # If the project ships pre-built ``*-figure*.pdf`` files at any depth, the
