@@ -28,7 +28,9 @@ IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
 SIZE_WARN_MB = 50
 
 # Packages that require shell-escape; arXiv compiles without it, so these fail.
-_SHELL_ESCAPE_PKGS = ('minted', 'pythontex', 'shellesc')
+# Matched by exact name against comma-split \usepackage arguments, not as a regex
+# substring — otherwise 'pst-pdf' would falsely match inside 'auto-pst-pdf'.
+_SHELL_ESCAPE_PKGS = frozenset({'minted', 'pythontex', 'shellesc', 'auto-pst-pdf', 'pst-pdf'})
 
 
 class Issues:
@@ -103,18 +105,13 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
     # Comment-stripped source for package detection (don't flag commented-out usepackage lines).
     combined_nc = re.sub(r'(?<!\\)%[^\n]*', '', combined)
 
-    # Double-spacing / referee mode
-    if re.search(r'\\documentclass\[[^\]]*\b(referee|doublespace|doubleblind)\b', combined):
+    # Double-spacing / referee mode. ('doubleblind' is an anonymization flag in
+    # classes like acmart, not a spacing flag — do not match it here.)
+    if re.search(r'\\documentclass\[[^\]]*\b(referee|doublespace)\b', combined):
         issues.warn("'referee' or 'doublespace' option detected in \\documentclass — "
                     "arXiv requires single-spaced submissions")
     if re.search(r'\\(doublespacing|setstretch\s*\{[2-9])', combined):
         issues.warn("double-spacing command detected — arXiv requires single-spaced submissions")
-
-    # Custom style/class files included
-    for path in root.rglob('*'):
-        if path.suffix.lower() in {'.cls', '.sty'}:
-            issues.warn(f"custom style file kept: {path.relative_to(root)} — "
-                        "verify this is not already provided by TeX Live")
 
     # \today in \date
     if re.search(r'\\date\s*\{[^}]*\\today', combined):
@@ -140,10 +137,22 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
                                     "to avoid duplicate bibliography commands")
 
     # Shell-escape packages (arXiv compiles without --shell-escape, so these fail).
-    for pkg in _SHELL_ESCAPE_PKGS:
-        if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b' + pkg + r'\b[^}]*\}', combined_nc):
-            issues.error(f"\\usepackage{{{pkg}}} requires shell-escape — arXiv compiles without it; "
-                         "this submission will fail to build")
+    # Iterate the comma-separated \usepackage argument so 'pst-pdf' isn't matched
+    # as a substring of 'auto-pst-pdf'.
+    flagged_shell: set[str] = set()
+    for m in re.finditer(r'\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}', combined_nc):
+        for raw in m.group(1).split(','):
+            name = raw.strip()
+            if name in _SHELL_ESCAPE_PKGS and name not in flagged_shell:
+                flagged_shell.add(name)
+                issues.error(f"\\usepackage{{{name}}} requires shell-escape — arXiv "
+                             "compiles without it; this submission will fail to build")
+
+    # svg package shells out to Inkscape, which arXiv does not provide.
+    if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bsvg\b[^}]*\}', combined_nc):
+        issues.error("\\usepackage{svg} requires Inkscape via shell-escape — arXiv does not "
+                     "provide it; convert .svg figures to .pdf or .png and use "
+                     "\\includegraphics from graphicx")
 
     # psfig is no longer supported by arXiv.
     if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bpsfig\b[^}]*\}', combined_nc):
@@ -151,10 +160,14 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
                      "convert figure inclusions to \\includegraphics from graphicx")
 
     # fontspec / unicode-math require XeLaTeX or LuaLaTeX; arXiv defaults to pdfLaTeX.
+    # XeLaTeX is available via a 00README.XXX directive (``nohypertex,xelatex``);
+    # without that directive the build will fail.
     for pkg in ('fontspec', 'unicode-math'):
         if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b' + pkg + r'\b[^}]*\}', combined_nc):
             issues.error(f"\\usepackage{{{pkg}}} requires XeLaTeX or LuaLaTeX — "
-                         "arXiv defaults to pdfLaTeX and this submission will fail to build")
+                         "arXiv defaults to pdfLaTeX; ship a 00README.XXX with "
+                         "'nohypertex,xelatex' to opt into XeLaTeX, otherwise "
+                         "this submission will fail to build")
 
     # xr / xr-hyper break because file paths/locations differ on arXiv's servers.
     # Longer alternative listed first so the captured group prefers xr-hyper over xr.
@@ -187,19 +200,69 @@ def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
                     ".nls will be included automatically)")
 
     # biblatex detected: recommend shipping .bbl as a defensive measure.
+    # arXiv runs Biber, but Biber/biblatex version mismatches between your
+    # local TeX Live and arXiv's can break the bibliography; the .bbl is the
+    # robust fallback.
     if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}', combined_nc) \
             or re.search(r'\\addbibresource\{', combined_nc):
         bbl = root / f"{main_stem}.bbl"
         if not bbl.exists():
             issues.warn(f"biblatex detected but no {main_stem}.bbl shipped — "
-                        "if arXiv cannot resolve any .bib file, it will block your submission; "
-                        "include the .bbl as a fallback")
+                        "arXiv runs Biber, but biblatex/Biber version mismatches can "
+                        "break the bibliography; ship the .bbl as a fallback")
+
+    # TikZ externalization needs shell-escape to (re)build figures; arXiv won't run it.
+    # If the project ships pre-built ``*-figure*.pdf`` files at any depth, the
+    # externalization driver will reuse them and the build succeeds.
+    if re.search(r'\\tikzexternalize\b', combined_nc):
+        prebuilt = list(root.rglob('*-figure*.pdf'))
+        if not prebuilt:
+            issues.error("\\tikzexternalize used but no pre-externalized '*-figure*.pdf' "
+                         "files shipped — arXiv compiles without shell-escape and cannot "
+                         "rebuild externalized figures; build locally and re-run latex2arxiv "
+                         "(or disable externalization for the arXiv submission)")
+
+    # Absolute paths in \input / \include / \includegraphics will not resolve on
+    # arXiv's build servers. Detect Unix (``/``) and Windows-drive (``C:\`` or ``C:/``) forms.
+    for m in re.finditer(
+        r'\\(?:input|include|includegraphics)(?:\[[^\]]*\])?\s*\{([^}]+)\}', combined_nc
+    ):
+        arg = m.group(1).strip()
+        if arg.startswith('/') or re.match(r'^[A-Za-z]:[\\/]', arg):
+            issues.warn(f"absolute path in \\input/\\includegraphics: {arg!r} — arXiv's "
+                        "build servers will not resolve it; use a path relative to the "
+                        "submission root")
 
 
 def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
-    """Filesystem checks over kept files: problematic filenames."""
+    """Filesystem checks over kept files: problematic filenames and directory names.
+
+    Directory components are deduped so a single bad directory containing many
+    files only emits one warning per category.
+    """
+    flagged_dir_spaces: set[Path] = set()
+    flagged_dir_ascii: set[Path] = set()
     for path in sorted(kept_files):
         rel = path.relative_to(root)
+
+        # Walk directory components: rel.parents includes Path('.') as the last
+        # element, which we skip.
+        for parent in rel.parents:
+            if parent == Path('.'):
+                continue
+            dirname = parent.name
+            if ' ' in dirname and parent not in flagged_dir_spaces:
+                flagged_dir_spaces.add(parent)
+                issues.warn(f"directory name contains spaces: {parent}/ — "
+                            "rename to avoid \\input/\\includegraphics issues")
+            try:
+                dirname.encode('ascii')
+            except UnicodeEncodeError:
+                if parent not in flagged_dir_ascii:
+                    flagged_dir_ascii.add(parent)
+                    issues.warn(f"directory name contains non-ASCII characters: {parent}/ — "
+                                "rename using ASCII to avoid portability issues")
+
         name = path.name
 
         # Spaces in filenames cause problems with \input{} resolution.
@@ -220,6 +283,19 @@ def _check_output_size(output_zip: Path, issues: Issues) -> None:
     if size_mb > SIZE_WARN_MB:
         issues.warn(f"output is {size_mb:.1f} MB (> {SIZE_WARN_MB} MB) — "
                     "consider --resize to shrink images, or split supplementary materials")
+
+
+def _check_uncompressed_size(kept_files: set[Path], issues: Issues) -> None:
+    """Warn if the uncompressed total of kept files exceeds the soft limit.
+
+    Compressed output may slip under the threshold thanks to DEFLATE on text and
+    PDFs; the uncompressed total is what arXiv displays in the submission UI.
+    """
+    total = sum(p.stat().st_size for p in kept_files if p.is_file())
+    size_mb = total / (1024 * 1024)
+    if size_mb > SIZE_WARN_MB:
+        issues.warn(f"uncompressed project size is {size_mb:.1f} MB (> {SIZE_WARN_MB} MB) — "
+                    "arXiv soft limit; consider --resize or splitting supplementary materials")
 
 
 def _plural(n: int, word: str) -> str:
@@ -290,19 +366,18 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         all_sources = [p.read_text(encoding='utf-8', errors='replace') for p in tex_files_list]
         tex_dirs = [p.parent for p in tex_files_list]
 
-        # Encoding warn: errors='replace' silently inserts U+FFFD for non-UTF-8 bytes.
-        # Surface it per-file so users know which source needs re-saving.
-        # Resolve both sides — tex_files_list contains a mix of resolved (from
-        # find_included_tex) and unresolved (main_tex) paths, and on macOS
-        # /var/folders is a symlink to /private/var/folders, breaking a naive
-        # relative_to.
+        # Encoding warn: re-read bytes and try strict UTF-8 decoding so we surface
+        # exactly the files that need to be re-saved. Resolve both sides — on macOS
+        # /var/folders is a symlink to /private/var/folders, which would break a
+        # naive relative_to.
         _root_abs = root.resolve()
-        for tf, src in zip(tex_files_list, all_sources):
-            if '�' in src:
-                issues.warn(f"{tf.resolve().relative_to(_root_abs)} contains non-UTF-8 "
-                            "bytes — decoded with replacement characters; re-save as "
-                            "UTF-8 to avoid corrupted accented/special characters in "
-                            "the output")
+        for tf in tex_files_list:
+            try:
+                tf.read_bytes().decode('utf-8')
+            except UnicodeDecodeError:
+                issues.warn(f"{tf.resolve().relative_to(_root_abs)} is not valid UTF-8 — "
+                            "re-save as UTF-8 to avoid corrupted accented/special "
+                            "characters in the output")
 
         used_image_paths, used_image_refs = find_used_images(all_sources, tex_dirs, root)
         used_bib_files = find_used_bib_files(all_sources)
@@ -405,6 +480,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         _check_compliance(main_tex, all_sources, root,
                           tex_files=tex_files_list, main_stem=main_stem, issues=issues)
         _check_files(root, kept_files, issues)
+        _check_uncompressed_size(kept_files, issues)
 
         # 4. Repack
         if dry_run:

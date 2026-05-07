@@ -10,3 +10,12 @@ build/
 test_input/
 test_output/
 discoverability/
+
+# Local conversion outputs / scratch projects
+*_arxiv.zip
+*_arxiv.pdf
+*_arxiv/
+test_project/
+test_project[ _]*/
+my_project.zip
+demo.cast

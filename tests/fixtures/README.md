@@ -18,7 +18,7 @@ logic.
 | 02 | `02-biblatex-biber/` | biblatex + biber dispatch in `--compile`, with `.bib` in a `bib/` subdirectory. Exercises `find_used_bib_files()` basename normalization. |
 | 03 | `03-revision-markup/` | `\added`/`\deleted`/`\textcolor{red}` markup with bundled `arxiv_config.yaml`. Tests config-driven cleanup and brace-balanced matcher (nested `\emph`, `\textbf`). |
 | 04 | `04-multi-documentclass/` | Four files with `\documentclass` (`main.tex`, `main_backup.tex`, `response.tex`, `Supplementary_Materials.tex`). Tests the main-tex auto-detect heuristic ranking. |
-| 05 | `05-pre-flight-warnings/` | Deliberately triggers most pre-flight checks at once: `minted` + `psfig` (errors), `xr` + `referee` + `\today`-in-`\date` + `.eps` + custom `.sty` + `\printindex` without `.ind` + `\printglossary` without `.gls` (warns). |
+| 05 | `05-pre-flight-warnings/` | Deliberately triggers most pre-flight checks at once: `minted` + `psfig` (errors), `xr` + `referee` + `\today`-in-`\date` + `.eps` + `\printindex` without `.ind` + `\printglossary` without `.gls` (warns). |
 | 06 | `06-inline-verbatim/` | `\verb`, `\verb*`, `\lstinline`, `\mintinline` with `%` and `\todo{}` inside. Tests inline-code protection during comment stripping and draft removal. |
 | 07 | `07-fontspec-xelatex/` | `\usepackage{fontspec}` + `\usepackage{unicode-math}`. Tests the XeLaTeX/LuaLaTeX pre-flight `[error]` check. |
 
@@ -111,23 +111,15 @@ behavior because the pre-flight errors trigger `sys.exit(1)`.
 - **Errors:** 2.
   - `\usepackage{minted} requires shell-escape — arXiv compiles without it`
   - `\usepackage{psfig} — arXiv no longer supports the psfig package`
-- **Warnings:** 7 in `--dry-run` mode (the runner's default), 6 in real-run mode. The difference is the `custom style file kept` warn — see the dry-run subtlety below.
+- **Warnings:** 6 (same in `--dry-run` and real-run mode).
   - `'referee' or 'doublespace' option detected in \documentclass`
-  - `custom style file kept: custom.sty` — fires in dry-run only.
   - `\today used in \date`
   - `.eps image found: photo.eps`
   - `\usepackage{xr} detected — file paths/locations differ on arXiv ...`
     (also includes the docs link to `info.arxiv.org/help/submit_tex.html`)
   - `\printindex used but no .ind file at root`
   - `\printglossary used but no .gls file at root`
-- **Dry-run vs. real-run subtlety:** the `custom style file kept` warn
-  fires because `_check_compliance` scans `root.rglob('*')` for `.sty`/`.cls`
-  files. In dry-run mode, `custom.sty` is logged for removal but not actually
-  unlinked, so the scan still finds it and warns. In real-run mode, the
-  file has been removed before the check runs, so the warn is silently
-  skipped — that's why the warning count drops from 7 to 6. This is a
-  known minor inconsistency, not a bug.
-- **Regression anchor:** if any of the 9 listed `[error]`/`[warn]` lines
+- **Regression anchor:** if any of the 8 listed `[error]`/`[warn]` lines
   goes missing from the runner output, the corresponding check has
   regressed (or the warn message wording has changed).
 
