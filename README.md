@@ -195,6 +195,26 @@ The config parser is built in (no extra dependencies). The brace-balanced matche
 
 Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op. A malformed regex in any `replacements` rule emits a `[warn]` naming the rule's index, then skips just that rule; other rules still apply.
 
+## MCP server (AI agent integration)
+
+`latex2arxiv` ships an [MCP](https://modelcontextprotocol.io) server so AI agents (Claude, Copilot, Cursor, etc.) can validate and clean submissions directly:
+
+```bash
+pip install "latex2arxiv[mcp]"
+```
+
+Add to Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "latex2arxiv": { "command": "latex2arxiv-mcp" }
+  }
+}
+```
+
+See [docs/mcp.md](docs/mcp.md) for full setup and available tools.
+
 ## CI / pre-commit integration
 
 A GitHub Action and `pre-commit` hook are available for paper repos. See [docs/ci.md](docs/ci.md) for full setup with examples.

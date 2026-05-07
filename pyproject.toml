@@ -44,11 +44,15 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]
+
 [project.scripts]
 latex2arxiv = "converter:main"
+latex2arxiv-mcp = "mcp_server:main"
 
 [tool.setuptools]
-py-modules = ["converter"]
+py-modules = ["converter", "mcp_server"]
 
 [tool.setuptools.packages.find]
 where = ["."]
