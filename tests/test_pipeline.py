@@ -930,13 +930,14 @@ class TestPreflightChecks:
         assert not any('not at the submission root' in w for w in issues.warnings)
 
     def test_non_utf8_tex_emits_warning(self):
-        # Latin-1 encoded byte 0xE9 (é) is invalid UTF-8; reading with errors='replace'
-        # silently inserts U+FFFD. The warn surfaces this per-file so users can re-save.
+        # Latin-1 encoded byte 0xE9 (é) is invalid UTF-8; the strict bytes
+        # decoder raises UnicodeDecodeError and we surface a per-file warning
+        # so users know which source needs re-saving.
         files = {
             'main.tex': '\\documentclass{article}\\begin{document}café\\end{document}'.encode('latin-1'),
         }
         issues, _ = self._run(files)
-        assert any('non-UTF-8' in w for w in issues.warnings)
+        assert any('not valid UTF-8' in w for w in issues.warnings)
         assert any('main.tex' in w for w in issues.warnings)
 
     def test_utf8_tex_does_not_emit_encoding_warning(self):
@@ -945,7 +946,7 @@ class TestPreflightChecks:
             'main.tex': '\\documentclass{article}\\begin{document}café\\end{document}'.encode('utf-8'),
         }
         issues, _ = self._run(files)
-        assert not any('non-UTF-8' in w for w in issues.warnings)
+        assert not any('not valid UTF-8' in w for w in issues.warnings)
 
     def test_zip_slip_member_aborts_extraction(self, tmp_path, capsys):
         # Build a zip with a member whose path tries to escape via '..'.
@@ -1052,6 +1053,214 @@ class TestPreflightChecks:
         }
         issues, _ = self._run(files)
         assert issues.errors == []
+
+    # ── New error checks ──────────────────────────────────────────────────────
+
+    def test_svg_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{svg}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('svg' in e for e in issues.errors)
+
+    def test_svg_with_options_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage[inkscapelatex=false]{svg}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('svg' in e for e in issues.errors)
+
+    def test_commented_svg_not_flagged(self):
+        files = {
+            'main.tex': "\\documentclass{article}\n% \\usepackage{svg}\n\\begin{document}hi\\end{document}",
+        }
+        issues, _ = self._run(files)
+        assert not any('svg' in e for e in issues.errors)
+
+    def test_svg_substring_in_other_package_not_flagged(self):
+        # 'svg' as a substring of an unrelated package name must not trigger
+        # the Inkscape-specific error.
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{notsvgpkg}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert not any('Inkscape' in e for e in issues.errors)
+
+    def test_pst_pdf_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{pst-pdf}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('pst-pdf' in e for e in issues.errors)
+
+    def test_auto_pst_pdf_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{auto-pst-pdf}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('auto-pst-pdf' in e for e in issues.errors)
+
+    def test_auto_pst_pdf_does_not_double_flag(self):
+        # 'pst-pdf' is a substring of 'auto-pst-pdf'. Longest-first alternation
+        # in the regex must match auto-pst-pdf as a single error, not both.
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{auto-pst-pdf}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        pst_errors = [e for e in issues.errors if 'pst-pdf' in e]
+        assert len(pst_errors) == 1
+
+    def test_tikz_externalize_without_figures_is_error(self):
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{tikz}\usetikzlibrary{external}'
+                        r'\tikzexternalize\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('tikzexternalize' in e for e in issues.errors)
+
+    def test_tikz_externalize_with_prebuilt_figures_no_error(self):
+        # Pre-externalized PDF with the standard '*-figure*.pdf' name is shipped at root.
+        # The image is referenced via \includegraphics so it survives whitelisting.
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{tikz}\usetikzlibrary{external}'
+                        r'\tikzexternalize\begin{document}\includegraphics{main-figure0}\end{document}',
+            'main-figure0.pdf': b'%PDF-1.4 fake',
+        }
+        issues, _ = self._run(files)
+        assert not any('tikzexternalize' in e for e in issues.errors)
+
+    def test_tikz_without_externalize_no_error(self):
+        # Plain tikz usage without externalization — no error.
+        files = {
+            'main.tex': r'\documentclass{article}\usepackage{tikz}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert not any('tikzexternalize' in e for e in issues.errors)
+
+    # ── Absolute-path warnings ────────────────────────────────────────────────
+
+    def test_absolute_path_in_input_warns(self):
+        files = {
+            'main.tex': "\\documentclass{article}\n\\input{/abs/extra}\n"
+                        "\\begin{document}hi\\end{document}",
+        }
+        issues, _ = self._run(files)
+        assert any('absolute path' in w for w in issues.warnings)
+
+    def test_absolute_path_in_includegraphics_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics{/abs/fig}\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('absolute path' in w for w in issues.warnings)
+
+    def test_absolute_path_with_options_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics[width=5cm]{/abs/fig}\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('absolute path' in w for w in issues.warnings)
+
+    def test_windows_drive_path_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics{C:/figs/x}\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('absolute path' in w for w in issues.warnings)
+
+    def test_relative_path_does_not_warn(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics{figs/x}\end{document}',
+            'figs/x.png': b'PNG',
+        }
+        issues, _ = self._run(files)
+        assert not any('absolute path' in w for w in issues.warnings)
+
+    def test_commented_absolute_path_not_flagged(self):
+        files = {
+            'main.tex': "\\documentclass{article}\n% \\input{/abs/extra}\n"
+                        "\\begin{document}hi\\end{document}",
+        }
+        issues, _ = self._run(files)
+        assert not any('absolute path' in w for w in issues.warnings)
+
+    # ── Directory-name checks ─────────────────────────────────────────────────
+
+    def test_directory_with_spaces_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics{my dir/fig}\end{document}',
+            'my dir/fig.png': b'PNG',
+        }
+        issues, _ = self._run(files)
+        assert any('directory' in w and 'spaces' in w for w in issues.warnings)
+
+    def test_directory_with_non_ascii_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics{café/fig}\end{document}',
+            'café/fig.png': b'PNG',
+        }
+        issues, _ = self._run(files)
+        assert any('directory' in w and 'non-ASCII' in w for w in issues.warnings)
+
+    def test_clean_directory_names_no_warn(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\includegraphics{figures/fig}\end{document}',
+            'figures/fig.png': b'PNG',
+        }
+        issues, _ = self._run(files)
+        assert not any('directory name' in w for w in issues.warnings)
+
+    def test_directory_warning_deduped(self):
+        # Multiple files inside the same bad directory should only emit one
+        # directory warning, not one per file.
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}'
+                        r'\includegraphics{my dir/a}\includegraphics{my dir/b}'
+                        r'\end{document}',
+            'my dir/a.png': b'PNG',
+            'my dir/b.png': b'PNG',
+        }
+        issues, _ = self._run(files)
+        dir_space_warns = [w for w in issues.warnings
+                           if 'directory' in w and 'spaces' in w]
+        assert len(dir_space_warns) == 1
+
+    # ── Uncompressed total-size warning ───────────────────────────────────────
+
+    def test_uncompressed_size_warns(self, monkeypatch):
+        import converter
+        monkeypatch.setattr(converter, 'SIZE_WARN_MB', 0)
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('uncompressed project size' in w for w in issues.warnings)
+
+    def test_uncompressed_size_silent_when_under_threshold(self):
+        # The default 50 MB threshold is far above this tiny fixture.
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}hi\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert not any('uncompressed project size' in w for w in issues.warnings)
+
+    # ── Stricter non-UTF-8 detection ──────────────────────────────────────────
+
+    def test_non_utf8_detected_via_strict_decode(self):
+        # 0xFF is invalid UTF-8 anywhere; strict decode must catch it.
+        files = {
+            'main.tex': b'\\documentclass{article}\n\\begin{document}\xffhi\\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert any('not valid UTF-8' in w for w in issues.warnings)
+
+    def test_utf8_with_bom_does_not_warn(self):
+        # BOM-prefixed UTF-8 is technically valid UTF-8 (decodes to U+FEFF).
+        files = {
+            'main.tex': b'\xef\xbb\xbf\\documentclass{article}\n\\begin{document}hi\\end{document}',
+        }
+        issues, _ = self._run(files)
+        assert not any('not valid UTF-8' in w for w in issues.warnings)
 
 
 class TestDryRun:
