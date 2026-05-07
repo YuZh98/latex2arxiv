@@ -98,8 +98,7 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 | `--compile` preview | ✅ | ❌ |
 | Auto-detect main `.tex` | ✅ | ❌ |
 | Brace-balanced config | ✅ | ❌ |
-| BibTeX normalization | ✅ | ❌ |
-| Auto `\pdfoutput=1` injection | ✅ | ❌ |
+| BibTeX normalization | ✅ | ✅ |
 | `--dry-run` | ✅ | ❌ |
 | Built-in `--demo` | ✅ | ❌ |
 | Image resizing (Pillow) | ✅ | ✅ |
