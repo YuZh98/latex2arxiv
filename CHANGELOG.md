@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.1] - 2026-05-07
+
+### Added
+- New pre-flight `[error]` checks: `\usepackage{svg}` (requires Inkscape), `auto-pst-pdf` / `pst-pdf` (require shell-escape), `\tikzexternalize` without pre-built figures
+- New pre-flight `[warn]` checks: absolute paths in `\input`/`\includegraphics`, `.eps` images, filenames/directories with spaces or non-ASCII, `\today` in `\date{}`, `\subfile` with `\bibliographystyle`, biblatex without `.bbl`, output/uncompressed size > 50 MB, `\doublespacing` command, `\documentclass[doublespace]`
+
+### Fixed
+- Removed false-positive `doubleblind` match from the referee/doublespace check (`doubleblind` is an anonymization flag, not a spacing flag)
+- Removed noisy custom `.cls`/`.sty` warning that fired on every project correctly shipping journal style files
+- `fontspec`/`unicode-math` error now mentions the `00README.XXX` XeLaTeX workaround
+- biblatex warning accurately states arXiv runs Biber but version mismatches can break things
+
+### Changed
+- README comparison table no longer hardcodes a test count (the CI badge shows pass/fail)
+- Pre-flight docs (`docs/pre-flight.md`) updated to match all check changes
+
+---
+
 ## [0.7.0] - 2026-05-06
 
 ### Added
