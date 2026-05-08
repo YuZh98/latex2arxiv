@@ -1262,6 +1262,18 @@ class TestPreflightChecks:
         issues, _ = self._run(files)
         assert not any('not valid UTF-8' in w for w in issues.warnings)
 
+    def test_duplicate_bib_in_subdirectory_not_kept(self):
+        """Only the root-level .bib should be kept when the same filename exists in a subdirectory."""
+        files = {
+            'main.tex': r'\documentclass{article}\bibliography{refs}\begin{document}\cite{x}\end{document}',
+            'refs.bib': '@misc{x, title={Root}}',
+            'subdir/refs.bib': '@misc{x, title={Subdir duplicate}}',
+        }
+        issues, output = self._run(files)
+        assert 'remove: subdir/refs.bib' in output
+        # Root-level refs.bib should NOT be removed
+        assert 'remove: refs.bib' not in output
+
 
 class TestDryRun:
     def _make_zip(self, files: dict) -> bytes:

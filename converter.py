@@ -387,10 +387,14 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         # Build whitelist of resolved absolute paths to keep
         whitelist = {p.resolve() for p in all_tex_files if p.exists()}
         whitelist |= used_image_paths
-        # Add .bib files
-        for path in root.rglob('*.bib'):
-            if path.name in used_bib_files:
-                whitelist.add(path.resolve())
+        # Add .bib files — prefer root-level over subdirectory duplicates.
+        for bib_name in used_bib_files:
+            candidates = [p for p in root.rglob(bib_name) if p.name == bib_name]
+            if not candidates:
+                continue
+            # Prefer the one closest to root (fewest path components).
+            best = min(candidates, key=lambda p: len(p.relative_to(root).parts))
+            whitelist.add(best.resolve())
         # Add used support files (.cls, .sty) and always-keep types (.bst, .ind, .gls, .nls, .bbl)
         main_stem = main_tex.stem
         for path in root.rglob('*'):
