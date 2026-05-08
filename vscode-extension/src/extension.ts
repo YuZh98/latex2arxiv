@@ -110,8 +110,12 @@ async function validate(): Promise<void> {
     let stdout = '';
     let stderr = '';
 
+    const args = [folder.uri.fsPath, '--dry-run'];
+    const mainFile = vscode.workspace.getConfiguration('latex2arxiv').get<string>('mainFile');
+    if (mainFile) args.push('--main', mainFile);
+
     try {
-        const r = await execFile(exe, [folder.uri.fsPath, '--dry-run'], {
+        const r = await execFile(exe, args, {
             cwd: folder.uri.fsPath,
             maxBuffer: 16 * 1024 * 1024,
         });
@@ -169,12 +173,15 @@ async function clean(): Promise<void> {
         return;
     }
     const exe = getExecutable();
+    const cleanArgs = [folder.uri.fsPath];
+    const mainFileClean = vscode.workspace.getConfiguration('latex2arxiv').get<string>('mainFile');
+    if (mainFileClean) cleanArgs.push('--main', mainFileClean);
 
     await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: 'latex2arxiv: converting…' },
         async () => {
             try {
-                const r = await execFile(exe, [folder.uri.fsPath], {
+                const r = await execFile(exe, cleanArgs, {
                     cwd: folder.uri.fsPath,
                     maxBuffer: 16 * 1024 * 1024,
                 });

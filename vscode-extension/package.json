@@ -33,6 +33,11 @@
           "type": "boolean",
           "default": false,
           "description": "Run validation automatically when a .tex file is saved."
+        },
+        "latex2arxiv.mainFile": {
+          "type": "string",
+          "default": "",
+          "description": "Filename of the main .tex file (e.g. 'main.tex'). Auto-detected if empty."
         }
       }
     }
