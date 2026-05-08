@@ -18,7 +18,7 @@ interface ParsedIssue {
 export function activate(context: vscode.ExtensionContext) {
     diagnosticCollection = vscode.languages.createDiagnosticCollection('latex2arxiv');
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.command = 'latex2arxiv.validate';
+    statusBarItem.command = 'workbench.actions.view.problems';
     outputChannel = vscode.window.createOutputChannel('latex2arxiv');
 
     context.subscriptions.push(
@@ -46,9 +46,53 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 
 function getExecutable(): string {
-    return vscode.workspace
+    const configured = vscode.workspace
         .getConfiguration('latex2arxiv')
-        .get<string>('executablePath') || 'latex2arxiv';
+        .get<string>('executablePath');
+    if (configured && configured !== 'latex2arxiv') return configured;
+
+    // Auto-detect: try common locations
+    const home = process.env.HOME || process.env.USERPROFILE || '';
+    const candidates = [
+        'latex2arxiv',                                          // PATH
+        path.join(home, '.local', 'bin', 'latex2arxiv'),       // pipx
+        path.join(home, '.local', 'bin', 'latex2arxiv.exe'),   // pipx Windows
+    ];
+
+    for (const candidate of candidates) {
+        try {
+            if (path.isAbsolute(candidate) && fs.existsSync(candidate)) return candidate;
+        } catch { /* skip */ }
+    }
+
+    // Check if it's on PATH by trying which/where
+    try {
+        const cmd = process.platform === 'win32' ? 'where' : 'which';
+        const result = cp.execFileSync(cmd, ['latex2arxiv'], { encoding: 'utf-8' }).trim();
+        if (result) return result;
+    } catch { /* not on PATH */ }
+
+    return 'latex2arxiv'; // fallback — will fail with a clear error message
+}
+
+async function promptInstall(): Promise<void> {
+    const action = await vscode.window.showErrorMessage(
+        'latex2arxiv: CLI not found. Install it to enable arXiv pre-flight validation.',
+        'Install (pip)',
+        'Install (pipx)',
+        'Configure Path',
+    );
+    if (action === 'Install (pip)') {
+        const terminal = vscode.window.createTerminal('latex2arxiv');
+        terminal.show();
+        terminal.sendText('pip install latex2arxiv');
+    } else if (action === 'Install (pipx)') {
+        const terminal = vscode.window.createTerminal('latex2arxiv');
+        terminal.show();
+        terminal.sendText('pipx install latex2arxiv');
+    } else if (action === 'Configure Path') {
+        vscode.commands.executeCommand('workbench.action.openSettings', 'latex2arxiv.executablePath');
+    }
 }
 
 function getWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
@@ -80,9 +124,7 @@ async function validate(): Promise<void> {
             stdout = e.stdout || '';
             stderr = e.stderr || '';
         } else {
-            vscode.window.showErrorMessage(
-                `latex2arxiv: failed to invoke '${exe}'. Install via 'pip install latex2arxiv' or set 'latex2arxiv.executablePath'.`,
-            );
+            promptInstall();
             setBrokenStatus();
             diagnosticCollection.clear();
             return;
@@ -98,6 +140,26 @@ async function validate(): Promise<void> {
     const errors = issues.filter(i => i.severity === vscode.DiagnosticSeverity.Error).length;
     const warnings = issues.filter(i => i.severity === vscode.DiagnosticSeverity.Warning).length;
     setResultStatus(errors, warnings);
+
+    if (errors > 0) {
+        const action = await vscode.window.showErrorMessage(
+            `latex2arxiv: ${errors} error(s), ${warnings} warning(s) — submission will fail`,
+            'Show Problems',
+        );
+        if (action === 'Show Problems') {
+            vscode.commands.executeCommand('workbench.actions.view.problems');
+        }
+    } else if (warnings > 0) {
+        const action = await vscode.window.showWarningMessage(
+            `latex2arxiv: ${warnings} warning(s) — review before submitting`,
+            'Show Problems',
+        );
+        if (action === 'Show Problems') {
+            vscode.commands.executeCommand('workbench.actions.view.problems');
+        }
+    } else {
+        vscode.window.showInformationMessage('latex2arxiv: no issues — ready for arXiv ✓');
+    }
 }
 
 async function clean(): Promise<void> {
