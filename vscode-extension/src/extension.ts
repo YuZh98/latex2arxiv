@@ -18,19 +18,24 @@ interface ParsedIssue {
 export function activate(context: vscode.ExtensionContext) {
     diagnosticCollection = vscode.languages.createDiagnosticCollection('latex2arxiv');
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.command = 'workbench.actions.view.problems';
+    statusBarItem.command = 'latex2arxiv.validate';
     outputChannel = vscode.window.createOutputChannel('latex2arxiv');
 
     context.subscriptions.push(
         diagnosticCollection,
         statusBarItem,
         outputChannel,
-        vscode.commands.registerCommand('latex2arxiv.validate', () => validate()),
+        vscode.commands.registerCommand('latex2arxiv.validate', () => validate(true)),
         vscode.commands.registerCommand('latex2arxiv.clean', () => clean()),
         vscode.workspace.onDidSaveTextDocument(doc => {
             const cfg = vscode.workspace.getConfiguration('latex2arxiv');
             if (cfg.get<boolean>('validateOnSave') && doc.languageId === 'latex') {
-                validate();
+                validate(false);
+            }
+        }),
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('latex2arxiv.executablePath')) {
+                cachedExecutable = null;
             }
         }),
     );
@@ -39,40 +44,53 @@ export function activate(context: vscode.ExtensionContext) {
     statusBarItem.show();
 
     if (vscode.workspace.workspaceFolders?.length) {
-        validate();
+        validate(false);
     }
 }
 
 export function deactivate() {}
 
+let cachedExecutable: string | null = null;
+
 function getExecutable(): string {
+    if (cachedExecutable) return cachedExecutable;
+
     const configured = vscode.workspace
         .getConfiguration('latex2arxiv')
         .get<string>('executablePath');
-    if (configured && configured !== 'latex2arxiv') return configured;
+    if (configured && configured !== 'latex2arxiv') {
+        cachedExecutable = configured;
+        return configured;
+    }
 
-    // Auto-detect: try common locations
+    // Auto-detect: pipx default install location, then PATH via which/where.
     const home = process.env.HOME || process.env.USERPROFILE || '';
-    const candidates = [
-        'latex2arxiv',                                          // PATH
-        path.join(home, '.local', 'bin', 'latex2arxiv'),       // pipx
-        path.join(home, '.local', 'bin', 'latex2arxiv.exe'),   // pipx Windows
+    const pipxCandidates = [
+        path.join(home, '.local', 'bin', 'latex2arxiv'),
+        path.join(home, '.local', 'bin', 'latex2arxiv.exe'),
     ];
-
-    for (const candidate of candidates) {
+    for (const candidate of pipxCandidates) {
         try {
-            if (path.isAbsolute(candidate) && fs.existsSync(candidate)) return candidate;
+            if (fs.existsSync(candidate)) {
+                cachedExecutable = candidate;
+                return candidate;
+            }
         } catch { /* skip */ }
     }
 
-    // Check if it's on PATH by trying which/where
     try {
         const cmd = process.platform === 'win32' ? 'where' : 'which';
         const result = cp.execFileSync(cmd, ['latex2arxiv'], { encoding: 'utf-8' }).trim();
-        if (result) return result;
+        if (result) {
+            // `where` may return multiple lines on Windows — take the first.
+            const first = result.split(/\r?\n/)[0].trim();
+            cachedExecutable = first;
+            return first;
+        }
     } catch { /* not on PATH */ }
 
-    return 'latex2arxiv'; // fallback — will fail with a clear error message
+    // Don't cache the fallback — let a later install be picked up next call.
+    return 'latex2arxiv';
 }
 
 async function promptInstall(): Promise<void> {
@@ -99,10 +117,12 @@ function getWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
     return vscode.workspace.workspaceFolders?.[0];
 }
 
-async function validate(): Promise<void> {
+async function validate(interactive: boolean): Promise<void> {
     const folder = getWorkspaceFolder();
     if (!folder) {
-        vscode.window.showWarningMessage('latex2arxiv: open a folder to validate');
+        if (interactive) {
+            vscode.window.showWarningMessage('latex2arxiv: open a folder to validate');
+        }
         return;
     }
 
@@ -128,7 +148,9 @@ async function validate(): Promise<void> {
             stdout = e.stdout || '';
             stderr = e.stderr || '';
         } else {
-            promptInstall();
+            // Spawn failed — invalidate cache so a fresh install is picked up next time.
+            cachedExecutable = null;
+            if (interactive) void promptInstall();
             setBrokenStatus();
             diagnosticCollection.clear();
             return;
@@ -145,13 +167,17 @@ async function validate(): Promise<void> {
     const warnings = issues.filter(i => i.severity === vscode.DiagnosticSeverity.Warning).length;
     setResultStatus(errors, warnings);
 
+    // Toasts only on user-invoked runs — auto-validate (save / activation) stays
+    // quiet; the status bar conveys state without interrupting the user.
+    if (!interactive) return;
+
     if (errors > 0) {
         const action = await vscode.window.showErrorMessage(
             `latex2arxiv: ${errors} error(s), ${warnings} warning(s) — submission will fail`,
             'Show Problems',
         );
         if (action === 'Show Problems') {
-            vscode.commands.executeCommand('workbench.actions.view.problems');
+            void vscode.commands.executeCommand('workbench.actions.view.problems');
         }
     } else if (warnings > 0) {
         const action = await vscode.window.showWarningMessage(
@@ -159,7 +185,7 @@ async function validate(): Promise<void> {
             'Show Problems',
         );
         if (action === 'Show Problems') {
-            vscode.commands.executeCommand('workbench.actions.view.problems');
+            void vscode.commands.executeCommand('workbench.actions.view.problems');
         }
     } else {
         vscode.window.showInformationMessage('latex2arxiv: no issues — ready for arXiv ✓');
