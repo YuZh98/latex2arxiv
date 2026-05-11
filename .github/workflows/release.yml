@@ -22,7 +22,7 @@ jobs:
         run: sed -i "s/^version = .*/version = \"${{ github.event.inputs.version }}\"/" pyproject.toml
 
       - name: Create PR
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
           branch: release/v${{ github.event.inputs.version }}
