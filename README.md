@@ -114,7 +114,14 @@ Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics
 pip install latex2arxiv
 ```
 
-On macOS, if you get an `externally-managed-environment` error, use [`pipx`](https://pipx.pypa.io/):
+On macOS, install via Homebrew (no Python toolchain required):
+
+```bash
+brew tap YuZh98/latex2arxiv
+brew install latex2arxiv
+```
+
+Or, if you get an `externally-managed-environment` error from `pip`, use [`pipx`](https://pipx.pypa.io/):
 
 ```bash
 brew install pipx
@@ -223,7 +230,7 @@ The brace-balanced matcher correctly handles nested commands like `\deleted{see 
 | `pre-commit` hook | ✅ | [`latex2arxiv-dryrun`](docs/ci.md) |
 | MCP server (AI agents) | ✅ | `pip install "latex2arxiv[mcp]"` — [setup](docs/mcp.md) |
 | VS Code extension | 🔜 | Planned |
-| Homebrew formula | 🔜 | Planned |
+| Homebrew formula | ✅ | `brew tap YuZh98/latex2arxiv && brew install latex2arxiv` |
 
 ## Known limitations
 
