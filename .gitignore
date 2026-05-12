@@ -10,6 +10,7 @@ build/
 test_input/
 test_output/
 discoverability/
+homebrew-formula/
 
 # Local conversion outputs / scratch projects
 *_arxiv.zip
