@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Homebrew tap**: install via `brew tap YuZh98/latex2arxiv && brew install latex2arxiv`.
+  No Python toolchain required; formula bundles all four resources (`bibtexparser`,
+  `Pillow`, `pyparsing`, `pyyaml`) and pins to the PyPI sdist. Tap repo:
+  [YuZh98/homebrew-latex2arxiv](https://github.com/YuZh98/homebrew-latex2arxiv). (#100)
+
 ---
 
 ## [0.8.0] - 2026-05-07
