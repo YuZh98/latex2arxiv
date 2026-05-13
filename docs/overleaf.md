@@ -10,7 +10,7 @@ Most LaTeX papers live in [Overleaf](https://www.overleaf.com), and Overleaf's "
 pip install latex2arxiv
 ```
 
-(Python 3.10+. On macOS with `externally-managed-environment` errors, use [`pipx`](https://pipx.pypa.io/) instead — see the [main README](../README.md#installation).)
+(Python 3.10+. On macOS, you can skip Python entirely and install via Homebrew: `brew tap YuZh98/latex2arxiv && brew install latex2arxiv`. For `externally-managed-environment` errors from `pip`, use [`pipx`](https://pipx.pypa.io/) — see the [main README](../README.md#installation) for all options.)
 
 ## Quickstart (3 steps)
 
