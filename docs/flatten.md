@@ -55,6 +55,15 @@ manually — they're plainly visible in the output.
 - **No verbatim awareness.** A `\verb|\input{x}|` inside the source
   could in principle be matched by the include detector; in practice
   this is rare. Flag it as a follow-up if you hit it.
+- **`\\%` comment-detection edge case.** The comment scanner treats
+  `\%` as an escaped percent (correct) but does not handle `\\%`
+  (LaTeX line-break followed by a comment) — a `\input{x}` further
+  along the same line after a `\\%` would be seen as live. Rare in
+  practice; put `\input` commands on their own line.
+- **Multi-line `\input{...}`** with the closing brace on a different
+  line from `\input` is not detected — the regex requires the
+  command and its argument on the same source line. Almost never
+  written this way; keep them on one line.
 - **Bibliography paths are not rewritten.** A subfile that references
   `\bibliography{../refs}` keeps that path verbatim after flatten,
   which may break if the subfile sat in a subdirectory. Move

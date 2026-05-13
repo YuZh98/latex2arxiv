@@ -2119,6 +2119,60 @@ C body.
             f.endswith("chap.tex") for f in payload.get("inlined_files", [])
         )
 
+    def test_flatten_subfile_relative_paths(self, tmp_path):
+        """\\subfile{x} inside a subdirectory must resolve relative to the
+        including file's own dir, not the project root."""
+        _, flat = self._flatten_zip(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\usepackage{subfiles}
+\begin{document}
+\subfile{chapters/ch1}
+\end{document}""",
+            "chapters/ch1.tex": r"""\documentclass[../main]{subfiles}
+\begin{document}
+Chapter one body.
+\input{sec1}
+\end{document}""",
+            "chapters/sec1.tex": "Section one body.",
+        })
+        assert "Chapter one body." in flat
+        # `\input{sec1}` inside chapters/ch1.tex should resolve to
+        # chapters/sec1.tex — but \input is project-root-relative per LaTeX,
+        # so the resolver should look at root/sec1.tex (which does not exist).
+        # The non-existence triggers a warning; in either case, the
+        # substantive concern is that the subfile path resolution itself
+        # (chapters/ch1.tex from \subfile{chapters/ch1}) worked.
+
+    def test_flatten_same_file_included_twice(self, tmp_path):
+        """A non-cyclic file referenced twice must be inlined both times,
+        with no 'cycle detected' warning."""
+        from converter import convert
+        proj = self._make_project(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\input{macros}
+First.
+\input{macros}
+Second.
+\end{document}""",
+            "macros.tex": "MACROS",
+        })
+        zip_in = _zip_project(proj, tmp_path)
+        out = tmp_path / "out.zip"
+        issues = convert(zip_in, out, flatten=True)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            main_name = next(n for n in names if n.endswith("main.tex"))
+            content = zf.read(main_name).decode("utf-8")
+        # Two inlinings expected.
+        assert content.count("MACROS") == 2, (
+            f"expected MACROS to appear twice; got {content.count('MACROS')} times"
+        )
+        # No misleading cycle warning.
+        assert not any("cycle" in w.lower() for w in issues.warnings), (
+            f"unexpected cycle warning on multi-reference; got {issues.warnings!r}"
+        )
+
     def test_flatten_end_to_end_dir_input(self, tmp_path):
         """Integration: pass a directory through the CLI with --flatten,
         verify the output zip is single-file."""

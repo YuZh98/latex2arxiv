@@ -59,42 +59,62 @@ def _strip_subfile_wrapper(raw: str) -> str:
     return raw[m_begin.end():end_idx]
 
 
-def _inline(tex_file: Path, root: Path, visited: set[Path],
+def _inline(tex_file: Path, root: Path, in_progress: set[Path],
             inlined: list[Path], issues: "Issues", *, is_subfile: bool) -> str:
-    """Recursively inline includes in `tex_file`. If `is_subfile`, the
-    preamble (everything up to `\\begin{document}`) and the closing
-    `\\end{document}` are stripped — only the body is returned."""
-    visited.add(tex_file)
-    raw = tex_file.read_text(encoding="utf-8", errors="replace")
+    """Recursively inline includes in `tex_file`. `in_progress` is the
+    current recursion stack — used purely for cycle detection. A file
+    legitimately referenced more than once (e.g., `\\input{macros}` in
+    multiple sections) is re-inlined each time; only true cycles
+    (file references itself, directly or transitively up the current
+    call stack) are reported as cycles and skipped."""
+    in_progress.add(tex_file)
+    try:
+        raw = tex_file.read_text(encoding="utf-8", errors="replace")
 
-    if is_subfile:
-        body = _strip_subfile_wrapper(raw)
-        if body is raw:
-            issues.warn(
-                f"flatten: subfile {tex_file.name} missing "
-                f"\\begin/\\end{{document}}; inlining raw content"
+        if is_subfile:
+            body = _strip_subfile_wrapper(raw)
+            if body is raw:
+                issues.warn(
+                    f"flatten: subfile {tex_file.name} missing "
+                    f"\\begin/\\end{{document}}; inlining raw content"
+                )
+            raw = body
+
+        out_lines: list[str] = []
+        for line in raw.splitlines(keepends=True):
+            new_line = _process_line(
+                line, tex_file, root, in_progress, inlined, issues,
             )
-        raw = body
+            out_lines.append(new_line)
 
-    out_lines: list[str] = []
-    for line in raw.splitlines(keepends=True):
-        effective = _line_without_comment(line)
-        m = _CMD_RE.search(effective)
-        if m is None:
-            out_lines.append(line)
-            continue
+        return "".join(out_lines)
+    finally:
+        in_progress.discard(tex_file)
 
+
+def _process_line(line: str, tex_file: Path, root: Path,
+                  in_progress: set[Path], inlined: list[Path],
+                  issues: "Issues") -> str:
+    """Process every \\input / \\include / \\subfile match on a single
+    line (in reverse order so character offsets stay valid). Returns
+    the rewritten line."""
+    effective = _line_without_comment(line)
+    matches = list(_CMD_RE.finditer(effective))
+    if not matches:
+        return line
+
+    # Walk matches right-to-left so each substitution doesn't shift the
+    # offsets of unprocessed matches earlier in the line.
+    out = line
+    for m in reversed(matches):
         cmd = m.group(1)
         target = m.group(2).strip()
 
         # Skip non-.tex inputs (e.g., \input{refs.bib}).
         suffix = Path(target).suffix.lower()
         if suffix and suffix != ".tex":
-            out_lines.append(line)
             continue
 
-        # \input / \include resolve relative to project root; \subfile to
-        # the including file's own directory.
         if cmd == "subfile":
             base = tex_file.parent
         else:
@@ -104,14 +124,12 @@ def _inline(tex_file: Path, root: Path, visited: set[Path],
 
         if not target_path.exists():
             issues.warn(f"flatten: referenced file not found: {target_name}")
-            out_lines.append(line)
             continue
 
-        if target_path in visited:
+        if target_path in in_progress:
             issues.warn(
                 f"flatten: cycle detected, leaving \\{cmd}{{{target}}} in place"
             )
-            out_lines.append(line)
             continue
 
         target_raw = target_path.read_text(encoding="utf-8", errors="replace")
@@ -122,23 +140,20 @@ def _inline(tex_file: Path, root: Path, visited: set[Path],
                 f"\\documentclass — refusing to flatten; use \\subfile or remove "
                 f"the preamble from {target_name}"
             )
-            out_lines.append(line)
             continue
 
         body = _inline(
-            target_path, root, visited, inlined, issues,
+            target_path, root, in_progress, inlined, issues,
             is_subfile=(cmd == "subfile"),
         )
         inlined.append(target_path)
 
-        # \include carries an implicit \clearpage on each side.
         if cmd == "include":
             body = "\n\\clearpage\n" + body + "\n\\clearpage\n"
 
-        new_line = line.replace(m.group(0), body, 1)
-        out_lines.append(new_line)
+        out = out[:m.start()] + body + out[m.end():]
 
-    return "".join(out_lines)
+    return out
 
 
 def flatten_tex(main_tex: Path, root: Path,
@@ -151,9 +166,9 @@ def flatten_tex(main_tex: Path, root: Path,
     The function never raises on a malformed reference — it warns and
     leaves the command in place so the caller can still produce output.
     """
-    visited: set[Path] = set()
+    in_progress: set[Path] = set()
     inlined: list[Path] = []
     src = _inline(
-        main_tex, root, visited, inlined, issues, is_subfile=False,
+        main_tex, root, in_progress, inlined, issues, is_subfile=False,
     )
     return src, inlined
