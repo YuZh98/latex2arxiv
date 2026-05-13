@@ -914,7 +914,7 @@ def main():
                 p = Path(issues.input_path)
                 if p.is_file():
                     issues.sizes_input = p.stat().st_size
-            except OSError:
+            except (OSError, ValueError):
                 pass
         issues.error(str(e))
         exit_code = 1
