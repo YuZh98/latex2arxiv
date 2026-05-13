@@ -36,7 +36,9 @@ latex2arxiv paper.zip --dry-run --json | jq .
     "output_bytes":         6789,                         // null when --dry-run
     "uncompressed_bytes":  23456                          // sum of kept-files' sizes
   },
-  "compile": null                                         // reserved for --compile result; null otherwise
+  "compile": null,                                        // reserved for --compile result; null otherwise
+  "flatten": false,                                       // true when --flatten was passed; mirrors the flag
+  "inlined_files": []                                     // list of fragment .tex files that were inlined when --flatten is on (empty otherwise)
 }
 ```
 
@@ -76,6 +78,11 @@ additions non-breaking.
   sizes (pre-zip-compression). Useful for the 50 MB arXiv ceiling.
 - **`compile`** is reserved for a `--compile` result object in a
   future release. Today it is always `null`.
+- **`flatten`** mirrors the `--flatten` flag. `false` for the default
+  invocation; `true` when the run inlined every `\input` / `\include`
+  / `\subfile` into the main `.tex`.
+- **`inlined_files`** is the list of fragment files that `--flatten`
+  inlined (relative paths). Empty when `flatten: false`.
 
 ## Errors and the JSON envelope
 

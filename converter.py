@@ -24,6 +24,7 @@ from pipeline.bibtex import normalize_bibtex
 from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files, find_used_style_files, find_cited_keys
 from pipeline.config import load_config, apply_config
 from pipeline.images import resize_image, DEFAULT_MAX_PX
+from pipeline.flatten import flatten_tex
 
 
 def _get_version() -> str:
@@ -69,6 +70,9 @@ class Issues:
         self.sizes_output: int | None = None
         self.sizes_uncompressed: int | None = None
         self.compile_result: dict | None = None
+        # --flatten state (always present in the JSON payload).
+        self.flatten: bool = False
+        self.inlined_files: list[str] = []
 
     def warn(self, msg: str) -> None:
         print(f"  [warn] {msg}")
@@ -346,8 +350,10 @@ def _print_summary(removed: int, kept: int, issues: Issues,
 
 def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             compile_pdf: bool = False, resize: int | None = None,
-            config_path: Path | None = None, dry_run: bool = False) -> Issues:
+            config_path: Path | None = None, dry_run: bool = False,
+            flatten: bool = False) -> Issues:
     issues = Issues()
+    issues.flatten = flatten
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
 
@@ -390,6 +396,21 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         all_tex_files = {main_tex}
         main_source = main_tex.read_text(encoding='utf-8', errors='replace')
         all_tex_files |= find_included_tex(main_source, main_tex.parent, root, {main_tex})
+
+        # 2b. Optional flatten: inline every \input/\include/\subfile into
+        # main.tex, then drop the fragment files from the kept-files set so
+        # the output zip contains a single .tex.
+        if flatten:
+            flattened, inlined_paths = flatten_tex(main_tex, root, issues)
+            main_tex.write_text(flattened, encoding='utf-8')
+            _root_resolved = root.resolve()
+            issues.inlined_files = sorted(
+                str(p.relative_to(_root_resolved)) for p in inlined_paths if p.exists()
+            )
+            # After flatten, the only .tex left in the dependency set is the
+            # main file; the fragments will be pruned from the output zip.
+            all_tex_files = {main_tex}
+            main_source = flattened
 
         # Collect sources + their directories for image resolution
         tex_files_list = [p for p in all_tex_files if p.exists()]
@@ -782,6 +803,8 @@ def _emit_json(issues: Issues) -> None:
             "uncompressed_bytes": issues.sizes_uncompressed,
         },
         "compile": issues.compile_result,
+        "flatten": issues.flatten,
+        "inlined_files": issues.inlined_files,
     }
     json.dump(payload, sys.stdout, indent=2)
     sys.stdout.write("\n")
@@ -812,7 +835,8 @@ def _do_convert(args: argparse.Namespace, cleanup_tmp: list[str]) -> Issues:
                     demo_config = Path(cfg_tmp) / 'arxiv_config.yaml'
                     demo_config.write_bytes(zf.read(cfg_name))
             return convert(demo_zip, out, compile_pdf=args.compile,
-                           config_path=demo_config, dry_run=args.dry_run)
+                           config_path=demo_config, dry_run=args.dry_run,
+                           flatten=args.flatten)
 
     inp_raw = args.input
     inp = _resolve_input(inp_raw, cleanup_tmp)
@@ -831,7 +855,8 @@ def _do_convert(args: argparse.Namespace, cleanup_tmp: list[str]) -> Issues:
     config_path = Path(args.config) if args.config else None
     print(f"Converting {inp_raw} → {out}\n")
     return convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
-                   resize=args.resize, config_path=config_path, dry_run=args.dry_run)
+                   resize=args.resize, config_path=config_path, dry_run=args.dry_run,
+                   flatten=args.flatten)
 
 
 def main():
@@ -851,6 +876,8 @@ def main():
                         help='Run the built-in demo project (no input file needed)')
     parser.add_argument('--json', action='store_true',
                         help='Emit a machine-readable JSON summary on stdout; route progress to stderr')
+    parser.add_argument('--flatten', action='store_true',
+                        help='Inline every \\input / \\include / \\subfile into the main .tex')
     args = parser.parse_args()
 
     # argparse-level validation. Fail fast before setting up stdout capture —
