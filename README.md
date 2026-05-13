@@ -6,26 +6,29 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**The arXiv submission pipeline — CLI, CI, and AI. Project in, arXiv-ready zip out.**
+**Submit to arXiv without the headache. One command cleans your project, catches rejection-causing errors, and walks you through the upload.**
 
 ```bash
-latex2arxiv paper.zip --compile          # zip
-latex2arxiv paper/ --compile             # directory
-latex2arxiv https://github.com/u/p.git   # git URL
+latex2arxiv paper.zip --compile          # clean + verify PDF
+latex2arxiv paper.zip --compile --guide  # + step-by-step upload instructions
+latex2arxiv paper/ --compile             # directory input
+latex2arxiv https://github.com/u/p.git   # git URL input
 ```
+
+> Your original project is never modified. All output goes to a new `_arxiv.zip` file.
 
 Try the built-in demo:
 
 ```bash
 pip install latex2arxiv
-latex2arxiv --demo --compile
+latex2arxiv --demo --compile --guide
 ```
 
-This processes a bundled self-documenting paper and opens the cleaned PDF. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf`.
+This processes a bundled self-documenting paper, opens the cleaned PDF, and writes a step-by-step arXiv upload guide with copy-paste-ready metadata. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf`.
 
 ## Before / After
 
-On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
+On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)): **934 → 40 files, 80.6 MB → 3.1 MB**.
 
 <img src="docs/demo.gif" width="700" alt="latex2arxiv demo">
 
@@ -43,12 +46,72 @@ On a real statistics paper: **934 → 40 files, 80.6 MB → 3.1 MB**.
 | ... (and ~930 more) | |
 | **934 files, 80.6 MB** | **40 files, 3.1 MB** |
 
+## Who is this for?
+
+- **First time submitting to arXiv?** You have a LaTeX project that compiles locally, but you're not sure what arXiv will accept. latex2arxiv cleans your project, catches errors that would cause rejection, and writes a step-by-step upload guide so you know exactly what to paste where. → `latex2arxiv paper.zip --compile --guide`
+- You wrote your paper in Overleaf and need a clean, arXiv-ready zip without manually pruning files. → [Overleaf → arXiv quickstart](docs/overleaf.md)
+- You want to gate a paper repo's CI on arXiv compliance so a bad merge can't slip through. → `--dry-run` + non-zero exit on `[error]` ([details](#pre-flight-checks))
+- Your paper uses custom revision-tracking macros (`\added`, `\deleted`, `\textcolor{red}{...}`) that you need stripped before submission. → [Custom removal rules](#custom-removal-rules---config)
+
+## What it does
+
+| Feature | What it does |
+|---|---|
+| 📦 **One command, any input** | Accepts a `.zip`, directory, or git URL; outputs an arXiv-ready `.zip`; optionally compiles and opens the PDF for review |
+| ✂️ **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
+| 🧹 **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
+| 🚨 **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, missing index files, oversized output, undefined citations, problematic filenames — [full list](#pre-flight-checks) |
+| 🗺️ **Guides you through upload** | `--guide` extracts title, authors, abstract, page/figure/table counts and writes a step-by-step arXiv upload walkthrough |
+
+Also: BibTeX normalization, `\pdfoutput=1` injection, image resizing (Pillow), `--dry-run` preview, `--demo` for first-run, `--flatten` for single-file output, `--json` for CI/tooling integration.
+
+Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, and `\bibliography`. Commented-out commands are ignored.
+
+## Upload guide (`--guide`)
+
+Pass `--guide` and latex2arxiv writes a plain-text file alongside your output zip with everything you need for the arXiv upload form:
+
+```text
+── arXiv Upload Guide ──
+
+📋 Your metadata (copy-paste ready):
+
+  Title:
+    Statistical Modeling of Combinatorial Response Data
+
+  Authors:
+    Yu Zheng, Malay Ghosh, Leo Duan
+
+  Abstract:
+    There is a rich literature for modeling binary and polychotomous responses...
+
+  Comments:
+    53 pages, 13 figures, 6 tables
+
+📌 Step 1: Start a new submission or replace an existing one
+📌 Step 2: Choose license
+📌 Step 3: Select category
+📌 Step 4: Upload files (arXiv may warn about .sty — ignore it)
+📌 Step 5: Check processing
+📌 Step 6: Fill in metadata (paste from above)
+📌 Step 7: Preview and submit
+
+📁 Files in your zip:
+    JASA_main.tex ← main file
+    ref.bib
+    Supplementary_Materials.tex
+    Images/
+    ...
+```
+
+No more guessing what goes where.
+
 ## Works everywhere
 
-**Terminal** — one command, any input format:
+**Terminal** — one command, full pipeline:
 
 ```bash
-latex2arxiv paper.zip --compile
+latex2arxiv paper.zip --compile --guide
 ```
 
 **CI** — gate your paper repo on arXiv compliance:
@@ -67,47 +130,6 @@ pip install "latex2arxiv[mcp]"
 {"mcpServers": {"latex2arxiv": {"command": "latex2arxiv-mcp"}}}
 ```
 
-## Who is this for?
-
-- You wrote your paper in Overleaf and need a clean, arXiv-ready zip without manually pruning files. → [Overleaf → arXiv quickstart](docs/overleaf.md)
-- You want to gate a paper repo's CI on arXiv compliance so a bad merge can't slip through. → `--dry-run` + non-zero exit on `[error]` ([details](#pre-flight-checks))
-- Your paper uses custom revision-tracking macros (`\added`, `\deleted`, `\textcolor{red}{...}`) that you need stripped before submission. → [Custom removal rules](#custom-removal-rules---config)
-
-## What it does
-
-| Feature | What it does |
-|---|---|
-| 📦 **One command, any input** | Accepts a `.zip`, directory, or git URL; outputs an arXiv-ready `.zip`; optionally compiles and opens the PDF for review |
-| ✂️ **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
-| 🧹 **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
-| 🚨 **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, missing index files, oversized output, problematic filenames — [full list](#pre-flight-checks) |
-
-Also: BibTeX normalization, `\pdfoutput=1` injection, image resizing (Pillow), `--dry-run` preview, `--demo` for first-run, `--flatten` for single-file output, `--json` for CI/tooling integration.
-
-Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, and `\bibliography`. Commented-out commands are ignored.
-
-## `latex2arxiv` vs. `arxiv_latex_cleaner`
-
-[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the incumbent — Google-backed, mature, and cleans well. The key difference: it won't tell you that `\usepackage{minted}` will fail on arXiv, won't produce the `.zip` you upload, and has no exit code for CI gating.
-
-| | `latex2arxiv` | `arxiv_latex_cleaner` |
-|---|---|---|
-| Output format | Any input → `.zip` | Cleaned directory |
-| Pre-flight `[error]` / `[warn]` ([details](#pre-flight-checks)) | ✅ | ❌ |
-| Non-zero exit on errors | ✅ | ❌ |
-| `--compile` preview | ✅ | ❌ |
-| Auto-detect main `.tex` | ✅ | ❌ |
-| Brace-balanced config | ✅ | ❌ |
-| BibTeX normalization | ✅ | ✅ |
-| `--dry-run` | ✅ | ❌ |
-| Built-in `--demo` | ✅ | ❌ |
-| Image resizing (Pillow) | ✅ | ✅ |
-| MCP server (AI agent integration) | ✅ | ❌ |
-| GitHub Action + `pre-commit` hook | ✅ | ❌ |
-| PDF compression (Ghostscript) | ❌ | ✅ |
-| PNG → JPG conversion | ❌ | ✅ |
-| Maturity | 7 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
-
 ## Installation
 
 ```bash
@@ -120,6 +142,8 @@ On macOS, install via Homebrew (no Python toolchain required):
 brew tap YuZh98/latex2arxiv
 brew install latex2arxiv
 ```
+
+> **Note:** The first `brew install` may appear to hang for 3–5 minutes while compiling Pillow's C extensions. This is normal — Homebrew builds Python packages from source and suppresses progress output. Use `brew install --verbose latex2arxiv` to see detailed build output.
 
 Or, if you get an `externally-managed-environment` error from `pip`, use [`pipx`](https://pipx.pypa.io/):
 
@@ -138,12 +162,6 @@ pip install .
 
 `pdflatex` is required only for `--compile` (install via [TeX Live](https://tug.org/texlive/) or [MacTeX](https://tug.org/mactex/)).
 
-Once installed, try the built-in demo to see the tool in action:
-
-```bash
-latex2arxiv --demo --compile
-```
-
 ## Usage
 
 ```bash
@@ -158,6 +176,7 @@ latex2arxiv input [output.zip] [options]
 | `--resize PX` | Resize images so longest side ≤ PX pixels (e.g. `--resize 1600`). Requires `Pillow`. |
 | `--config FILE` | YAML config file for custom removal rules (see below). |
 | `--compile` | Run `pdflatex` on the output and open the resulting PDF. |
+| `--guide` | Write a detailed arXiv upload guide (metadata + step-by-step instructions) to a text file alongside the output. |
 | `--dry-run` | Preview what would be removed/processed without writing any output. |
 | `--flatten` | Inline every `\input` / `\include` / `\subfile` into the main `.tex` for single-file output. [Details](docs/flatten.md). |
 | `--json` | Emit a machine-readable JSON summary on stdout; route progress to stderr. [Schema](docs/json-schema.md). |
@@ -173,8 +192,9 @@ latex2arxiv https://github.com/user/paper.git          # git URL input
 latex2arxiv paper.zip out.zip --main main.tex --compile
 latex2arxiv paper.zip --resize 1600 --compile          # shrink images
 latex2arxiv paper.zip --config arxiv_config.yaml       # custom rules
+latex2arxiv paper.zip --compile --guide                # full pipeline + upload guide
 latex2arxiv paper.zip --dry-run                        # preview without writing
-latex2arxiv --demo --compile                           # run the built-in demo
+latex2arxiv --demo --compile --guide                   # run the built-in demo
 ```
 
 ## Pre-flight checks
@@ -223,6 +243,29 @@ replacements:
 ```
 
 The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`. Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op.
+
+## `latex2arxiv` vs. `arxiv_latex_cleaner`
+
+[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the incumbent — Google-backed, mature, and cleans well. The key difference: it won't tell you that `\usepackage{minted}` will fail on arXiv, won't produce the `.zip` you upload, and has no exit code for CI gating.
+
+| | `latex2arxiv` | `arxiv_latex_cleaner` |
+|---|---|---|
+| Output format | Any input → `.zip` | Cleaned directory |
+| Pre-flight `[error]` / `[warn]` ([details](#pre-flight-checks)) | ✅ | ❌ |
+| Upload walkthrough (`--guide`) | ✅ | ❌ |
+| Non-zero exit on errors | ✅ | ❌ |
+| `--compile` preview | ✅ | ❌ |
+| Auto-detect main `.tex` | ✅ | ❌ |
+| Brace-balanced config | ✅ | ❌ |
+| BibTeX normalization | ✅ | ✅ |
+| `--dry-run` | ✅ | ❌ |
+| Built-in `--demo` | ✅ | ❌ |
+| Image resizing (Pillow) | ✅ | ✅ |
+| MCP server (AI agent integration) | ✅ | ❌ |
+| GitHub Action + `pre-commit` hook | ✅ | ❌ |
+| PDF compression (Ghostscript) | ❌ | ✅ |
+| PNG → JPG conversion | ❌ | ✅ |
+| Maturity | 7 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
 
 ## Integrations
 

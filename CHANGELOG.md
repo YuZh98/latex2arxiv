@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.10.0] - 2026-05-13
+
+### Added
+- **`--guide` flag**: writes a detailed `*_UPLOAD_GUIDE.txt` alongside the output zip with copy-paste-ready metadata (title, authors, abstract, page/figure/table counts) and a step-by-step arXiv upload walkthrough (#116)
+- **Always-on upload summary**: after every successful conversion, prints extracted title, authors, abstract snippet, and figure/table counts to stdout
+- **Page count**: when `--compile` is used, the compiled PDF's page count is included in the summary and guide
+- **Undefined citation warning**: detects `\cite{key}` references not found in any kept `.bib` or `.bbl` file after cleaning
+- **`.sty`/`.cls` advisory**: warns that arXiv may suggest removing custom style files — tells users to ignore that and keep them
+
+### Improved
+- **Author extraction**: handles `\thanks{...}` stripping, `\\`-separated authors with affiliations, multiple `\author{}` commands, and `\and` separators
+- **Figure/table counting**: scans all `.tex` files in the output (not just main), counts `figure*`/`table*` starred variants
+
+---
+
 ## [0.9.0] - 2026-05-13
 
 ### Added
