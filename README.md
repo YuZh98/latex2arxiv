@@ -82,7 +82,7 @@ pip install "latex2arxiv[mcp]"
 | 🧹 **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
 | 🚨 **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, missing index files, oversized output, problematic filenames — [full list](#pre-flight-checks) |
 
-Also: BibTeX normalization, `\pdfoutput=1` injection, image resizing (Pillow), `--dry-run` preview, `--demo` for first-run.
+Also: BibTeX normalization, `\pdfoutput=1` injection, image resizing (Pillow), `--dry-run` preview, `--demo` for first-run, `--flatten` for single-file output, `--json` for CI/tooling integration.
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, and `\bibliography`. Commented-out commands are ignored.
 
@@ -147,7 +147,7 @@ latex2arxiv --demo --compile
 ## Usage
 
 ```bash
-latex2arxiv input [output.zip] [--main MAIN_TEX] [--resize PX] [--config FILE] [--compile]
+latex2arxiv input [output.zip] [options]
 ```
 
 `input` can be a `.zip` file, a directory of LaTeX sources, or a git URL (https or ssh). Directories are zipped internally; git URLs are cloned with `--depth 1`.
@@ -159,7 +159,10 @@ latex2arxiv input [output.zip] [--main MAIN_TEX] [--resize PX] [--config FILE] [
 | `--config FILE` | YAML config file for custom removal rules (see below). |
 | `--compile` | Run `pdflatex` on the output and open the resulting PDF. |
 | `--dry-run` | Preview what would be removed/processed without writing any output. |
+| `--flatten` | Inline every `\input` / `\include` / `\subfile` into the main `.tex` for single-file output. [Details](docs/flatten.md). |
+| `--json` | Emit a machine-readable JSON summary on stdout; route progress to stderr. [Schema](docs/json-schema.md). |
 | `--demo` | Run the built-in demo project (no input file needed). |
+| `--version` | Print version and exit. |
 
 **Examples**
 
