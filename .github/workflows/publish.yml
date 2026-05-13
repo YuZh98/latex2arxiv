@@ -60,3 +60,65 @@ jobs:
         with:
           body: ${{ steps.changelog.outputs.notes }}
           files: demo_project_arxiv.pdf
+
+  bump-homebrew:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for PyPI + fetch sdist metadata
+        id: pypi
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          for attempt in $(seq 1 30); do
+            if META=$(curl -fsSL "https://pypi.org/pypi/latex2arxiv/${VERSION}/json"); then
+              break
+            fi
+            echo "PyPI not ready (attempt $attempt); sleeping 10s"
+            sleep 10
+          done
+          URL=$(jq -r '.urls[] | select(.packagetype=="sdist") | .url' <<<"$META")
+          SHA=$(jq -r '.urls[] | select(.packagetype=="sdist") | .digests.sha256' <<<"$META")
+          if [ -z "$URL" ] || [ -z "$SHA" ] || [ "$URL" = "null" ] || [ "$SHA" = "null" ]; then
+            echo "Failed to extract sdist URL or sha256 from PyPI metadata" >&2
+            exit 1
+          fi
+          {
+            echo "version=${VERSION}"
+            echo "url=${URL}"
+            echo "sha=${SHA}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update tap formula and push
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.pypi.outputs.version }}
+          URL: ${{ steps.pypi.outputs.url }}
+          SHA: ${{ steps.pypi.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/YuZh98/homebrew-latex2arxiv.git" tap
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          python3 - <<'PY'
+          import os, pathlib, re
+          url = os.environ["URL"]
+          sha = os.environ["SHA"]
+          p = pathlib.Path("Formula/latex2arxiv.rb")
+          src = p.read_text()
+          # Replace only the first `url` and `sha256` lines (the formula-level pair,
+          # which appear before any `resource` block).
+          src = re.sub(r'^(\s*url\s+)"[^"]+"', f'\\1"{url}"', src, count=1, flags=re.M)
+          src = re.sub(r'^(\s*sha256\s+)"[^"]+"', f'\\1"{sha}"', src, count=1, flags=re.M)
+          p.write_text(src)
+          PY
+
+          if git diff --quiet -- Formula/latex2arxiv.rb; then
+            echo "Formula already at ${VERSION}; nothing to commit."
+            exit 0
+          fi
+          git add Formula/latex2arxiv.rb
+          git commit -m "chore: bump latex2arxiv to ${VERSION}"
+          git push origin main
