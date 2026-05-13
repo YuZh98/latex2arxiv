@@ -22,6 +22,14 @@ All notable changes to this project will be documented in this file.
   [`docs/json-schema.md`](docs/json-schema.md) for the field
   reference and the v1 stability promise. Consumers (CI scripts, the
   MCP server, the VS Code extension) can pipe to `jq`. (#107)
+- `--flatten` flag: inlines every `\input`, `\include`, and `\subfile`
+  reference into the main `.tex` so the output zip contains a single
+  source file. `\include` preserves `\clearpage` page-break semantics;
+  `\subfile` preamble + document wrapper is stripped; cycles, missing
+  files, and `\input` of `\documentclass` files are flagged. See
+  [`docs/flatten.md`](docs/flatten.md) for behaviour and limitations.
+  Two new keys on the v1 JSON schema (non-breaking append):
+  `"flatten": bool` and `"inlined_files": [str]`. (#108)
 
 ### Changed
 - Internal: fatal failures inside `convert()` now raise
