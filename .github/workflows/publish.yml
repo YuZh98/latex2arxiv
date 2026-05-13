@@ -103,7 +103,15 @@ jobs:
           SHA: ${{ steps.pypi.outputs.sha }}
         run: |
           set -euo pipefail
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/YuZh98/homebrew-latex2arxiv.git" tap
+          # Strip any leading/trailing whitespace (including stray newlines)
+          # from the secret — curl rejects URLs whose userinfo contains
+          # control characters with "Malformed input to a URL function".
+          TAP_TOKEN_CLEAN=$(printf '%s' "$TAP_TOKEN" | tr -d '[:space:]')
+          if [ -z "$TAP_TOKEN_CLEAN" ]; then
+            echo "HOMEBREW_TAP_TOKEN secret is empty after whitespace strip; cannot push tap bump." >&2
+            exit 1
+          fi
+          git clone "https://x-access-token:${TAP_TOKEN_CLEAN}@github.com/YuZh98/homebrew-latex2arxiv.git" tap
           cd tap
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
