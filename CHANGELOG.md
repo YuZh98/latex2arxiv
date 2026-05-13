@@ -5,37 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **Homebrew tap**: install via `brew tap YuZh98/latex2arxiv && brew install latex2arxiv`.
-  No Python toolchain required; formula bundles all four resources (`bibtexparser`,
-  `Pillow`, `pyparsing`, `pyyaml`) and pins to the PyPI sdist. Tap repo:
-  [YuZh98/homebrew-latex2arxiv](https://github.com/YuZh98/homebrew-latex2arxiv). (#100)
-- Automated Homebrew formula bump in the publish workflow: each tagged
-  release fetches the new sdist URL + sha256 from PyPI and pushes a
-  bump commit to the tap repo. Requires the `HOMEBREW_TAP_TOKEN` repo
-  secret (fine-grained PAT, Contents: write on the tap repo). (#102)
-- `--version` flag: prints `latex2arxiv <version>` and exits 0. Version
-  is read from installed package metadata via `importlib.metadata`. (#106)
-- `--json` flag: emits a machine-readable JSON summary on stdout
-  (schema v1) while routing progress and diagnostic output to stderr.
-  Even fatal errors (zip-slip, missing `.tex`, missing input) produce
-  a JSON envelope with the error captured under `errors`. See
-  [`docs/json-schema.md`](docs/json-schema.md) for the field
-  reference and the v1 stability promise. Consumers (CI scripts, the
-  MCP server, the VS Code extension) can pipe to `jq`. (#107)
-- `--flatten` flag: inlines every `\input`, `\include`, and `\subfile`
-  reference into the main `.tex` so the output zip contains a single
-  source file. `\include` preserves `\clearpage` page-break semantics;
-  `\subfile` preamble + document wrapper is stripped; cycles, missing
-  files, and `\input` of `\documentclass` files are flagged. See
-  [`docs/flatten.md`](docs/flatten.md) for behaviour and limitations.
-  Two new keys on the v1 JSON schema (non-breaking append):
-  `"flatten": bool` and `"inlined_files": [str]`. (#108)
+- **Homebrew tap**: `brew tap YuZh98/latex2arxiv && brew install latex2arxiv` — no Python toolchain required (#100)
+- Automated Homebrew formula bump: publish workflow fetches new sdist metadata from PyPI and pushes a bump commit to the tap repo (#102)
+- `--version` flag: prints `latex2arxiv <version>` and exits 0 (#106)
+- `--json` flag: machine-readable JSON summary on stdout; progress routed to stderr. Fatal errors still produce a JSON envelope. Schema: `docs/json-schema.md` (#107)
+- `--flatten` flag: inlines every `\input` / `\include` / `\subfile` into the main `.tex` for single-file output. `\include` preserves `\clearpage` semantics; `\subfile` preamble is stripped; cycles and missing files are flagged. Details: `docs/flatten.md` (#108)
 
 ### Changed
-- Internal: fatal failures inside `convert()` now raise
-  `ConverterError` instead of calling `sys.exit(1)` directly, so
-  `main()` can emit the JSON envelope before exiting. `mcp_server.py`
-  catches the new exception. No user-visible CLI change in text mode.
+- `convert()` raises `ConverterError` on fatal failures instead of calling `sys.exit(1)`, enabling the `--json` envelope and cleaner MCP server error handling
 
 ---
 
