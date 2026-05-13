@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
   bump commit to the tap repo. Requires the `HOMEBREW_TAP_TOKEN` repo
   secret (fine-grained PAT, Contents: write on the tap repo). (#102)
 - `--version` flag: prints `latex2arxiv <version>` and exits 0. Version
-  is read from installed package metadata via `importlib.metadata`.
+  is read from installed package metadata via `importlib.metadata`. (#106)
 
 ---
 

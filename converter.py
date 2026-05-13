@@ -17,6 +17,12 @@ from pathlib import Path
 from importlib import resources
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
+from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
+from pipeline.bibtex import normalize_bibtex
+from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files, find_used_style_files, find_cited_keys
+from pipeline.config import load_config, apply_config
+from pipeline.images import resize_image, DEFAULT_MAX_PX
+
 
 def _get_version() -> str:
     try:
@@ -24,11 +30,6 @@ def _get_version() -> str:
     except PackageNotFoundError:
         return "0.0.0+unknown"
 
-from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
-from pipeline.bibtex import normalize_bibtex
-from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files, find_used_style_files, find_cited_keys
-from pipeline.config import load_config, apply_config
-from pipeline.images import resize_image, DEFAULT_MAX_PX
 
 IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
 
