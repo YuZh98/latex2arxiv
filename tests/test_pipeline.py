@@ -1849,6 +1849,24 @@ class TestJsonOutput:
         assert all(isinstance(e, str) for e in payload["errors"])
         assert all(isinstance(w, str) for w in payload["warnings"])
 
+    def test_json_envelope_populates_input_bytes_when_file_exists(self, tmp_path):
+        """Fatal-error envelope should populate `input` and `sizes.input_bytes`
+        from the on-disk size of the input file when it exists (e.g. zip-slip
+        rejection happens after we can stat the input). Surfaces debugging
+        signal on early-exit instead of all-null fields."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("main.tex", r"\documentclass{article}\begin{document}hi\end{document}")
+            zf.writestr("../escape.txt", "malicious")
+        inp = tmp_path / "malicious.zip"
+        inp.write_bytes(buf.getvalue())
+        result = _run_converter(str(inp), "--json", cwd=tmp_path)
+        assert result.returncode == 1
+        payload = json.loads(result.stdout)
+        assert payload["input"] == str(inp)
+        assert payload["sizes"]["input_bytes"] == inp.stat().st_size
+        assert payload["errors"], "zip-slip rejection must populate errors"
+
     def test_json_includes_version_and_main_tex(self, tmp_path):
         result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
         payload = json.loads(result.stdout)

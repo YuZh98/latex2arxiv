@@ -904,10 +904,18 @@ def main():
     except ConverterError as e:
         if issues is None:
             issues = Issues()
-        # Surface the as-passed input path even on fatal early-exit so the
-        # JSON envelope has something more useful than `null` for debugging.
+        # Surface the as-passed input path and its on-disk size even on fatal
+        # early-exit so the JSON envelope has something useful for debugging
+        # instead of `null` for every field.
         if issues.input_path is None and getattr(args, "input", None):
             issues.input_path = args.input
+        if issues.sizes_input is None and issues.input_path:
+            try:
+                p = Path(issues.input_path)
+                if p.is_file():
+                    issues.sizes_input = p.stat().st_size
+            except (OSError, ValueError):
+                pass
         issues.error(str(e))
         exit_code = 1
     finally:

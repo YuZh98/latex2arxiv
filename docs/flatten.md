@@ -68,6 +68,15 @@ manually — they're plainly visible in the output.
   `\bibliography{../refs}` keeps that path verbatim after flatten,
   which may break if the subfile sat in a subdirectory. Move
   `\bibliography{...}` to the main file before flattening if needed.
+- **Image paths from subdirectory subfiles are not rewritten.** A
+  subfile in `chapters/` doing `\includegraphics{fig}` resolves to
+  `chapters/fig.png` pre-flatten. After flatten the bare
+  `\includegraphics{fig}` text lands in the merged main file at the
+  project root; the image file is retained in the output zip (the
+  pruner matches by basename) but `pdflatex` then looks in the root
+  and fails to find it. Workaround: add `\graphicspath{{chapters/}}`
+  to the main file before flattening, or move the images to the
+  project root.
 - **No source-map.** A `pdflatex` error after flatten points at a line
   in the merged `main.tex`, not the original fragment file. The
   `\clearpage` markers help locate the right `\include` block.
