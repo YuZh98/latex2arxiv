@@ -1752,6 +1752,8 @@ _TOP_LEVEL_JSON_KEYS = {
     "counts",
     "sizes",
     "compile",
+    "flatten",
+    "inlined_files",
 }
 
 
@@ -2030,7 +2032,12 @@ Body.
         assert r"\input{macros}" not in flat
 
     def test_flatten_ignores_commented_input(self, tmp_path):
-        _, flat = self._flatten_zip(tmp_path, {
+        """A commented-out \\input{x} must NOT be inlined and must NOT emit a
+        missing-file warning. (The comment itself is later stripped by the
+        normal pipeline cleanup, so we can't assert on its presence in the
+        final output — only on flatten's behaviour at the inlining stage.)"""
+        from converter import convert
+        proj = self._make_project(tmp_path, {
             "main.tex": r"""\documentclass{article}
 \begin{document}
 % \input{nope}
@@ -2038,9 +2045,15 @@ Body.
 \end{document}""",
             "real.tex": "REAL CONTENT",
         })
-        assert "REAL CONTENT" in flat
-        # The commented \input must survive verbatim (we don't strip comments here).
-        assert r"% \input{nope}" in flat
+        zip_in = _zip_project(proj, tmp_path)
+        out = tmp_path / "out.zip"
+        issues = convert(zip_in, out, flatten=True)
+        # `real` was inlined; `nope` was inside a comment, so flatten skipped
+        # it and no missing-file warning fires.
+        assert not any("nope" in w for w in issues.warnings), (
+            f"flatten should not warn about commented \\input{{nope}}; got {issues.warnings!r}"
+        )
+        assert issues.inlined_files == ["real.tex"]
 
     def test_flatten_errors_on_input_of_documentclass_file(self, tmp_path):
         """`\\input{x}` where x has its own `\\documentclass` would corrupt the
