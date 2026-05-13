@@ -787,7 +787,7 @@ def _emit_json(issues: Issues) -> None:
     sys.stdout.write("\n")
 
 
-def _do_convert(args, cleanup_tmp: list[str]) -> Issues:
+def _do_convert(args: argparse.Namespace, cleanup_tmp: list[str]) -> Issues:
     """Run the demo or the regular conversion path. Returns the Issues object
     populated by convert(). Raises ConverterError on fatal failures."""
     if args.demo:
@@ -877,6 +877,10 @@ def main():
     except ConverterError as e:
         if issues is None:
             issues = Issues()
+        # Surface the as-passed input path even on fatal early-exit so the
+        # JSON envelope has something more useful than `null` for debugging.
+        if issues.input_path is None and getattr(args, "input", None):
+            issues.input_path = args.input
         issues.error(str(e))
         exit_code = 1
     finally:

@@ -1842,6 +1842,10 @@ class TestJsonOutput:
         assert stripped.startswith("{"), f"no JSON envelope on fatal error: {result.stdout!r}"
         payload = json.loads(stripped)
         assert payload["errors"], "errors list must be populated on fatal failure"
+        # v1 contract: errors are flat strings (not structured objects).
+        # Lock the type so a future change to list[dict] fails this test.
+        assert all(isinstance(e, str) for e in payload["errors"])
+        assert all(isinstance(w, str) for w in payload["warnings"])
 
     def test_json_includes_version_and_main_tex(self, tmp_path):
         result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)

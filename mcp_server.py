@@ -60,7 +60,7 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
     except SystemExit:
         # Legacy guard for any sys.exit() paths that may still slip through.
         output = buf.getvalue()
-        return {"success": False, "error": output.strip()}
+        return {"success": False, "error": output.strip(), "log": output}
     finally:
         if cleanup_input:
             inp.unlink(missing_ok=True)

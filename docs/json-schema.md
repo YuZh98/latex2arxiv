@@ -23,8 +23,8 @@ latex2arxiv paper.zip --dry-run --json | jq .
   "dry_run": false,              // mirrors the --dry-run flag
   "removed_files": ["foo.aux", "draft/old.tex", "..."],   // relative paths
   "kept_files":    ["main.tex", "refs.bib", "..."],
-  "errors":   ["[error] description ...", "..."],         // flat strings, v1
-  "warnings": ["[warn] description ...",  "..."],
+  "errors":   ["minted requires shell-escape; arXiv does not support it", "..."],   // flat strings, v1; no [error] prefix
+  "warnings": ["\\today used in \\date — arXiv may rebuild the PDF", "..."],          // flat strings, v1; no [warn] prefix
   "counts": {
     "removed":  12,
     "kept":      8,
@@ -58,10 +58,13 @@ additions non-breaking.
 
 ## Notes on specific fields
 
-- **`errors` / `warnings`** are flat strings in v1. Structured codes
-  (`{code, message, file, line}` objects) are reserved for v2 — they
-  require assigning stable codes to every pre-flight string, which is
-  more work than fits a v1 release.
+- **`errors` / `warnings`** are flat strings in v1, with **no
+  `[error]` / `[warn]` prefix**. The prefixes are part of the
+  text-mode console rendering only; the JSON-payload strings are the
+  raw messages. Structured codes (`{code, message, file, line}`
+  objects) are reserved for v2 — they require assigning stable codes
+  to every pre-flight string, which is more work than fits a v1
+  release.
 - **`removed_files`** lists everything pruned by the converter:
   unused images, response letters, `.aux`/`.log` build artefacts,
   config-driven removals. It does NOT list files outside the project
@@ -102,3 +105,9 @@ argparse-level errors (missing `input` argument, unknown flag) are
 the one exception — they short-circuit through argparse and do not
 produce a JSON envelope. The exit code is 2 for those, per Python
 convention.
+
+An unexpected internal exception (`MemoryError`, library crash) is
+also not captured into `errors`: the JSON envelope is still emitted
+with an empty `errors` list, the traceback prints to stderr, and the
+process exits 1. Consumers should treat a non-zero exit code as a
+failure signal even when `errors` is empty.
