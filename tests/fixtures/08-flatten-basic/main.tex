@@ -1,0 +1,19 @@
+\documentclass{article}
+\title{Flatten Basics}
+\author{Test Author}
+\date{2026-05-13}
+
+\begin{document}
+\maketitle
+
+\input{intro}
+
+\section{Body}
+The middle section sits in the main file, between an input and an
+include. After running with the flatten flag, the two fragment files are
+inlined and removed from the output zip; the page-break semantics around
+the included chapter are preserved with explicit clearpage markers.
+
+\include{conclusion}
+
+\end{document}

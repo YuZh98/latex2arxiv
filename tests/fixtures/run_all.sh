@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Zip and run latex2arxiv against every fixture in this directory.
-# Pass --compile to also exercise the pdflatex/biber path (requires TeX Live).
 #
 # Usage:
-#   tests/fixtures/run_all.sh           # dry-run on each
-#   tests/fixtures/run_all.sh --compile # full pipeline
+#   tests/fixtures/run_all.sh                       # dry-run each fixture
+#   tests/fixtures/run_all.sh --compile             # full pipeline (needs TeX Live)
+#   tests/fixtures/run_all.sh --flatten             # dry-run + --flatten (exercises 08/09)
+#   tests/fixtures/run_all.sh --flatten --compile   # full pipeline + --flatten
+#
+# All extra flags after the script name are forwarded to latex2arxiv. The
+# default behaviour stays --dry-run unless --compile is among the args.
 #
 # Output: per-fixture filtered log (errors/warnings/summary), colored on TTY,
 # followed by a one-line-per-fixture status table.
@@ -20,9 +24,11 @@ trap 'rm -rf "$WORK"' EXIT
 # stale installed version on $PATH.
 L2A=(python3 "$REPO_ROOT/converter.py")
 
+# Default to --dry-run unless --compile was explicitly requested; either way,
+# any other user flags (e.g. --flatten) are passed through.
 EXTRA_ARGS=("$@")
-if [[ "${1-}" != "--compile" ]]; then
-    EXTRA_ARGS=(--dry-run)
+if [[ " $* " != *" --compile "* ]]; then
+    EXTRA_ARGS=(--dry-run "$@")
 fi
 
 # Colors only when stdout is a TTY (avoids leaking ANSI into log files).
