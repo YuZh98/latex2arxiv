@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+---
+
+## [0.9.0] - 2026-05-13
+
 ### Added
 - **Homebrew tap**: `brew tap YuZh98/latex2arxiv && brew install latex2arxiv` — no Python toolchain required (#100)
 - Automated Homebrew formula bump: publish workflow fetches new sdist metadata from PyPI and pushes a bump commit to the tap repo (#102)
@@ -12,7 +16,10 @@ All notable changes to this project will be documented in this file.
 - `--flatten` flag: inlines every `\input` / `\include` / `\subfile` into the main `.tex` for single-file output. `\include` preserves `\clearpage` semantics; `\subfile` preamble is stripped; cycles and missing files are flagged. Details: `docs/flatten.md` (#108)
 
 ### Changed
-- `convert()` raises `ConverterError` on fatal failures instead of calling `sys.exit(1)`, enabling the `--json` envelope and cleaner MCP server error handling
+- `convert()` raises `ConverterError` on fatal failures instead of calling `sys.exit(1)`, enabling the `--json` envelope and cleaner MCP server error handling (#107)
+
+### Fixed
+- `--json` fatal-error envelopes (e.g. zip-slip rejection) now populate `input` and `sizes.input_bytes` from the as-passed input file when it exists on disk, instead of all-null fields (#111)
 
 ---
 
