@@ -121,6 +121,8 @@ brew tap YuZh98/latex2arxiv
 brew install latex2arxiv
 ```
 
+> **Note:** The first `brew install` may appear to hang for 3–5 minutes while compiling Pillow's C extensions. This is normal — Homebrew builds Python packages from source and suppresses progress output. Use `brew install --verbose latex2arxiv` to see detailed build output.
+
 Or, if you get an `externally-managed-environment` error from `pip`, use [`pipx`](https://pipx.pypa.io/):
 
 ```bash
