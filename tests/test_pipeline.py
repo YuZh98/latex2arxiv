@@ -1853,3 +1853,277 @@ class TestJsonOutput:
         assert payload["version"]  # non-empty
         assert payload["main_tex"]  # demo project has a known main.tex
         assert payload["main_tex"].endswith(".tex")
+
+
+# ── --flatten flag ────────────────────────────────────────────────────────────
+
+
+def _zip_project(src: Path, dst: Path) -> Path:
+    """Helper: zip a project directory into dst/<name>.zip, return the zip path."""
+    zip_path = dst / (src.name + ".zip")
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for p in sorted(src.rglob("*")):
+            if p.is_file():
+                zf.write(p, p.relative_to(src))
+    return zip_path
+
+
+class TestFlatten:
+    """`--flatten` inlines every \\input / \\include / \\subfile reference into
+    the main .tex; fragment files are dropped from the output zip; the result
+    is a single-file project (plus images/bib/.bbl as needed)."""
+
+    def _make_project(self, tmp_path: Path, files: dict[str, str]) -> Path:
+        """Create a project directory under tmp_path/proj with the given files
+        (path -> content). Return the directory."""
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        for rel, content in files.items():
+            p = proj / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(content, encoding="utf-8")
+        return proj
+
+    def _flatten_zip(self, tmp_path: Path, files: dict[str, str]) -> tuple[Path, str]:
+        """Build a project, run --flatten, return (output_zip_path, flattened_main_source)."""
+        from converter import convert
+        proj = self._make_project(tmp_path, files)
+        zip_in = _zip_project(proj, tmp_path)
+        out = tmp_path / "out.zip"
+        convert(zip_in, out, flatten=True)
+        # Read the main.tex out of the output zip.
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            main_name = next(n for n in names if n.endswith("main.tex"))
+            content = zf.read(main_name).decode("utf-8")
+        return out, content
+
+    def test_flatten_inlines_simple_input(self, tmp_path):
+        out, flat = self._flatten_zip(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+Before.
+\input{chap1}
+After.
+\end{document}""",
+            "chap1.tex": "Chapter one content.",
+        })
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+        assert "chap1.tex" not in names, "chap1.tex must be removed after flatten"
+        assert "Chapter one content." in flat
+        assert r"\input{chap1}" not in flat
+
+    def test_flatten_preserves_clearpage_for_include(self, tmp_path):
+        _, flat = self._flatten_zip(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\include{chap1}
+\end{document}""",
+            "chap1.tex": "INCLUDED BODY",
+        })
+        # \include semantics: \clearpage before, content, \clearpage after.
+        assert "INCLUDED BODY" in flat
+        # Look for \clearpage adjacent to the inlined body.
+        idx = flat.index("INCLUDED BODY")
+        before = flat[:idx]
+        after = flat[idx + len("INCLUDED BODY"):]
+        assert r"\clearpage" in before[-200:], "expected \\clearpage before inlined \\include body"
+        assert r"\clearpage" in after[:200], "expected \\clearpage after inlined \\include body"
+
+    def test_flatten_strips_subfile_preamble(self, tmp_path):
+        out, flat = self._flatten_zip(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\usepackage{subfiles}
+\begin{document}
+\subfile{sub}
+\end{document}""",
+            "sub.tex": r"""\documentclass[main]{subfiles}
+\begin{document}
+SUBFILE BODY ONLY.
+\end{document}""",
+        })
+        with zipfile.ZipFile(out) as zf:
+            assert "sub.tex" not in zf.namelist()
+        assert "SUBFILE BODY ONLY." in flat
+        # Preamble pieces must NOT survive in the flattened main.
+        assert r"\documentclass[main]{subfiles}" not in flat
+        # Only one \begin{document} remains.
+        assert flat.count(r"\begin{document}") == 1
+        assert flat.count(r"\end{document}") == 1
+
+    def test_flatten_handles_nested_includes(self, tmp_path):
+        out, flat = self._flatten_zip(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\input{a}
+\end{document}""",
+            "a.tex": r"Layer A start. \input{b} Layer A end.",
+            "b.tex": r"Layer B start. \input{c} Layer B end.",
+            "c.tex": "Layer C body.",
+        })
+        with zipfile.ZipFile(out) as zf:
+            names = set(zf.namelist())
+        for fragment in ("a.tex", "b.tex", "c.tex"):
+            assert fragment not in names, f"{fragment} must be inlined and dropped"
+        assert "Layer A start." in flat
+        assert "Layer B start." in flat
+        assert "Layer C body." in flat
+        assert "Layer A end." in flat
+
+    def test_flatten_breaks_cycles(self, tmp_path):
+        """A → B → A must not infinite-loop; flatten emits a warning and stops."""
+        from converter import convert
+        proj = self._make_project(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\input{a}
+\end{document}""",
+            "a.tex": r"A body. \input{b}",
+            "b.tex": r"B body. \input{a}",
+        })
+        zip_in = _zip_project(proj, tmp_path)
+        out = tmp_path / "out.zip"
+        # Must complete without hanging or stack overflow.
+        issues = convert(zip_in, out, flatten=True)
+        assert issues is not None  # finished
+
+    def test_flatten_warns_on_missing_file(self, tmp_path):
+        from converter import convert
+        proj = self._make_project(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\input{nonexistent}
+\end{document}""",
+        })
+        zip_in = _zip_project(proj, tmp_path)
+        out = tmp_path / "out.zip"
+        issues = convert(zip_in, out, flatten=True)
+        # The referenced file is missing; flatten should warn (not crash).
+        assert any("nonexistent" in w for w in issues.warnings), (
+            f"expected a missing-file warning; got warnings={issues.warnings!r}"
+        )
+
+    def test_flatten_skips_bib_in_input(self, tmp_path):
+        """`\\input{foo.bib}` is a real but rare pattern — skip silently
+        (don't try to inline the .bib's content into the main tex)."""
+        _, flat = self._flatten_zip(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\input{refs.bib}
+Body.
+\end{document}""",
+            "refs.bib": "@article{key, title={x}}",
+        })
+        # The \input{refs.bib} line must remain unmodified.
+        assert r"\input{refs.bib}" in flat
+
+    def test_flatten_appends_tex_extension(self, tmp_path):
+        _, flat = self._flatten_zip(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\input{macros}
+\end{document}""",
+            "macros.tex": "MACROS BODY",
+        })
+        assert "MACROS BODY" in flat
+        assert r"\input{macros}" not in flat
+
+    def test_flatten_ignores_commented_input(self, tmp_path):
+        _, flat = self._flatten_zip(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+% \input{nope}
+\input{real}
+\end{document}""",
+            "real.tex": "REAL CONTENT",
+        })
+        assert "REAL CONTENT" in flat
+        # The commented \input must survive verbatim (we don't strip comments here).
+        assert r"% \input{nope}" in flat
+
+    def test_flatten_errors_on_input_of_documentclass_file(self, tmp_path):
+        """`\\input{x}` where x has its own `\\documentclass` would corrupt the
+        output. Flatten must NOT inline that file and must record an error."""
+        from converter import convert
+        proj = self._make_project(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\input{rogue}
+\end{document}""",
+            "rogue.tex": r"""\documentclass{article}
+\begin{document}
+Rogue body.
+\end{document}""",
+        })
+        zip_in = _zip_project(proj, tmp_path)
+        out = tmp_path / "out.zip"
+        issues = convert(zip_in, out, flatten=True)
+        assert issues.errors, "expected an error for \\input of a \\documentclass file"
+        assert any("rogue" in e.lower() for e in issues.errors)
+
+    def test_flatten_idempotent_no_remaining_commands(self, tmp_path):
+        """After flatten, the main.tex must contain no \\input / \\include /
+        \\subfile commands (outside of comments)."""
+        _, flat = self._flatten_zip(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\usepackage{subfiles}
+\begin{document}
+\input{a}
+\include{b}
+\subfile{c}
+\end{document}""",
+            "a.tex": "A body.",
+            "b.tex": "B body.",
+            "c.tex": r"""\documentclass[main]{subfiles}
+\begin{document}
+C body.
+\end{document}""",
+        })
+        from pipeline.deps import _strip_comments
+        stripped = _strip_comments(flat)
+        for cmd in (r"\input", r"\include", r"\subfile"):
+            assert cmd not in stripped, f"{cmd} survived flatten; saw: {stripped!r}"
+
+    def test_flatten_with_json_lists_inlined_files(self, tmp_path):
+        """`--flatten --json` adds two top-level keys: `flatten: true` and
+        `inlined_files: [...]`. Non-breaking append per schema v1 stability."""
+        # Need an on-disk project to invoke as subprocess.
+        proj = self._make_project(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\input{chap}
+\end{document}""",
+            "chap.tex": "Chapter body.",
+        })
+        # Zip it manually so we can pass to the CLI.
+        zip_in = _zip_project(proj, tmp_path)
+        result = _run_converter(str(zip_in), "--dry-run", "--flatten", "--json", cwd=tmp_path)
+        assert result.returncode == 0, f"stderr was: {result.stderr}"
+        payload = json.loads(result.stdout)
+        assert payload.get("flatten") is True
+        assert "chap.tex" in payload.get("inlined_files", []) or any(
+            f.endswith("chap.tex") for f in payload.get("inlined_files", [])
+        )
+
+    def test_flatten_end_to_end_dir_input(self, tmp_path):
+        """Integration: pass a directory through the CLI with --flatten,
+        verify the output zip is single-file."""
+        proj = self._make_project(tmp_path, {
+            "main.tex": r"""\documentclass{article}
+\begin{document}
+\input{ch1}
+\input{ch2}
+\end{document}""",
+            "ch1.tex": "Chapter 1.",
+            "ch2.tex": "Chapter 2.",
+        })
+        result = _run_converter(str(proj), "--flatten", cwd=tmp_path)
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        out_zip = tmp_path / "proj_arxiv.zip"
+        assert out_zip.exists()
+        with zipfile.ZipFile(out_zip) as zf:
+            names = set(zf.namelist())
+        assert "main.tex" in names
+        assert "ch1.tex" not in names
+        assert "ch2.tex" not in names
