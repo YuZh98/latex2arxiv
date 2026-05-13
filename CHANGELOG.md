@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
   secret (fine-grained PAT, Contents: write on the tap repo). (#102)
 - `--version` flag: prints `latex2arxiv <version>` and exits 0. Version
   is read from installed package metadata via `importlib.metadata`. (#106)
+- `--json` flag: emits a machine-readable JSON summary on stdout
+  (schema v1) while routing progress and diagnostic output to stderr.
+  Even fatal errors (zip-slip, missing `.tex`, missing input) produce
+  a JSON envelope with the error captured under `errors`. See
+  [`docs/json-schema.md`](docs/json-schema.md) for the field
+  reference and the v1 stability promise. Consumers (CI scripts, the
+  MCP server, the VS Code extension) can pipe to `jq`. (#107)
+
+### Changed
+- Internal: fatal failures inside `convert()` now raise
+  `ConverterError` instead of calling `sys.exit(1)` directly, so
+  `main()` can emit the JSON envelope before exiting. `mcp_server.py`
+  catches the new exception. No user-visible CLI change in text mode.
 
 ---
 
