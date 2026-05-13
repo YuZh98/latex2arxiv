@@ -1259,6 +1259,30 @@ class TestPreflightChecks:
         issues, _ = self._run(files)
         assert not any('not valid UTF-8' in w for w in issues.warnings)
 
+    def test_undefined_citation_warns(self):
+        files = {
+            'main.tex': r'\documentclass{article}\bibliography{refs}\begin{document}\cite{exists}\cite{missing}\end{document}',
+            'refs.bib': '@misc{exists, title={Yes}}',
+        }
+        issues, _ = self._run(files)
+        assert any('undefined citation' in w and 'missing' in w for w in issues.warnings)
+
+    def test_all_citations_defined_no_warn(self):
+        files = {
+            'main.tex': r'\documentclass{article}\bibliography{refs}\begin{document}\cite{x}\end{document}',
+            'refs.bib': '@misc{x, title={X}}',
+        }
+        issues, _ = self._run(files)
+        assert not any('undefined citation' in w for w in issues.warnings)
+
+    def test_citation_defined_in_bbl_no_warn(self):
+        files = {
+            'main.tex': r'\documentclass{article}\begin{document}\cite{x}\end{document}',
+            'main.bbl': r'\begin{thebibliography}{1}\bibitem{x} Author.\end{thebibliography}',
+        }
+        issues, _ = self._run(files)
+        assert not any('undefined citation' in w for w in issues.warnings)
+
     def test_duplicate_bib_in_subdirectory_not_kept(self):
         """Only the root-level .bib should be kept when the same filename exists in a subdirectory."""
         files = {
@@ -1754,6 +1778,7 @@ _TOP_LEVEL_JSON_KEYS = {
     "compile",
     "flatten",
     "inlined_files",
+    "metadata",
 }
 
 

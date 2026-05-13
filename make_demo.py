@@ -36,9 +36,10 @@ files['main.tex'] = r"""\documentclass[12pt]{article}
 \textbf{950 files / 82\,MB} down to \textbf{40 files / 3\,MB} in seconds.
 This document is the bundled demo. Run it with:
 \begin{verbatim}
-latex2arxiv --demo --compile
+latex2arxiv --demo --compile --guide
 \end{verbatim}
-The tool processes \texttt{demo\_project.zip} and opens the cleaned PDF.
+The tool processes \texttt{demo\_project.zip}, opens the cleaned PDF, and writes
+a step-by-step arXiv upload guide with copy-paste-ready metadata.
 The sections below are ordered by user value: what the tool removes, what it
 checks for arXiv compatibility, then progressively narrower features.
 \end{abstract}
@@ -48,6 +49,7 @@ checks for arXiv compatibility, then progressively narrower features.
 \input{sections/tex_cleanup.tex}
 \input{sections/revision_markup.tex}
 \input{sections/bibtex.tex}
+\input{sections/guide.tex}
 \input{sections/cli_tools.tex}
 
 \bibliographystyle{plain}
@@ -147,9 +149,12 @@ requirements. The terminal output uses two severities:
         will change.
   \item \texttt{referee} / \texttt{doublespace} option — arXiv requires
         single-spaced submissions.
-  \item Custom \texttt{.cls} / \texttt{.sty} included — verify it is not
-        already provided by TeX Live.
+  \item Custom \texttt{.cls} / \texttt{.sty} included — arXiv may suggest
+        removing these; ignore that warning, they are required for compilation.
   \item \texttt{.eps} images — \texttt{pdflatex} cannot render them.
+  \item Undefined citations — \texttt{\textbackslash cite\{key\}} where
+        \texttt{key} is not in any kept \texttt{.bib} or \texttt{.bbl} file.
+        This demo triggers it intentionally (see \S6).
 \end{itemize}
 
 The demo intentionally does not trigger any pre-flight errors.
@@ -260,7 +265,7 @@ The \texttt{refs.bib} file in this demo contains:
 
 When multiple entries share the same DOI or title, the converter prefers the
 entry whose key is actually cited in the \texttt{.tex} sources, so cleanup
-never breaks a working \verb|\cite{...}|.
+never breaks a working \verb|\cite{}| command.
 
 Install \texttt{bibtexparser} to enable this stage:
 \begin{verbatim}
@@ -269,7 +274,57 @@ pip install bibtexparser
 Without it, the \texttt{.bib} file is passed through unchanged.
 """
 
-# ── §6: CLI tools & summary line ──────────────────────────────────────────────
+# ── §6: Upload Guide (--guide) ─────────────────────────────────────────────────
+files['sections/guide.tex'] = r"""
+\section{Upload Guide (\texttt{-{}-guide})}
+
+Pass \texttt{-{}-guide} and the tool writes a plain-text file alongside your
+output zip with everything you need for the arXiv upload form: extracted
+metadata (title, authors, abstract, page/figure/table counts) and a
+step-by-step walkthrough from start to finish.
+
+For this demo, the guide looks like:
+
+\begin{verbatim}
+-- arXiv Upload Guide --
+
+Your metadata (copy-paste ready):
+
+  Title:
+    latex2arxiv: A Self-Documenting Demo
+
+  Authors:
+    Demo Author
+
+  Comments:
+    6 pages, 1 figures, 1 tables
+
+Step 1: Start a new submission or replace an existing one
+Step 2: Choose license
+Step 3: Select category
+Step 4: Upload files (arXiv may warn about .sty -- ignore it)
+Step 5: Check processing
+Step 6: Fill in metadata (paste from above)
+Step 7: Preview and submit
+\end{verbatim}
+
+No more guessing what goes where. The metadata is extracted automatically from
+your \texttt{.tex} source — title from \texttt{\textbackslash title\{\}},
+authors from \texttt{\textbackslash author\{\}} (handles IMS, standard, and
+multi-author formats), abstract from the \texttt{abstract} environment, and
+page count from the compiled PDF (when \texttt{-{}-compile} is also passed).
+
+If you ran this demo with \texttt{-{}-guide}, a file named
+\texttt{demo\_project\_arxiv\_UPLOAD\_GUIDE.txt} was written next to this PDF.
+Open it to see the full 7-step walkthrough.
+
+This section also contains a deliberate undefined citation \cite{nonexistent_key}
+to demonstrate the pre-flight warning: the converter detects that
+\texttt{nonexistent\_key} does not exist in any \texttt{.bib} file and emits
+\texttt{[warn] 1 undefined citation(s)}.
+"""
+
+# ── §7: CLI tools & summary line ──────────────────────────────────────────────
 files['sections/cli_tools.tex'] = r"""
 \section{CLI Tools}
 
@@ -301,13 +356,32 @@ Caps the longest side of every image at the given pixel count. Requires
 \texttt{Pillow} (\texttt{pip install Pillow}). Combined with the size warning
 (\S2), this is the typical fix for an oversized submission.
 
+\subsection*{\texttt{-{}-flatten}: single-file output}
+
+\begin{verbatim}
+latex2arxiv paper.zip --flatten --compile
+\end{verbatim}
+Inlines every \texttt{\textbackslash input} / \texttt{\textbackslash include} /
+\texttt{\textbackslash subfile} into the main \texttt{.tex}. Useful when arXiv
+has trouble with multi-file projects. See \texttt{docs/flatten.md} for details.
+
+\subsection*{\texttt{-{}-json}: machine-readable output}
+
+\begin{verbatim}
+latex2arxiv paper.zip --json 2>/dev/null | jq .counts
+\end{verbatim}
+Emits a JSON summary on stdout (progress goes to stderr). Useful for CI
+pipelines and AI agent integrations. See \texttt{docs/json-schema.md} for the
+schema.
+
 \subsection*{\texttt{-{}-demo}: this document}
 
 \begin{verbatim}
-latex2arxiv --demo --compile
+latex2arxiv --demo --compile --guide
 \end{verbatim}
 No input file needed. Locates the bundled \texttt{demo\_project.zip},
-processes it, and opens the resulting PDF — what you are reading right now.
+processes it, opens the resulting PDF, and writes an upload guide — what you
+are reading right now.
 """
 
 # ── Unused tex file (should be removed) ───────────────────────────────────────
