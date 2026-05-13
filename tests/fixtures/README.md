@@ -21,6 +21,8 @@ logic.
 | 05 | `05-pre-flight-warnings/` | Deliberately triggers most pre-flight checks at once: `minted` + `psfig` (errors), `xr` + `referee` + `\today`-in-`\date` + `.eps` + `\printindex` without `.ind` + `\printglossary` without `.gls` (warns). |
 | 06 | `06-inline-verbatim/` | `\verb`, `\verb*`, `\lstinline`, `\mintinline` with `%` and `\todo{}` inside. Tests inline-code protection during comment stripping and draft removal. |
 | 07 | `07-fontspec-xelatex/` | `\usepackage{fontspec}` + `\usepackage{unicode-math}`. Tests the XeLaTeX/LuaLaTeX pre-flight `[error]` check. |
+| 08 | `08-flatten-basic/` | `main.tex` with `\input{intro}` and `\include{conclusion}`. Run with `--flatten` to exercise inlining + the `\clearpage` wrap around `\include` bodies. |
+| 09 | `09-flatten-subfile/` | `main.tex` with `\subfile{chapters/ch1}` (subdirectory) and `\subfile{ch2}` (peer). Run with `--flatten` to exercise subfile preamble-stripping and the including-file-relative path resolution for `\subfile`. |
 
 ## How to run
 
@@ -34,11 +36,15 @@ Quick one-shot against any fixture:
 Or use the bundled runner to exercise all of them:
 
 ```bash
-tests/fixtures/run_all.sh           # dry-run on each
-tests/fixtures/run_all.sh --compile # full pipeline including pdflatex
+tests/fixtures/run_all.sh                       # dry-run each fixture
+tests/fixtures/run_all.sh --compile             # full pipeline (TeX Live + biber)
+tests/fixtures/run_all.sh --flatten             # dry-run + --flatten (08/09 exercise it)
+tests/fixtures/run_all.sh --flatten --compile   # everything
 ```
 
-`--compile` requires TeX Live + biber on `PATH`.
+Any flag passed after the script name is forwarded to `latex2arxiv`.
+`--compile` requires TeX Live + biber on `PATH`; the runner defaults to
+`--dry-run` otherwise.
 
 ## Expected outcomes
 
@@ -169,3 +175,39 @@ brief note in the "Why" section.
 - **Regression anchor:** if either `[error]` line goes missing, the
   fontspec/unicode-math check in `converter.py:_check_compliance` has
   regressed.
+
+### 08-flatten-basic
+
+- **Default (no `--flatten`):** 3 kept (`main.tex`, `intro.tex`,
+  `conclusion.tex`), 0 removed, 0 errors, 0 warnings.
+- **With `--flatten`:** 1 kept (`main.tex`), 2 removed (`intro.tex`,
+  `conclusion.tex`), 0 errors, 0 warnings.
+- **Regression anchors:**
+  - Under `--flatten`, the cleaned `main.tex` must contain the body
+    of `intro.tex` at the original `\input{intro}` position, and the
+    body of `conclusion.tex` between two literal `\clearpage` lines at
+    the original `\include{conclusion}` position. If `\clearpage` is
+    missing, the `\include` page-break preservation has regressed.
+  - Without `--flatten`, all three `.tex` files survive — flatten is
+    strictly opt-in.
+
+### 09-flatten-subfile
+
+- **Default (no `--flatten`):** 3 kept (`main.tex`, `chapters/ch1.tex`,
+  `ch2.tex`), 0 removed, 0 errors, 0 warnings (the "multiple
+  \\documentclass files found" line is informational, not in the
+  warning count — see fixture 04).
+- **With `--flatten`:** 1 kept (`main.tex`), 2 removed (`ch2.tex`,
+  `chapters/ch1.tex`), 0 errors, 0 warnings.
+- **Regression anchors:**
+  - Under `--flatten`, the merged `main.tex` must include the
+    body of `chapters/ch1.tex` and `ch2.tex` with their
+    `\documentclass[...]{subfiles}` preambles and the
+    `\begin{document}` / `\end{document}` wrappers stripped. If the
+    preamble survives, the subfile-preamble strip has regressed.
+  - The path resolution for `\subfile{chapters/ch1}` must produce
+    `chapters/ch1.tex` (relative to the **including** file —
+    `main.tex` in the project root), not `ch1.tex` at the project
+    root. If `chapters/ch1.tex` is not inlined, the
+    including-file-relative path semantic for `\subfile` has
+    regressed.
