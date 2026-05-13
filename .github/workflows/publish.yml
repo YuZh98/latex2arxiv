@@ -60,3 +60,77 @@ jobs:
         with:
           body: ${{ steps.changelog.outputs.notes }}
           files: demo_project_arxiv.pdf
+
+  bump-homebrew:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for PyPI + fetch sdist metadata
+        id: pypi
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          META=""
+          for attempt in $(seq 1 30); do
+            if META=$(curl -fsSL "https://pypi.org/pypi/latex2arxiv/${VERSION}/json"); then
+              break
+            fi
+            META=""
+            echo "PyPI not ready (attempt $attempt); sleeping 10s"
+            sleep 10
+          done
+          if [ -z "$META" ]; then
+            echo "PyPI did not return metadata for ${VERSION} after 30 attempts (5 min)." >&2
+            exit 1
+          fi
+          URL=$(jq -r '.urls[] | select(.packagetype=="sdist") | .url' <<<"$META")
+          SHA=$(jq -r '.urls[] | select(.packagetype=="sdist") | .digests.sha256' <<<"$META")
+          if [ -z "$URL" ] || [ -z "$SHA" ] || [ "$URL" = "null" ] || [ "$SHA" = "null" ]; then
+            echo "Failed to extract sdist URL or sha256 from PyPI metadata" >&2
+            exit 1
+          fi
+          {
+            echo "version=${VERSION}"
+            echo "url=${URL}"
+            echo "sha=${SHA}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update tap formula and push
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.pypi.outputs.version }}
+          URL: ${{ steps.pypi.outputs.url }}
+          SHA: ${{ steps.pypi.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/YuZh98/homebrew-latex2arxiv.git" tap
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          python3 - <<'PY'
+          import os, pathlib, re, sys
+          url = os.environ["URL"]
+          sha = os.environ["SHA"]
+          p = pathlib.Path("Formula/latex2arxiv.rb")
+          src = p.read_text()
+          # The formula-level url/sha256 pair is indented at exactly 2 spaces.
+          # Resource blocks indent their url/sha256 lines at 4 spaces (inside
+          # `resource "X" do`), so a strict 2-space prefix anchors to the
+          # formula header even if a future restructure reorders top-level
+          # blocks. count=1 is a second safety belt; subn returns 1 on a
+          # successful replace, 0 on no match.
+          new_src, n_url = re.subn(r'^(  url\s+)"[^"]+"', f'\\1"{url}"', src, count=1, flags=re.M)
+          new_src, n_sha = re.subn(r'^(  sha256\s+)"[^"]+"', f'\\1"{sha}"', new_src, count=1, flags=re.M)
+          if n_url != 1 or n_sha != 1:
+              sys.exit(f"Expected exactly 1 url and 1 sha256 substitution; got url={n_url}, sha={n_sha}")
+          p.write_text(new_src)
+          PY
+
+          if git diff --quiet -- Formula/latex2arxiv.rb; then
+            echo "Formula already at ${VERSION}; nothing to commit."
+            exit 0
+          fi
+          git add Formula/latex2arxiv.rb
+          git commit -m "chore: bump latex2arxiv to ${VERSION}"
+          git push origin main

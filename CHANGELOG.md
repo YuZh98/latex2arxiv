@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
   No Python toolchain required; formula bundles all four resources (`bibtexparser`,
   `Pillow`, `pyparsing`, `pyyaml`) and pins to the PyPI sdist. Tap repo:
   [YuZh98/homebrew-latex2arxiv](https://github.com/YuZh98/homebrew-latex2arxiv). (#100)
+- Automated Homebrew formula bump in the publish workflow: each tagged
+  release fetches the new sdist URL + sha256 from PyPI and pushes a
+  bump commit to the tap repo. Requires the `HOMEBREW_TAP_TOKEN` repo
+  secret (fine-grained PAT, Contents: write on the tap repo). (#102)
 
 ---
 
