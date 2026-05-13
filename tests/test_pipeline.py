@@ -3,7 +3,9 @@ Test suite for latex2arxiv.
 Run with: python3.13 -m pytest tests/ -v
 """
 import io
+import json
 import re
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -949,10 +951,10 @@ class TestPreflightChecks:
         issues, _ = self._run(files)
         assert not any('not valid UTF-8' in w for w in issues.warnings)
 
-    def test_zip_slip_member_aborts_extraction(self, tmp_path, capsys):
+    def test_zip_slip_member_aborts_extraction(self, tmp_path):
         # Build a zip with a member whose path tries to escape via '..'.
         # The pre-extraction validation must abort before anything is written.
-        from converter import convert
+        from converter import convert, ConverterError
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w') as zf:
             zf.writestr('main.tex', r'\documentclass{article}\begin{document}hi\end{document}')
@@ -960,20 +962,18 @@ class TestPreflightChecks:
         inp = tmp_path / 'malicious.zip'
         inp.write_bytes(buf.getvalue())
         out = tmp_path / 'out.zip'
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(ConverterError) as excinfo:
             convert(inp, out)
-        assert excinfo.value.code == 1
-        captured = capsys.readouterr().out
-        assert 'escapes the extraction root' in captured
-        assert "'../escape.txt'" in captured
+        assert 'escapes the extraction root' in str(excinfo.value)
+        assert "'../escape.txt'" in str(excinfo.value)
         # Output zip must not have been created.
         assert not out.exists()
 
-    def test_zip_slip_absolute_path_aborts_extraction(self, tmp_path, capsys):
+    def test_zip_slip_absolute_path_aborts_extraction(self, tmp_path):
         # Same protection should catch a member with an absolute path. Python's
         # zipfile would otherwise sanitize the leading slash and write under
         # root, but our pre-validation is stricter — defensive is good.
-        from converter import convert
+        from converter import convert, ConverterError
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w') as zf:
             zf.writestr('main.tex', r'\documentclass{article}\begin{document}hi\end{document}')
@@ -981,17 +981,15 @@ class TestPreflightChecks:
         inp = tmp_path / 'malicious_abs.zip'
         inp.write_bytes(buf.getvalue())
         out = tmp_path / 'out.zip'
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(ConverterError) as excinfo:
             convert(inp, out)
-        assert excinfo.value.code == 1
-        captured = capsys.readouterr().out
-        assert 'escapes the extraction root' in captured
+        assert 'escapes the extraction root' in str(excinfo.value)
         assert not out.exists()
 
-    def test_zip_with_no_tex_exits_with_clear_message(self, tmp_path, capsys):
-        # A zip containing files but no .tex should exit 1 with a clear message,
-        # not raise a Python traceback.
-        from converter import convert
+    def test_zip_with_no_tex_exits_with_clear_message(self, tmp_path):
+        # A zip containing files but no .tex should raise ConverterError with a
+        # clear message, not a Python traceback. main() catches and exits 1.
+        from converter import convert, ConverterError
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w') as zf:
             zf.writestr('README.md', '# This is not a TeX project')
@@ -999,11 +997,9 @@ class TestPreflightChecks:
         inp = tmp_path / 'no_tex.zip'
         inp.write_bytes(buf.getvalue())
         out = tmp_path / 'out.zip'
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(ConverterError) as excinfo:
             convert(inp, out)
-        assert excinfo.value.code == 1
-        captured = capsys.readouterr().out
-        assert 'no .tex file found' in captured
+        assert 'no .tex file found' in str(excinfo.value)
         assert not out.exists()
 
     def test_commented_minted_not_flagged(self):
@@ -1737,3 +1733,123 @@ class TestVersionFlag:
         assert v  # non-empty
         # Either a real version from installed metadata, or the fallback sentinel.
         assert v == "0.0.0+unknown" or re.match(r'^\d+\.\d+', v)
+
+
+# ── --json flag ───────────────────────────────────────────────────────────────
+
+
+_TOP_LEVEL_JSON_KEYS = {
+    "version",
+    "schema_version",
+    "input",
+    "output",
+    "main_tex",
+    "dry_run",
+    "removed_files",
+    "kept_files",
+    "errors",
+    "warnings",
+    "counts",
+    "sizes",
+    "compile",
+}
+
+
+def _run_converter(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
+    """Invoke `python converter.py <args>` and capture stdout + stderr separately."""
+    return subprocess.run(
+        [sys.executable, str(Path(__file__).parent.parent / "converter.py"), *args],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        check=False,
+    )
+
+
+class TestJsonOutput:
+    """`--json` emits a machine-readable JSON document on stdout and routes
+    all text progress / diagnostic output to stderr. Exit code is preserved
+    (0 on clean run, 1 on preflight error or fatal failure)."""
+
+    def test_json_emits_valid_json_to_stdout(self, tmp_path):
+        result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
+        assert result.returncode == 0, f"stderr was: {result.stderr}"
+        payload = json.loads(result.stdout)
+        assert isinstance(payload, dict)
+
+    def test_json_schema_top_level_keys(self, tmp_path):
+        result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
+        payload = json.loads(result.stdout)
+        assert set(payload.keys()) == _TOP_LEVEL_JSON_KEYS, (
+            f"unexpected keys; missing={_TOP_LEVEL_JSON_KEYS - set(payload.keys())}, "
+            f"extra={set(payload.keys()) - _TOP_LEVEL_JSON_KEYS}"
+        )
+
+    def test_json_schema_version_is_1(self, tmp_path):
+        result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
+        payload = json.loads(result.stdout)
+        assert payload["schema_version"] == 1
+
+    def test_json_dry_run_marks_output_null(self, tmp_path):
+        result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
+        payload = json.loads(result.stdout)
+        assert payload["dry_run"] is True
+        assert payload["output"] is None
+        assert payload["sizes"]["output_bytes"] is None
+
+    def test_json_stdout_is_only_json(self, tmp_path):
+        """Nothing on stdout except the JSON object — no progress chatter."""
+        result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
+        # If stdout contains anything besides the JSON object, json.loads() either
+        # rejects it or parses only a prefix. Use strict=False; assert stripped
+        # stdout starts with '{' and ends with '}'.
+        stripped = result.stdout.strip()
+        assert stripped.startswith("{") and stripped.endswith("}"), (
+            f"stdout is not pure JSON: {stripped[:200]!r}"
+        )
+        # And full parse must succeed.
+        json.loads(stripped)
+
+    def test_json_progress_goes_to_stderr(self, tmp_path):
+        result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
+        # Text mode prints things like "main tex:", "would process", etc.
+        # Under --json those must be on stderr instead.
+        assert "main tex:" in result.stderr or "Running demo" in result.stderr, (
+            f"expected progress on stderr; got: {result.stderr[:300]!r}"
+        )
+
+    def test_json_compile_field_null_without_compile_flag(self, tmp_path):
+        result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
+        payload = json.loads(result.stdout)
+        assert payload["compile"] is None
+
+    def test_json_counts_match_lists(self, tmp_path):
+        result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
+        payload = json.loads(result.stdout)
+        c = payload["counts"]
+        assert c["removed"] == len(payload["removed_files"])
+        assert c["kept"] == len(payload["kept_files"])
+        assert c["errors"] == len(payload["errors"])
+        assert c["warnings"] == len(payload["warnings"])
+
+    def test_json_envelope_on_fatal_error(self, tmp_path):
+        """When the input path is bogus, --json must still emit a JSON envelope
+        on stdout with the error captured under `errors` and exit non-zero."""
+        bogus = tmp_path / "does-not-exist.zip"
+        result = _run_converter(str(bogus), "--json", cwd=tmp_path)
+        assert result.returncode != 0, "fatal error must exit non-zero"
+        stripped = result.stdout.strip()
+        assert stripped.startswith("{"), f"no JSON envelope on fatal error: {result.stdout!r}"
+        payload = json.loads(stripped)
+        assert payload["errors"], "errors list must be populated on fatal failure"
+        # v1 contract: errors are flat strings (not structured objects).
+        # Lock the type so a future change to list[dict] fails this test.
+        assert all(isinstance(e, str) for e in payload["errors"])
+        assert all(isinstance(w, str) for w in payload["warnings"])
+
+    def test_json_includes_version_and_main_tex(self, tmp_path):
+        result = _run_converter("--demo", "--dry-run", "--json", cwd=tmp_path)
+        payload = json.loads(result.stdout)
+        assert payload["version"]  # non-empty
+        assert payload["main_tex"]  # demo project has a known main.tex
+        assert payload["main_tex"].endswith(".tex")

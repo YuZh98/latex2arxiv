@@ -15,7 +15,7 @@ from contextlib import redirect_stdout
 
 from mcp.server.fastmcp import FastMCP
 
-from converter import convert
+from converter import convert, ConverterError
 
 mcp = FastMCP("latex2arxiv", instructions=(
     "Validates LaTeX projects against arXiv submission requirements. "
@@ -55,9 +55,12 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
         with redirect_stdout(buf):
             issues = convert(inp, out, main_hint=main_hint,
                              config_path=cfg, dry_run=dry_run)
+    except ConverterError as e:
+        return {"success": False, "error": str(e), "log": buf.getvalue()}
     except SystemExit:
+        # Legacy guard for any sys.exit() paths that may still slip through.
         output = buf.getvalue()
-        return {"success": False, "error": output.strip()}
+        return {"success": False, "error": output.strip(), "log": output}
     finally:
         if cleanup_input:
             inp.unlink(missing_ok=True)
