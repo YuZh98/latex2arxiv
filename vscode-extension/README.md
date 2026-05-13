@@ -4,10 +4,12 @@ arXiv pre-flight validation for LaTeX projects, surfaced as VS Code diagnostics.
 
 ## Requirements
 
-The Python CLI must be on `PATH`:
+The `latex2arxiv` CLI must be on `PATH`. Pick one:
 
 ```sh
 pip install latex2arxiv
+# or, on macOS:
+brew tap YuZh98/latex2arxiv && brew install latex2arxiv
 ```
 
 If it's not on `PATH`, set `latex2arxiv.executablePath` in settings to its absolute path.
