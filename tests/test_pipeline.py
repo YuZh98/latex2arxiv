@@ -3,6 +3,7 @@ Test suite for latex2arxiv.
 Run with: python3.13 -m pytest tests/ -v
 """
 import io
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -1710,3 +1711,29 @@ class TestInputResolution:
         for d in cleanup:
             import shutil
             shutil.rmtree(d, ignore_errors=True)
+
+
+# ── --version flag ────────────────────────────────────────────────────────────
+
+
+class TestVersionFlag:
+    """`--version` should print 'latex2arxiv <version>' to stdout and exit 0."""
+
+    def test_version_prints_and_exits_zero(self):
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(Path(__file__).parent.parent / 'converter.py'), '--version'],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, f"stderr was: {result.stderr}"
+        assert re.match(r'^latex2arxiv \S+', result.stdout), f"unexpected stdout: {result.stdout!r}"
+
+    def test_get_version_returns_string(self):
+        from converter import _get_version
+        v = _get_version()
+        assert isinstance(v, str)
+        assert v  # non-empty
+        # Either a real version from installed metadata, or the fallback sentinel.
+        assert v == "0.0.0+unknown" or re.match(r'^\d+\.\d+', v)

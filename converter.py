@@ -15,6 +15,14 @@ import shutil
 import subprocess
 from pathlib import Path
 from importlib import resources
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+
+def _get_version() -> str:
+    try:
+        return _pkg_version("latex2arxiv")
+    except PackageNotFoundError:
+        return "0.0.0+unknown"
 
 from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
 from pipeline.bibtex import normalize_bibtex
@@ -710,6 +718,7 @@ def _resolve_input(inp_raw: str, tmp_list: list[str]) -> Path:
 
 def main():
     parser = argparse.ArgumentParser(description='Convert LaTeX zip to arXiv-ready zip')
+    parser.add_argument('--version', action='version', version=f'latex2arxiv {_get_version()}')
     parser.add_argument('input', nargs='?', help='Input .zip file, directory, or git URL')
     parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
     parser.add_argument('--main', help='Filename of the main .tex file (e.g. JASA_main.tex)')

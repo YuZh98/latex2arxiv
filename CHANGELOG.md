@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
   release fetches the new sdist URL + sha256 from PyPI and pushes a
   bump commit to the tap repo. Requires the `HOMEBREW_TAP_TOKEN` repo
   secret (fine-grained PAT, Contents: write on the tap repo). (#102)
+- `--version` flag: prints `latex2arxiv <version>` and exits 0. Version
+  is read from installed package metadata via `importlib.metadata`.
 
 ---
 
