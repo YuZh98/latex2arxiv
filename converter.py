@@ -6,6 +6,8 @@ Usage:
     python3 converter.py input.zip [output.zip] [--main MAIN_TEX]
 """
 
+import io
+import json
 import re
 import sys
 import argparse
@@ -42,12 +44,31 @@ SIZE_WARN_MB = 50
 _SHELL_ESCAPE_PKGS = frozenset({'minted', 'pythontex', 'shellesc', 'auto-pst-pdf', 'pst-pdf'})
 
 
+class ConverterError(Exception):
+    """Fatal converter failure. Raised from within convert() / _resolve_input()
+    instead of calling sys.exit(1) so that main() can wrap the call and emit
+    a JSON envelope under --json before exiting non-zero."""
+
+
 class Issues:
-    """Collect [warn] and [error] events; print as they happen."""
+    """Collect [warn] and [error] events plus enough run metadata to build
+    a machine-readable summary (consumed by --json mode)."""
 
     def __init__(self):
         self.errors: list[str] = []
         self.warnings: list[str] = []
+        # JSON-payload fields. All optional, set by convert()/main() as the
+        # run progresses. None / empty defaults are safe under fatal early exits.
+        self.input_path: str | None = None
+        self.output_path: str | None = None
+        self.main_tex: str | None = None
+        self.dry_run: bool = False
+        self.removed_files: list[str] = []
+        self.kept_files: list[str] = []
+        self.sizes_input: int | None = None
+        self.sizes_output: int | None = None
+        self.sizes_uncompressed: int | None = None
+        self.compile_result: dict | None = None
 
     def warn(self, msg: str) -> None:
         print(f"  [warn] {msg}")
@@ -340,9 +361,10 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                 try:
                     target.relative_to(root_abs)
                 except ValueError:
-                    print(f"ERROR: refusing to extract — zip contains a path that "
-                          f"escapes the extraction root: {name!r}")
-                    sys.exit(1)
+                    raise ConverterError(
+                        f"refusing to extract — zip contains a path that "
+                        f"escapes the extraction root: {name!r}"
+                    )
             zf.extractall(root)
 
         # Unwrap single top-level directory if present.
@@ -357,14 +379,13 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         if main_hint:
             main_tex = next((p for p in root.rglob('*.tex') if p.name == main_hint), None)
             if main_tex is None:
-                print(f"ERROR: --main '{main_hint}' not found in archive")
-                sys.exit(1)
+                raise ConverterError(f"--main '{main_hint}' not found in archive")
         else:
             main_tex = find_main_tex(root)
         if main_tex is None:
-            print("ERROR: no .tex file found in archive")
-            sys.exit(1)
+            raise ConverterError("no .tex file found in archive")
         print(f"  main tex: {main_tex.relative_to(root)}")
+        issues.main_tex = str(main_tex.relative_to(root))
 
         all_tex_files = {main_tex}
         main_source = main_tex.read_text(encoding='utf-8', errors='replace')
@@ -426,7 +447,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
 
         user_config = load_config(config_path) if config_path else {}
         kept_files: set[Path] = set()
-        removed_count = 0
+        removed_names: list[str] = []
 
         # 3. Process each file
         for path in list(root.rglob('*')):
@@ -444,13 +465,13 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                         pass  # keep it
                     else:
                         print(f"  remove: {rel}")
-                        removed_count += 1
+                        removed_names.append(str(rel))
                         if not dry_run:
                             path.unlink()
                         continue
                 else:
                     print(f"  remove: {rel}")
-                    removed_count += 1
+                    removed_names.append(str(rel))
                     if not dry_run:
                         path.unlink()
                     continue
@@ -495,10 +516,27 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         _check_files(root, kept_files, issues)
         _check_uncompressed_size(kept_files, issues)
 
+        # Populate JSON-payload fields on the Issues object so --json mode has
+        # everything it needs without re-scanning the (possibly cleaned-up)
+        # temp dir later.
+        issues.input_path = str(input_zip)
+        issues.dry_run = dry_run
+        issues.kept_files = sorted(str(p.relative_to(root)) for p in kept_files)
+        issues.removed_files = removed_names
+        try:
+            issues.sizes_input = input_zip.stat().st_size if input_zip.is_file() else None
+        except OSError:
+            issues.sizes_input = None
+        issues.sizes_uncompressed = sum(
+            p.stat().st_size for p in kept_files if p.is_file()
+        )
+
         # 4. Repack
         if dry_run:
             print(f"\n[dry-run] No output written. Would have created: {output_zip}")
-            _print_summary(removed_count, len(kept_files), issues, input_zip, None)
+            _print_summary(len(removed_names), len(kept_files), issues, input_zip, None)
+            issues.output_path = None
+            issues.sizes_output = None
             return issues
 
         with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -508,9 +546,11 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
 
         _check_output_size(output_zip, issues)
         print(f"\nDone → {output_zip}")
-        _print_summary(removed_count, len(kept_files), issues, input_zip, output_zip)
+        _print_summary(len(removed_names), len(kept_files), issues, input_zip, output_zip)
         if issues.errors:
             print(f"  {len(issues.errors)} pre-flight error(s) — fix before submitting to arXiv")
+        issues.output_path = str(output_zip)
+        issues.sizes_output = output_zip.stat().st_size if output_zip.exists() else None
 
     if compile_pdf:
         _compile(output_zip, main_hint)
@@ -697,14 +737,14 @@ def _resolve_input(inp_raw: str, tmp_list: list[str]) -> Path:
                 check=True, capture_output=True, timeout=300,
             )
         except FileNotFoundError:
-            print("ERROR: git not found — install git to use URL input")
-            sys.exit(1)
+            raise ConverterError("git not found — install git to use URL input")
         except subprocess.TimeoutExpired:
-            print("ERROR: git clone timed out after 5 minutes")
-            sys.exit(1)
+            raise ConverterError("git clone timed out after 5 minutes")
         except subprocess.CalledProcessError as e:
-            print(f"ERROR: git clone failed:\n{e.stderr.decode('utf-8', errors='replace').strip()}")
-            sys.exit(1)
+            raise ConverterError(
+                "git clone failed:\n"
+                + e.stderr.decode('utf-8', errors='replace').strip()
+            )
         return _zip_directory(Path(clone_dir), tmp_list)
 
     inp = Path(inp_raw)
@@ -712,9 +752,86 @@ def _resolve_input(inp_raw: str, tmp_list: list[str]) -> Path:
         return _zip_directory(inp, tmp_list)
 
     if not inp.exists():
-        print(f"ERROR: {inp} not found")
-        sys.exit(1)
+        raise ConverterError(f"{inp} not found")
     return inp
+
+
+def _emit_json(issues: Issues) -> None:
+    """Write the v1 schema JSON payload for this run to sys.stdout (real stdout
+    — caller must have restored it before invoking us)."""
+    payload = {
+        "version": _get_version(),
+        "schema_version": 1,
+        "input": issues.input_path,
+        "output": issues.output_path,
+        "main_tex": issues.main_tex,
+        "dry_run": issues.dry_run,
+        "removed_files": issues.removed_files,
+        "kept_files": issues.kept_files,
+        "errors": issues.errors,
+        "warnings": issues.warnings,
+        "counts": {
+            "removed": len(issues.removed_files),
+            "kept": len(issues.kept_files),
+            "errors": len(issues.errors),
+            "warnings": len(issues.warnings),
+        },
+        "sizes": {
+            "input_bytes": issues.sizes_input,
+            "output_bytes": issues.sizes_output,
+            "uncompressed_bytes": issues.sizes_uncompressed,
+        },
+        "compile": issues.compile_result,
+    }
+    json.dump(payload, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+
+
+def _do_convert(args, cleanup_tmp: list[str]) -> Issues:
+    """Run the demo or the regular conversion path. Returns the Issues object
+    populated by convert(). Raises ConverterError on fatal failures."""
+    if args.demo:
+        try:
+            import pipeline as _pipeline_mod
+            ref = resources.files(_pipeline_mod).joinpath('demo_project.zip')
+            demo_zip = Path(str(ref))
+        except Exception:
+            demo_zip = Path(__file__).parent / 'demo_project.zip'
+        if not demo_zip.exists():
+            raise ConverterError("demo_project.zip not found in package")
+        out = Path('demo_project_arxiv.zip')
+        print(f"Running demo: {demo_zip} → {out}\n")
+        with tempfile.TemporaryDirectory() as cfg_tmp:
+            demo_config: Path | None = None
+            with zipfile.ZipFile(demo_zip) as zf:
+                cfg_name = next(
+                    (n for n in zf.namelist() if Path(n).name == 'arxiv_config.yaml'),
+                    None,
+                )
+                if cfg_name is not None:
+                    demo_config = Path(cfg_tmp) / 'arxiv_config.yaml'
+                    demo_config.write_bytes(zf.read(cfg_name))
+            return convert(demo_zip, out, compile_pdf=args.compile,
+                           config_path=demo_config, dry_run=args.dry_run)
+
+    inp_raw = args.input
+    inp = _resolve_input(inp_raw, cleanup_tmp)
+    if args.output:
+        out = Path(args.output)
+    elif _is_git_url(inp_raw):
+        name_part = inp_raw.rstrip('/').rsplit('/', 1)[-1]
+        if ':' in name_part:
+            name_part = name_part.rsplit(':', 1)[-1].rsplit('/', 1)[-1]
+        repo_name = name_part.removesuffix('.git')
+        out = Path(f"{repo_name}_arxiv.zip")
+    elif Path(inp_raw).is_dir():
+        out = Path(f"{Path(inp_raw).name}_arxiv.zip")
+    else:
+        out = inp.with_stem(inp.stem + '_arxiv')
+    config_path = Path(args.config) if args.config else None
+    print(f"Converting {inp_raw} → {out}\n")
+    return convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
+                   resize=args.resize, config_path=config_path, dry_run=args.dry_run)
 
 
 def main():
@@ -732,71 +849,47 @@ def main():
                         help='Preview what would be removed/processed without writing any output')
     parser.add_argument('--demo', action='store_true',
                         help='Run the built-in demo project (no input file needed)')
+    parser.add_argument('--json', action='store_true',
+                        help='Emit a machine-readable JSON summary on stdout; route progress to stderr')
     args = parser.parse_args()
 
-    if args.demo:
-        try:
-            import pipeline as _pipeline_mod
-            ref = resources.files(_pipeline_mod).joinpath('demo_project.zip')
-            demo_zip = Path(str(ref))
-        except Exception:
-            # Fallback: look next to this file
-            demo_zip = Path(__file__).parent / 'demo_project.zip'
-        if not demo_zip.exists():
-            print("ERROR: demo_project.zip not found in package")
-            sys.exit(1)
-        out = Path('demo_project_arxiv.zip')
-        print(f"Running demo: {demo_zip} → {out}\n")
-
-        # If the demo zip ships an arxiv_config.yaml, auto-apply it so --demo
-        # exercises the --config code path without requiring user flags.
-        with tempfile.TemporaryDirectory() as cfg_tmp:
-            demo_config: Path | None = None
-            with zipfile.ZipFile(demo_zip) as zf:
-                cfg_name = next(
-                    (n for n in zf.namelist() if Path(n).name == 'arxiv_config.yaml'),
-                    None,
-                )
-                if cfg_name is not None:
-                    demo_config = Path(cfg_tmp) / 'arxiv_config.yaml'
-                    demo_config.write_bytes(zf.read(cfg_name))
-
-            issues = convert(demo_zip, out, compile_pdf=args.compile,
-                             config_path=demo_config, dry_run=args.dry_run)
-        if issues.errors:
-            sys.exit(1)
-        return
-
-    if not args.input:
+    # argparse-level validation. Fail fast before setting up stdout capture —
+    # these errors are not part of the JSON envelope contract.
+    if not args.demo and not args.input:
         parser.error("the following arguments are required: input")
 
-    inp_raw = args.input
-    _cleanup_tmp: list[str] = []  # temp dirs to clean up at exit
+    # Under --json, capture stdout into a buffer so progress lines don't pollute
+    # the JSON payload. The capture is restored in `finally` and the captured
+    # text is forwarded to stderr for visibility.
+    real_stdout = sys.stdout
+    capture_buf: io.StringIO | None = None
+    if args.json:
+        capture_buf = io.StringIO()
+        sys.stdout = capture_buf
 
+    issues: Issues | None = None
+    exit_code = 0
+    cleanup_tmp: list[str] = []
     try:
-        inp = _resolve_input(inp_raw, _cleanup_tmp)
-        if args.output:
-            out = Path(args.output)
-        elif _is_git_url(inp_raw):
-            # Derive name from the repo URL (handles both https and git@host:user/repo)
-            name_part = inp_raw.rstrip('/').rsplit('/', 1)[-1]
-            if ':' in name_part:
-                name_part = name_part.rsplit(':', 1)[-1].rsplit('/', 1)[-1]
-            repo_name = name_part.removesuffix('.git')
-            out = Path(f"{repo_name}_arxiv.zip")
-        elif Path(inp_raw).is_dir():
-            out = Path(f"{Path(inp_raw).name}_arxiv.zip")
-        else:
-            out = inp.with_stem(inp.stem + '_arxiv')
-        config_path = Path(args.config) if args.config else None
-        print(f"Converting {inp_raw} → {out}\n")
-        issues = convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
-                         resize=args.resize, config_path=config_path, dry_run=args.dry_run)
+        issues = _do_convert(args, cleanup_tmp)
         if issues.errors:
-            sys.exit(1)
+            exit_code = 1
+    except ConverterError as e:
+        if issues is None:
+            issues = Issues()
+        issues.error(str(e))
+        exit_code = 1
     finally:
-        for d in _cleanup_tmp:
+        for d in cleanup_tmp:
             shutil.rmtree(d, ignore_errors=True)
+        if args.json:
+            sys.stdout = real_stdout
+            if capture_buf is not None and capture_buf.getvalue():
+                sys.stderr.write(capture_buf.getvalue())
+            if issues is None:
+                issues = Issues()
+            _emit_json(issues)
+    sys.exit(exit_code)
 
 
 if __name__ == '__main__':

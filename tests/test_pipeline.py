@@ -951,10 +951,10 @@ class TestPreflightChecks:
         issues, _ = self._run(files)
         assert not any('not valid UTF-8' in w for w in issues.warnings)
 
-    def test_zip_slip_member_aborts_extraction(self, tmp_path, capsys):
+    def test_zip_slip_member_aborts_extraction(self, tmp_path):
         # Build a zip with a member whose path tries to escape via '..'.
         # The pre-extraction validation must abort before anything is written.
-        from converter import convert
+        from converter import convert, ConverterError
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w') as zf:
             zf.writestr('main.tex', r'\documentclass{article}\begin{document}hi\end{document}')
@@ -962,20 +962,18 @@ class TestPreflightChecks:
         inp = tmp_path / 'malicious.zip'
         inp.write_bytes(buf.getvalue())
         out = tmp_path / 'out.zip'
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(ConverterError) as excinfo:
             convert(inp, out)
-        assert excinfo.value.code == 1
-        captured = capsys.readouterr().out
-        assert 'escapes the extraction root' in captured
-        assert "'../escape.txt'" in captured
+        assert 'escapes the extraction root' in str(excinfo.value)
+        assert "'../escape.txt'" in str(excinfo.value)
         # Output zip must not have been created.
         assert not out.exists()
 
-    def test_zip_slip_absolute_path_aborts_extraction(self, tmp_path, capsys):
+    def test_zip_slip_absolute_path_aborts_extraction(self, tmp_path):
         # Same protection should catch a member with an absolute path. Python's
         # zipfile would otherwise sanitize the leading slash and write under
         # root, but our pre-validation is stricter — defensive is good.
-        from converter import convert
+        from converter import convert, ConverterError
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w') as zf:
             zf.writestr('main.tex', r'\documentclass{article}\begin{document}hi\end{document}')
@@ -983,17 +981,15 @@ class TestPreflightChecks:
         inp = tmp_path / 'malicious_abs.zip'
         inp.write_bytes(buf.getvalue())
         out = tmp_path / 'out.zip'
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(ConverterError) as excinfo:
             convert(inp, out)
-        assert excinfo.value.code == 1
-        captured = capsys.readouterr().out
-        assert 'escapes the extraction root' in captured
+        assert 'escapes the extraction root' in str(excinfo.value)
         assert not out.exists()
 
-    def test_zip_with_no_tex_exits_with_clear_message(self, tmp_path, capsys):
-        # A zip containing files but no .tex should exit 1 with a clear message,
-        # not raise a Python traceback.
-        from converter import convert
+    def test_zip_with_no_tex_exits_with_clear_message(self, tmp_path):
+        # A zip containing files but no .tex should raise ConverterError with a
+        # clear message, not a Python traceback. main() catches and exits 1.
+        from converter import convert, ConverterError
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w') as zf:
             zf.writestr('README.md', '# This is not a TeX project')
@@ -1001,11 +997,9 @@ class TestPreflightChecks:
         inp = tmp_path / 'no_tex.zip'
         inp.write_bytes(buf.getvalue())
         out = tmp_path / 'out.zip'
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(ConverterError) as excinfo:
             convert(inp, out)
-        assert excinfo.value.code == 1
-        captured = capsys.readouterr().out
-        assert 'no .tex file found' in captured
+        assert 'no .tex file found' in str(excinfo.value)
         assert not out.exists()
 
     def test_commented_minted_not_flagged(self):
