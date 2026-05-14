@@ -36,7 +36,7 @@ latex2arxiv paper.zip --dry-run --json | jq .
     "output_bytes":         6789,                         // null when --dry-run
     "uncompressed_bytes":  23456                          // sum of kept-files' sizes
   },
-  "compile": null,                                        // reserved for --compile result; null otherwise
+  "compile": null,                                        // always null in v1.0; reserved for a future --compile result shape
   "flatten": false,                                       // true when --flatten was passed; mirrors the flag
   "inlined_files": []                                     // list of fragment .tex files that were inlined when --flatten is on (empty otherwise)
 }
@@ -68,9 +68,10 @@ Messages may change in any release without a schema-version bump. Use the presen
 count of errors/warnings to gate decisions; parse field names (`errors`, `warnings`,
 `counts.*`) not message text.
 
-**`compile` field:** Always `null` unless `--compile` is passed on the CLI. MCP tools
-do not support `--compile`. The shape of a non-null compile result is not part of the
-v1.0 stability promise and may change in future releases.
+**`compile` field:** Always `null` in v1.0 — including when `--compile` is used. The
+field is reserved for a future release that will expose the compile result as a structured
+object. MCP tools do not support `--compile`. Do not write code that expects a non-null
+value here.
 
 ## Notes on specific fields
 
