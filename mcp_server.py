@@ -13,7 +13,11 @@ import zipfile
 from io import StringIO
 from pathlib import Path
 from contextlib import redirect_stdout
-from typing import TypedDict, NotRequired
+import sys
+if sys.version_info >= (3, 11):
+    from typing import TypedDict, NotRequired
+else:
+    from typing_extensions import TypedDict, NotRequired
 
 from mcp.server.fastmcp import FastMCP
 
