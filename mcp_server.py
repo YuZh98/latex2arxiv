@@ -13,8 +13,6 @@ import zipfile
 from io import StringIO
 from pathlib import Path
 from contextlib import redirect_stdout
-from typing import TypedDict
-
 from mcp.server.fastmcp import FastMCP
 
 from converter import convert, ConverterError
@@ -26,26 +24,10 @@ mcp = FastMCP("latex2arxiv", instructions=(
 ))
 
 
-class _MCPEnvelopeBase(TypedDict):
-    """Required keys for all MCP tool responses."""
-    success: bool
-    errors: list[str]
-    warnings: list[str]
-    log: str
-
-
-class MCPEnvelope(_MCPEnvelopeBase, total=False):
-    """Stable return shape for all MCP tools (v1.0).
-
-    ``output_zip`` is present on a successful ``clean_submission`` call only.
-    """
-    output_zip: str
-
-
 def _error_envelope(errors: list[str], log: str = "",
-                    warnings: list[str] | None = None) -> MCPEnvelope:
-    return MCPEnvelope(success=False, errors=errors,
-                       warnings=warnings or [], log=log)
+                    warnings: list[str] | None = None) -> dict:
+    return {"success": False, "errors": errors,
+            "warnings": warnings or [], "log": log}
 
 
 def _safe_root() -> Path:
@@ -54,7 +36,7 @@ def _safe_root() -> Path:
     return Path(env).resolve() if env else Path.cwd().resolve()
 
 
-def _validate_path(raw: str) -> tuple[Path | None, MCPEnvelope | None]:
+def _validate_path(raw: str) -> tuple[Path | None, dict | None]:
     """Resolve *raw* and verify it is inside the safe root.
 
     Returns (resolved_path, None) on success, or (None, error_envelope) on rejection.
@@ -72,7 +54,7 @@ def _validate_path(raw: str) -> tuple[Path | None, MCPEnvelope | None]:
 
 
 def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
-                 config_path: str | None = None) -> MCPEnvelope:
+                 config_path: str | None = None) -> dict:
     """Run the converter and capture structured results."""
     inp, err = _validate_path(path)
     if err or inp is None:
@@ -140,12 +122,12 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
                 [f"unexpected error: {type(e).__name__}: {e}"], output, extra_warnings
             )
 
-        result = MCPEnvelope(
-            success=len(issues.errors) == 0,
-            errors=issues.errors,
-            warnings=extra_warnings + issues.warnings,
-            log=buf.getvalue(),
-        )
+        result: dict = {
+            "success": len(issues.errors) == 0,
+            "errors": issues.errors,
+            "warnings": extra_warnings + issues.warnings,
+            "log": buf.getvalue(),
+        }
         if not dry_run and out.exists():
             result["output_zip"] = str(out)
             out_claimed = True
@@ -166,7 +148,7 @@ def validate_submission(
     path: str,
     main_tex: str | None = None,
     config: str | None = None,
-) -> MCPEnvelope:
+) -> dict:
     """Validate a LaTeX project against arXiv submission requirements (dry-run).
 
     Runs all pre-flight checks without producing output. Returns errors and
@@ -185,7 +167,7 @@ def clean_submission(
     path: str,
     main_tex: str | None = None,
     config: str | None = None,
-) -> MCPEnvelope:
+) -> dict:
     """Clean a LaTeX project and produce an arXiv-ready zip.
 
     Prunes unused files, strips comments and draft annotations, runs pre-flight

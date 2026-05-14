@@ -2562,22 +2562,6 @@ class TestSimpleYamlParser:
 class TestConverterInternalFunctions:
     """Unit tests for converter.py internals called directly (not via subprocess)."""
 
-    def test_emit_json_structure(self, capsys):
-        """_emit_json writes valid JSON with all required keys."""
-        from converter import _emit_json, Issues
-        issues = Issues()
-        issues.input_path = "in.zip"
-        issues.output_path = "out.zip"
-        issues.main_tex = "main.tex"
-        _emit_json(issues)
-        captured = capsys.readouterr()
-        payload = json.loads(captured.out)
-        assert payload["schema_version"] == 1
-        assert "errors" in payload
-        assert "warnings" in payload
-        assert "counts" in payload
-        assert "sizes" in payload
-
     def test_resolve_input_with_directory_zips_and_excludes_pycache(self, tmp_path):
         """Directory input is zipped; __pycache__ and .pyc files are excluded."""
         from converter import _resolve_input

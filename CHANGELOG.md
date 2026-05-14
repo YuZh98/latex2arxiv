@@ -6,31 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
-### Breaking changes
-- **MCP error envelope**: all responses from `validate_submission` / `clean_submission` now use `{"errors": [str], "warnings": [], "log": ""}` (list) instead of the former `{"error": str}` (singular key). Clients checking `result["error"]` must switch to `result["errors"][0]` or `result.get("errors", [])`.
+API stability work and CI hardening ahead of v1.0. MCP error envelope is now a list (`"errors"` instead of singular `"error"`), which is a breaking change for MCP clients.
 
 ### Added
-- **`__all__` in `converter.py`**: documents the stable public API — `Issues`, `ConverterError`, `convert`; internal helpers are no longer implicitly exported
-- **`--json` schema stability contract** (`docs/json-schema.md`): `errors[]` / `warnings[]` string content is explicitly **not stable** across releases; `compile` field documented as always `null` in v1.0 (including with `--compile`)
-- **`MCPEnvelope` TypedDict** in `mcp_server.py`: all MCP tool return types are now fully typed, preventing `"error"` vs `"errors"` drift at the type-checker level
-- Python matrix expanded to 3.10–3.13 in CI; `pyyaml`, `mcp`, `fastmcp` added to test dependencies so YAML and MCP tests never silently skip
+- `__all__` in `converter.py` exports the stable public API: `Issues`, `ConverterError`, `convert`
+- JSON schema stability contract in `docs/json-schema.md`
 - Deprecation-strict CI job (`pytest -W error::DeprecationWarning`)
-- Coverage gate at 85% (measured against product code; `make_demo.py` excluded)
-- Pre-commit config: ruff, ruff-format, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml
-
-### Improved
-- **MCP server hardening**: temp files are cleaned up on all error paths; bare `except Exception` guarantees every unhandled exception returns a structured `MCPEnvelope` instead of crashing the tool call; symlink-escape files excluded from directory zip are now surfaced in `warnings` instead of silently dropped; empty-string `path` rejected explicitly; `Path.cwd()` consistently resolved before path containment checks
-- **Warning routing**: `load_config`, `apply_config`, and `normalize_bibtex` accept a `warn_fn` callback; callers in `convert()` pass `issues.warn`, making config and BibTeX warnings visible in `--json` output and the MCP `warnings` field
+- Coverage gate at 85% in CI; `mcp_server.py` excluded (requires optional `[mcp]` extra)
+- Pre-commit config (ruff, ruff-format, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml)
+- CI Python matrix expanded to 3.10–3.13; `pyyaml`, `mcp`, `fastmcp` added to test deps
 
 ### Fixed
-- `--resize` without a value now uses the default 1600 px (`nargs='?', const=DEFAULT_MAX_PX`) instead of exiting with error code 2
+- `--resize` without a value now uses the default 1600 px instead of exiting with error code 2
 - MCP directory zip excluded `__pycache__`, `.pyc` files, and symlinks escaping the project root
-- `find_used_images` return type annotation corrected from `set` to `tuple[set[Path], set[str]]`
+- Config and BibTeX warnings now routed through `issues.warn` (visible in `--json` and MCP output)
+- `find_used_images` return type annotation corrected to `tuple[set[Path], set[str]]`
 
 ### Changed
-- Publish workflow split into `publish` (PyPI only) and `release-assets` (TeX Live → demo PDF → GitHub Release) jobs; each can be re-run independently on failure
-- CI matrix uses `fail-fast: false` so a failure on one Python version does not cancel the others
-- `requirements.txt` removed; `pyproject.toml` is authoritative
+- MCP error envelope (breaking): responses use `{"errors": [...]}` instead of `{"error": str}`
+- Publish workflow split into `publish` + `release-assets` jobs for independent re-runs
+- `requirements.txt` removed; `pyproject.toml` is the single source of dependencies
 - `[project.urls]` added to `pyproject.toml` (Homepage, Source, Issues, Changelog)
 
 ---
