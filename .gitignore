@@ -16,7 +16,11 @@ homebrew-formula/
 *_arxiv.zip
 *_arxiv.pdf
 *_arxiv/
+*_UPLOAD_GUIDE.txt
 test_project/
 test_project[ _]*/
 my_project.zip
+my_project*/
 demo.cast
+docs/vscode-extension-handoff.md
+.coverage

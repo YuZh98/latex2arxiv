@@ -15,7 +15,7 @@ latex2arxiv paper.zip --dry-run --json | jq .
 
 ```jsonc
 {
-  "version": "0.8.0",            // tool version (from installed package metadata)
+  "version": "0.10.0",           // tool version (from installed package metadata)
   "schema_version": 1,           // bump on any breaking change to this layout
   "input": "path/to/paper.zip",  // absolute or as-passed
   "output": "paper_arxiv.zip",   // null when --dry-run
@@ -36,7 +36,7 @@ latex2arxiv paper.zip --dry-run --json | jq .
     "output_bytes":         6789,                         // null when --dry-run
     "uncompressed_bytes":  23456                          // sum of kept-files' sizes
   },
-  "compile": null,                                        // reserved for --compile result; null otherwise
+  "compile": null,                                        // always null in v1.0; reserved for a future --compile result shape
   "flatten": false,                                       // true when --flatten was passed; mirrors the flag
   "inlined_files": []                                     // list of fragment .tex files that were inlined when --flatten is on (empty otherwise)
 }
@@ -57,6 +57,21 @@ The `schema_version: 1` line is the contract:
 If you build tooling against this output, branch on `schema_version`
 and ignore fields you don't recognise. That contract makes future
 additions non-breaking.
+
+## Stability contract
+
+**Schema structure** (`schema_version`, all field names, field types) is stable from v1.0.0.
+
+**String content** of `errors[]` and `warnings[]` items is **NOT stable**. Do not
+substring-match, regex-match, or hard-code against the exact wording of any message.
+Messages may change in any release without a schema-version bump. Use the presence and
+count of errors/warnings to gate decisions; parse field names (`errors`, `warnings`,
+`counts.*`) not message text.
+
+**`compile` field:** Always `null` in v1.0 — including when `--compile` is used. The
+field is reserved for a future release that will expose the compile result as a structured
+object. MCP tools do not support `--compile`. Do not write code that expects a non-null
+value here.
 
 ## Notes on specific fields
 
@@ -92,7 +107,7 @@ error captured under `errors` and exit code 1:
 
 ```json
 {
-  "version": "0.8.0",
+  "version": "0.10.0",
   "schema_version": 1,
   "input": null,
   "output": null,

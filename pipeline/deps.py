@@ -30,7 +30,7 @@ def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
     return found
 
 
-def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Path) -> set:
+def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Path) -> tuple[set[Path], set[str]]:
     """Return set of absolute paths for images referenced by \\includegraphics or \\begin{overpic}.
 
     LaTeX resolves image paths relative to the compilation root (main file's directory),

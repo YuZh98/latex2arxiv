@@ -1,2 +1,0 @@
-bibtexparser>=1.4
-Pillow>=10.0

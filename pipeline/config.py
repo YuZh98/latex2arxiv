@@ -1,6 +1,7 @@
 import re
 import signal
 from pathlib import Path
+from typing import Callable
 
 from pipeline.tex import remove_cmd, remove_bare_cmd, unwrap_cmd
 
@@ -84,7 +85,8 @@ _KNOWN_KEYS = frozenset({
 })
 
 
-def load_config(config_path: Path) -> dict:
+def load_config(config_path: Path, warn_fn: Callable[[str], None] | None = None) -> dict:
+    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}", file=__import__("sys").stderr))
     text = config_path.read_text(encoding='utf-8')
     if HAS_YAML:
         cfg = yaml.safe_load(text) or {}
@@ -93,14 +95,14 @@ def load_config(config_path: Path) -> dict:
     if not isinstance(cfg, dict):
         # User wrote a top-level list/string/scalar instead of a mapping; downstream
         # config.get(...) calls would raise AttributeError.
-        print(f"  [warn] config root must be a mapping (got {type(cfg).__name__}); "
+        _warn(f"config root must be a mapping (got {type(cfg).__name__}); "
               "ignoring the file")
         return {}
     for key in cfg:
         if key not in _KNOWN_KEYS:
             # Typos like 'command_to_delete' (singular) silently no-op otherwise,
             # so a paper full of revision markup ships unchanged.
-            print(f"  [warn] unknown config key '{key}' — expected one of: "
+            _warn(f"unknown config key '{key}' — expected one of: "
                   f"{', '.join(sorted(_KNOWN_KEYS))}")
     return cfg
 
@@ -111,12 +113,13 @@ def _make_cmd_pattern(cmd: str) -> str:
     return '\\\\' + re.escape(cmd)
 
 
-def apply_config(source: str, config: dict) -> str:
+def apply_config(source: str, config: dict, warn_fn: Callable[[str], None] | None = None) -> str:
     """Apply user-defined removal rules from config.
 
     Uses ``config.get(key) or []`` so a YAML null (``commands_to_delete:`` with
     no value, parsing as ``None``) is treated the same as an absent key.
     """
+    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}", file=__import__("sys").stderr))
 
     # 1. commands_to_delete: remove \cmd{...} entirely (including argument).
     # Brace-balanced so nested braces (e.g. \deleted{see \cite{x}}) are handled.
@@ -144,23 +147,23 @@ def apply_config(source: str, config: dict) -> str:
     # Per-rule try/except so one malformed pattern doesn't crash the conversion.
     for i, rule in enumerate(config.get('replacements') or []):
         if not isinstance(rule, dict):
-            print(f"  [warn] replacements rule #{i} skipped — expected a mapping "
+            _warn(f"replacements rule #{i} skipped — expected a mapping "
                   f"with 'pattern' and 'replacement', got {type(rule).__name__}")
             continue
         pattern = rule.get('pattern', '')
         if not pattern:
             # Empty pattern would re.sub at every position — silent corruption.
-            print(f"  [warn] replacements rule #{i} skipped — missing or empty 'pattern'")
+            _warn(f"replacements rule #{i} skipped — missing or empty 'pattern'")
             continue
         replacement = rule.get('replacement', '')
         try:
             source = _safe_re_sub(pattern, replacement, source)
         except TimeoutError:
-            print(f"  [warn] replacements rule #{i} skipped — regex timed out "
+            _warn(f"replacements rule #{i} skipped — regex timed out "
                   f"after {_REGEX_TIMEOUT_SECONDS}s (possible ReDoS pattern): "
                   f"{pattern!r}")
         except re.error as e:
-            print(f"  [warn] replacements rule #{i} skipped — invalid regex "
+            _warn(f"replacements rule #{i} skipped — invalid regex "
                   f"{pattern!r}: {e}")
 
     return source

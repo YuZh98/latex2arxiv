@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Stable public API**: `__all__` in `converter.py` exports `Issues`, `ConverterError`, `convert`
+- **JSON schema stability contract** (`docs/json-schema.md`): field names/types stable from v1.0; message text explicitly not stable
+- Deprecation-strict CI job (`pytest -W error::DeprecationWarning`)
+- Coverage gate at 73% in CI
+- Pre-commit config (ruff, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml)
+- CI Python matrix expanded to 3.10–3.13; `pyyaml`, `mcp`, `fastmcp` added to test deps
+
+### Fixed
+- `--resize` without a value now uses the default 1600 px instead of exiting with error code 2
+- MCP directory zip excluded `__pycache__`, `.pyc` files, and symlinks escaping the project root
+- Config and BibTeX warnings now routed through `issues.warn` (visible in `--json` and MCP output)
+- `find_used_images` return type annotation corrected to `tuple[set[Path], set[str]]`
+
+### Changed
+- **MCP error envelope** (breaking): responses use `{"errors": [...]}` (list) instead of `{"error": str}` (singular). Clients must update accordingly.
+- Publish workflow split into `publish` + `release-assets` jobs for independent re-runs
+- `requirements.txt` removed; `pyproject.toml` is the single source of dependencies
+- `[project.urls]` added to `pyproject.toml` (Homepage, Source, Issues, Changelog)
+
 ---
 
 ## [0.10.0] - 2026-05-13
@@ -15,7 +35,7 @@ All notable changes to this project will be documented in this file.
 - **Undefined citation warning**: detects `\cite{key}` references not found in any kept `.bib` or `.bbl` file after cleaning
 - **`.sty`/`.cls` advisory**: warns that arXiv may suggest removing custom style files — tells users to ignore that and keep them
 
-### Improved
+### Fixed
 - **Author extraction**: handles `\thanks{...}` stripping, `\\`-separated authors with affiliations, multiple `\author{}` commands, and `\and` separators
 - **Figure/table counting**: scans all `.tex` files in the output (not just main), counts `figure*`/`table*` starred variants
 
@@ -41,17 +61,12 @@ All notable changes to this project will be documented in this file.
 ## [0.8.0] - 2026-05-07
 
 ### Added
-- **MCP server**: AI agents (Claude, Cursor, Zed, Copilot) can now validate and clean
-  submissions directly via `latex2arxiv-mcp`. Install with `pip install "latex2arxiv[mcp]"`.
-  Two tools: `validate_submission` (dry-run pre-flight) and `clean_submission` (full conversion).
-  See [docs/mcp.md](docs/mcp.md) for setup.
-- MCP documentation (`docs/mcp.md`) with Claude Desktop, Cursor, and Zed setup instructions
+- **MCP server**: AI agents (Claude, Cursor, Copilot) can validate and clean submissions via `latex2arxiv-mcp`. Install with `pip install "latex2arxiv[mcp]"`. Two tools: `validate_submission` (dry-run) and `clean_submission` (full conversion). See [docs/mcp.md](docs/mcp.md) for setup.
+- MCP documentation (`docs/mcp.md`) with Claude Desktop and Cursor setup instructions
 
 ### Changed
-- README rewritten: "Works everywhere" hero section (CLI/CI/AI), decision-funnel structure,
-  Integrations table with roadmap
-- Comparison table: corrected BibTeX normalization (both tools have it), added MCP and
-  GitHub Action rows
+- README rewritten: "Works everywhere" hero section (CLI/CI/AI), decision-funnel structure, Integrations table with roadmap
+- Comparison table: corrected BibTeX normalization (both tools have it), added MCP and GitHub Action rows
 
 ---
 
@@ -236,3 +251,7 @@ All notable changes to this project will be documented in this file.
 - `--compile` flag: runs `pdflatex` and opens the resulting PDF
 - Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\begin{overpic}`, `\bibliography`
 - Compliance warnings: referee/double-space mode, custom style files, `\today` in `\date`, `.eps` images
+
+---
+
+[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v0.10.0...HEAD

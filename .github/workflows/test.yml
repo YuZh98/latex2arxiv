@@ -5,14 +5,22 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
-      - run: pip install pytest bibtexparser Pillow ruff
+          python-version: ${{ matrix.python-version }}
+      - run: pip install pytest bibtexparser Pillow pyyaml ruff pytest-cov mcp fastmcp
       - run: ruff check .
       - run: pytest tests/ -v
+      - name: Coverage report
+        if: matrix.python-version == '3.12'
+        run: |
+          pytest tests/ --cov=. --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=74
 
   package:
     runs-on: ubuntu-latest
@@ -124,6 +132,16 @@ jobs:
           latex2arxiv /tmp/biber.zip /tmp/biber_arxiv.zip --compile
           test -f /tmp/biber_arxiv.pdf
           test "$(stat -c%s /tmp/biber_arxiv.pdf)" -gt 5000
+
+  deprecation-strict:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install pytest bibtexparser Pillow pyyaml mcp fastmcp
+      - run: pytest tests/ -W error::DeprecationWarning -v
 
   action-smoke:
     # Smoke-tests action.yml against fixture projects.

@@ -1,0 +1,17 @@
+[run]
+source = .
+omit =
+    tests/*
+    setup.py
+    make_demo.py
+    docs/*
+    vscode-extension/*
+    build/*
+    dist/*
+    */site-packages/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    if __name__ == .__main__.:

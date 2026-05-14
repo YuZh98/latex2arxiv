@@ -27,6 +27,8 @@ from pipeline.images import resize_image, DEFAULT_MAX_PX
 from pipeline.flatten import flatten_tex
 from pipeline.guide import extract_metadata, count_stats, format_summary, format_guide, _count_pages
 
+__all__ = ["Issues", "ConverterError", "convert"]
+
 
 def _get_version() -> str:
     try:
@@ -478,7 +480,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                 # encoding declarations, and aux file lists.
                 whitelist.add(path.resolve())
 
-        user_config = load_config(config_path) if config_path else {}
+        user_config = load_config(config_path, warn_fn=issues.warn) if config_path else {}
         kept_files: set[Path] = set()
         removed_names: list[str] = []
 
@@ -529,7 +531,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                     src = remove_draft_annotations(src)
                     src = remove_draft_packages(src)
                     if user_config:
-                        src = apply_config(src, user_config)
+                        src = apply_config(src, user_config, warn_fn=issues.warn)
                     if path == main_tex:
                         src = ensure_pdfoutput(src)
                     path.write_text(src, encoding='utf-8')
@@ -540,7 +542,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                     print(f"  would process (bib): {rel}")
                 else:
                     src = path.read_text(encoding='utf-8', errors='replace')
-                    src = normalize_bibtex(src, cited_keys=cited_keys)
+                    src = normalize_bibtex(src, cited_keys=cited_keys, warn_fn=issues.warn)
                     path.write_text(src, encoding='utf-8')
 
         # 3b. Compliance + pre-flight checks
@@ -985,8 +987,9 @@ def main():
     parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
     parser.add_argument('--main', help='Filename of the main .tex file (e.g. JASA_main.tex)')
     parser.add_argument('--compile', action='store_true', help='Compile output with pdflatex and open PDF')
-    parser.add_argument('--resize', type=int, metavar='PX',
-                        help=f'Resize images so longest side <= PX pixels (default: {DEFAULT_MAX_PX} if flag given)')
+    parser.add_argument('--resize', nargs='?', const=DEFAULT_MAX_PX, type=int, metavar='PX',
+                        help=f'Resize images so longest side <= PX pixels '
+                             f'(default: {DEFAULT_MAX_PX} if given without a value)')
     parser.add_argument('--config', metavar='FILE',
                         help='YAML config for custom removal rules (see arxiv_config.yaml)')
     parser.add_argument('--dry-run', action='store_true',

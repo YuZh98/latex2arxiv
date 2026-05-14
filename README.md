@@ -265,7 +265,7 @@ The brace-balanced matcher correctly handles nested commands like `\deleted{see 
 | GitHub Action + `pre-commit` hook | ✅ | ❌ |
 | PDF compression (Ghostscript) | ❌ | ✅ |
 | PNG → JPG conversion | ❌ | ✅ |
-| Maturity | 7 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
+| Maturity | 9 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
 
 ## Integrations
 

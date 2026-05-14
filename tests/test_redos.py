@@ -43,14 +43,14 @@ class TestReDoSProtection:
 
         assert result == source
         captured = capsys.readouterr()
-        assert "timed out" in captured.out
+        assert "timed out" in captured.err
 
     def test_invalid_regex_still_warns(self, capsys):
         config = self._replacements_config(r"[unclosed")
         result = apply_config("hello", config)
         assert result == "hello"
         captured = capsys.readouterr()
-        assert "invalid regex" in captured.out
+        assert "invalid regex" in captured.err
 
     def test_normal_regex_timeout_not_triggered(self):
         # A straightforward substitution must not be falsely timed out.

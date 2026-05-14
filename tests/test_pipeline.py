@@ -4,9 +4,11 @@ Run with: python3.13 -m pytest tests/ -v
 """
 import io
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -273,21 +275,21 @@ class TestLoadConfig:
     def test_known_keys_no_warning(self, tmp_path, capsys):
         p = self._write(tmp_path, "commands_to_delete:\n  - revision\n")
         load_config(p)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert 'unknown config key' not in out
 
     def test_unknown_key_warns(self, tmp_path, capsys):
         # Singular form is a common typo and should not silently no-op.
         p = self._write(tmp_path, "command_to_delete:\n  - revision\n")
         load_config(p)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert 'unknown config key' in out
         assert 'command_to_delete' in out
 
     def test_warning_lists_expected_keys(self, tmp_path, capsys):
         p = self._write(tmp_path, "typo_key:\n  - x\n")
         load_config(p)
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert 'commands_to_delete' in out
         assert 'commands_to_unwrap' in out
         assert 'environments_to_delete' in out
@@ -296,7 +298,7 @@ class TestLoadConfig:
     def test_empty_config_no_warning(self, tmp_path, capsys):
         p = self._write(tmp_path, "")
         load_config(p)
-        assert 'unknown config key' not in capsys.readouterr().out
+        assert 'unknown config key' not in capsys.readouterr().err
 
     @pytest.mark.skipif(not HAS_YAML, reason="fallback parser silently drops non-dict roots")
     def test_top_level_list_warns_and_returns_empty(self, tmp_path, capsys):
@@ -305,14 +307,14 @@ class TestLoadConfig:
         p = self._write(tmp_path, "- foo\n- bar\n")
         result = load_config(p)
         assert result == {}
-        assert 'config root must be a mapping' in capsys.readouterr().out
+        assert 'config root must be a mapping' in capsys.readouterr().err
 
     @pytest.mark.skipif(not HAS_YAML, reason="fallback parser silently drops non-dict roots")
     def test_top_level_string_warns_and_returns_empty(self, tmp_path, capsys):
         p = self._write(tmp_path, "just_a_string\n")
         result = load_config(p)
         assert result == {}
-        assert 'config root must be a mapping' in capsys.readouterr().out
+        assert 'config root must be a mapping' in capsys.readouterr().err
 
     def test_fallback_parser_handles_bundled_template(self):
         # The bundled template ships with everything commented out, so both the
@@ -418,7 +420,7 @@ class TestApplyConfig:
             {"replacements": [{"pattern": r"[unclosed", "replacement": ""}]}
         )
         assert result == r"\added{new text}"
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert 'invalid regex' in out
         assert '[unclosed' in out
 
@@ -432,7 +434,7 @@ class TestApplyConfig:
             ]}
         )
         assert result == "new text"
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert 'rule #0' in out
 
     def test_replacements_bad_rule_index_in_warning(self, capsys):
@@ -444,7 +446,7 @@ class TestApplyConfig:
                 {"pattern": r"(?P<", "replacement": ""},
             ]}
         )
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert 'rule #1' in out
 
     def test_none_value_for_known_keys_does_not_crash(self):
@@ -467,7 +469,7 @@ class TestApplyConfig:
             {"replacements": ["just a string", {"pattern": "h", "replacement": "H"}]},
         )
         assert result == "Hello"
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert 'rule #0' in out
         assert 'expected a mapping' in out
         assert 'str' in out
@@ -478,7 +480,7 @@ class TestApplyConfig:
             {"replacements": [None, {"pattern": "h", "replacement": "H"}]},
         )
         assert result == "Hello"
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert 'rule #0' in out
         assert 'NoneType' in out
 
@@ -489,7 +491,7 @@ class TestApplyConfig:
             {"replacements": [{"replacement": "X"}]},
         )
         assert result == "hi"
-        out = capsys.readouterr().out
+        out = capsys.readouterr().err
         assert 'rule #0' in out
         assert "missing or empty 'pattern'" in out
 
@@ -499,7 +501,7 @@ class TestApplyConfig:
             {"replacements": [{"pattern": "", "replacement": "X"}]},
         )
         assert result == "hi"
-        assert "missing or empty 'pattern'" in capsys.readouterr().out
+        assert "missing or empty 'pattern'" in capsys.readouterr().err
 
     # ── Definition-context skip ───────────────────────────────────────────────
     # When a command rule matches the command's name inside its own
@@ -1560,9 +1562,9 @@ class TestDemoFlag:
         """--demo --dry-run should print dry-run output and not create any output zip."""
         from converter import convert
         from importlib import resources
-        import converter as conv_module
+        import pipeline as _pipeline_mod
 
-        ref = resources.files(conv_module).joinpath('demo_project.zip')
+        ref = resources.files(_pipeline_mod).joinpath('demo_project.zip')
         demo_zip = Path(str(ref))
         assert demo_zip.exists(), "demo_project.zip not found in package"
 
@@ -2237,3 +2239,221 @@ Second.
         assert "main.tex" in names
         assert "ch1.tex" not in names
         assert "ch2.tex" not in names
+
+
+class TestResizeCLI:
+    def test_resize_bare_flag_uses_default(self, tmp_path):
+        """--resize with no value must not exit 2; it must use DEFAULT_MAX_PX."""
+        result = subprocess.run(
+            [sys.executable, "converter.py", "--demo", "--dry-run", "--resize"],
+            capture_output=True, text=True,
+            cwd=str(Path(__file__).parent.parent),
+        )
+        assert result.returncode != 2, f"argparse rejected bare --resize: {result.stderr}"
+
+
+class TestPublicAPI:
+    def test_all_exports_present(self):
+        import converter
+        assert hasattr(converter, "__all__")
+        assert "Issues" in converter.__all__
+        assert "ConverterError" in converter.__all__
+        assert "convert" in converter.__all__
+
+    def test_internal_not_in_all(self):
+        import converter
+        assert "_emit_json" not in converter.__all__
+        assert "_compile" not in converter.__all__
+        assert "_do_convert" not in converter.__all__
+
+
+class TestDepAnnotations:
+    def test_find_used_images_return_annotation(self):
+        import typing
+        hints = typing.get_type_hints(find_used_images)
+        ret = hints.get("return")
+        assert ret is not None
+        # Must be a tuple annotation, not bare set
+        ret_str = str(ret).lower()
+        assert "tuple" in ret_str, f"Expected tuple annotation, got: {ret}"
+
+
+def _make_single_tex_zip(content: str) -> str:
+    """Write a single-file LaTeX zip to a temp path and return the path string."""
+    fd, path = tempfile.mkstemp(suffix=".zip")
+    os.close(fd)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("main.tex", content)
+    return path
+
+
+class TestConfigWarningsRouted:
+    def test_invalid_config_key_reaches_issues(self, tmp_path):
+        """Config warnings must appear in issues.warnings, not just stdout."""
+        from converter import convert
+        zp = tmp_path / "proj.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("main.tex",
+                r"\documentclass{article}\begin{document}Hi\end{document}")
+        cfg = tmp_path / "bad.yaml"
+        cfg.write_text("bad_key: value\n", encoding="utf-8")
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, config_path=cfg, dry_run=True)
+        assert any("bad_key" in w or "unknown config" in w.lower() for w in issues.warnings), \
+            f"Expected config warning in issues.warnings, got: {issues.warnings}"
+
+
+# ── T1: Pre-flight compliance checks ─────────────────────────────────────────
+
+class TestPreFlightChecks:
+    def test_today_warns(self, tmp_path):
+        """\\today inside \\date{} should produce a warning."""
+        from converter import convert
+        src = r"\documentclass{article}\begin{document}\date{\today}Hi\end{document}"
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert any("today" in w.lower() for w in issues.warnings), \
+            f"Expected \\today warning, got: {issues.warnings}"
+
+    def test_doublespacing_warns(self, tmp_path):
+        """\\doublespacing command should produce a warning."""
+        from converter import convert
+        src = (r"\documentclass{article}"
+               r"\begin{document}\doublespacing text\end{document}")
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert any("double-spacing" in w.lower() or "doublespacing" in w.lower()
+                   for w in issues.warnings), \
+            f"Expected doublespacing warning, got: {issues.warnings}"
+
+    def test_referee_documentclass_warns(self, tmp_path):
+        """referee option in \\documentclass should produce a warning."""
+        from converter import convert
+        src = r"\documentclass[referee]{article}\begin{document}hi\end{document}"
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert any("referee" in w.lower() for w in issues.warnings), \
+            f"Expected referee warning, got: {issues.warnings}"
+
+
+# ── T2: subfile + bibliographystyle warnings ──────────────────────────────────
+
+class TestSubfileAndBibStyle:
+    def _make_zip(self, tmp_path: Path, files: dict) -> Path:
+        zp = tmp_path / "proj.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            for name, content in files.items():
+                zf.writestr(name, content)
+        return zp
+
+    def test_subfile_with_bibliographystyle_warns(self, tmp_path):
+        """\\subfile pointing to a file containing \\bibliographystyle should warn."""
+        from converter import convert
+        main = (r"\documentclass{article}"
+                r"\usepackage{subfiles}"
+                r"\begin{document}"
+                r"\subfile{supplement}"
+                r"\end{document}")
+        supplement = (r"\documentclass[main]{subfiles}"
+                      r"\begin{document}"
+                      r"\bibliographystyle{plain}"
+                      r"\bibliography{refs}"
+                      r"\end{document}")
+        zp = self._make_zip(tmp_path, {
+            "main.tex": main,
+            "supplement.tex": supplement,
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert any("bibliographystyle" in w.lower() or "subfile" in w.lower()
+                   for w in issues.warnings), \
+            f"Expected subfile/bibliographystyle warning, got: {issues.warnings}"
+
+    def test_standalone_bibliographystyle_no_spurious_warn(self, tmp_path):
+        """\\bibliographystyle in the main file (no \\subfile) should NOT produce the subfile warning."""
+        from converter import convert
+        src = (r"\documentclass{article}"
+               r"\begin{document}"
+               r"\bibliographystyle{plain}"
+               r"\bibliography{refs}"
+               r"\end{document}")
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        # The subfile-specific warning must NOT fire for standalone use
+        assert not any("via \\subfile" in w for w in issues.warnings), \
+            f"Got unexpected subfile warning: {issues.warnings}"
+
+
+# ── T4: find_main_tex ranking heuristic tests ─────────────────────────────────
+
+class TestFindMainTex:
+    def _make_zip(self, tmp_path: Path, files: dict) -> Path:
+        zp = tmp_path / "proj.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            for name, content in files.items():
+                zf.writestr(name, content)
+        return zp
+
+    def test_single_documentclass_is_main(self, tmp_path):
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "main.tex": r"\documentclass{article}\begin{document}Hi\end{document}",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert issues.main_tex is not None
+        assert "main.tex" in issues.main_tex
+
+    def test_main_hint_overrides_auto(self, tmp_path):
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "paper.tex": r"\documentclass{article}\begin{document}Paper\end{document}",
+            "other.tex": r"\documentclass{article}\begin{document}Other\end{document}",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, main_hint="paper.tex", dry_run=True)
+        assert issues.main_tex is not None
+        assert "paper.tex" in issues.main_tex
+
+    def test_non_main_tex_without_documentclass_not_selected(self, tmp_path):
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "main.tex": r"\documentclass{article}\begin{document}Hi\end{document}",
+            "section.tex": "Just text, no documentclass.",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert issues.main_tex is not None
+        assert "main.tex" in issues.main_tex
+
+    def test_arxiv_named_file_preferred(self, tmp_path):
+        """A file named arxiv*.tex should rank over generic names."""
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "arxiv_submission.tex": r"\documentclass{article}\begin{document}arXiv\end{document}",
+            "draft.tex": r"\documentclass{article}\begin{document}Draft\end{document}",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert issues.main_tex is not None
+        assert "arxiv_submission.tex" in issues.main_tex
+
+    def test_response_letter_deprioritized(self, tmp_path):
+        """response*.tex should be deprioritized vs a plain paper.tex."""
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "paper.tex": r"\documentclass{article}\begin{document}Paper\end{document}",
+            "response.tex": r"\documentclass{article}\begin{document}Response\end{document}",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert issues.main_tex is not None
+        assert "paper.tex" in issues.main_tex
