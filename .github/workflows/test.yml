@@ -6,6 +6,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
@@ -19,7 +20,7 @@ jobs:
       - name: Coverage report
         if: matrix.python-version == '3.12'
         run: |
-          pytest tests/ --cov=. --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=73
+          pytest tests/ --cov=. --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=74
 
   package:
     runs-on: ubuntu-latest

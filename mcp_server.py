@@ -13,6 +13,7 @@ import zipfile
 from io import StringIO
 from pathlib import Path
 from contextlib import redirect_stdout
+from typing import TypedDict, NotRequired
 
 from mcp.server.fastmcp import FastMCP
 
@@ -25,102 +26,132 @@ mcp = FastMCP("latex2arxiv", instructions=(
 ))
 
 
+class MCPEnvelope(TypedDict):
+    """Stable return shape for all MCP tools (v1.0)."""
+    success: bool
+    errors: list[str]
+    warnings: list[str]
+    log: str
+    output_zip: NotRequired[str]  # present in clean_submission on success
+
+
+def _error_envelope(errors: list[str], log: str = "",
+                    warnings: list[str] | None = None) -> MCPEnvelope:
+    return MCPEnvelope(success=False, errors=errors,
+                       warnings=warnings or [], log=log)
+
+
 def _safe_root() -> Path:
     """Return the base directory that MCP tool paths must reside under."""
     env = os.environ.get("LATEX2ARXIV_MCP_BASE_DIR")
-    return Path(env).resolve() if env else Path.cwd()
+    return Path(env).resolve() if env else Path.cwd().resolve()
 
 
-def _validate_path(raw: str) -> tuple[Path | None, dict | None]:
+def _validate_path(raw: str) -> tuple[Path | None, MCPEnvelope | None]:
     """Resolve *raw* and verify it is inside the safe root.
 
-    Returns (resolved_path, None) on success, or (None, error_dict) on rejection.
-    Rejects tilde-prefixed paths before resolution so agents cannot probe home dirs.
+    Returns (resolved_path, None) on success, or (None, error_envelope) on rejection.
+    Rejects empty strings and tilde-prefixed paths before resolution.
     """
+    if not raw or not raw.strip():
+        return None, _error_envelope(["path must not be empty"])
     if raw.startswith("~"):
-        return None, {"success": False, "errors": [f"Path outside allowed base directory: {raw}"], "warnings": [], "log": ""}
+        return None, _error_envelope([f"Path outside allowed base directory: {raw}"])
     resolved = Path(raw).resolve()
     root = _safe_root()
     if not resolved.is_relative_to(root):
-        return None, {"success": False, "errors": [f"Path outside allowed base directory: {raw}"], "warnings": [], "log": ""}
+        return None, _error_envelope([f"Path outside allowed base directory: {raw}"])
     return resolved, None
 
 
 def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
-                 config_path: str | None = None) -> dict:
+                 config_path: str | None = None) -> MCPEnvelope:
     """Run the converter and capture structured results."""
     inp, err = _validate_path(path)
     if err or inp is None:
-        return err or {"success": False, "errors": ["internal: path validation failed"], "warnings": [], "log": ""}
+        return err or _error_envelope(["internal: path validation failed"])
     if not inp.exists():
-        return {"success": False, "errors": [f"Path not found: {path}"], "warnings": [], "log": ""}
+        return _error_envelope([f"Path not found: {path}"])
 
-    # If input is a directory, we pass it through; if zip, use directly
-    if inp.is_dir():
-        # Zip the directory into a temp file
-        tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
-        tmp.close()
-        tmp_path = Path(tmp.name)
-        with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for file in sorted(inp.rglob('*')):
-                if not file.is_file():
-                    continue
-                # Skip symlinks that escape the project root
-                try:
-                    file.resolve().relative_to(inp.resolve())
-                except ValueError:
-                    continue
-                # Skip .git, __pycache__, and compiled Python files
-                parts = file.relative_to(inp).parts
-                if any(p in {'.git', '__pycache__'} for p in parts):
-                    continue
-                if file.suffix in {'.pyc', '.pyo'}:
-                    continue
-                zf.write(file, file.relative_to(inp))
-        inp = tmp_path
-        cleanup_input = True
-    else:
-        cleanup_input = False
-
-    fd, _tmp = tempfile.mkstemp(suffix='_arxiv.zip')
-    os.close(fd)
-    out = Path(_tmp)
+    # Validate config path before creating any temp files so early rejection
+    # does not leak the output sentinel.
     if config_path is not None:
         cfg_resolved, cfg_err = _validate_path(config_path)
         if cfg_err or cfg_resolved is None:
-            return cfg_err or {"success": False, "errors": ["internal: config path validation failed"], "warnings": [], "log": ""}
+            return cfg_err or _error_envelope(["internal: config path validation failed"])
         cfg = cfg_resolved
     else:
         cfg = None
 
-    # Capture stdout (the tool's print output)
-    buf = StringIO()
+    extra_warnings: list[str] = []
+    tmp_input_path: Path | None = None
+
+    fd, _tmp = tempfile.mkstemp(suffix='_arxiv.zip')
+    os.close(fd)
+    out = Path(_tmp)
+    out_claimed = False  # True when caller receives output_zip and owns cleanup
+
     try:
-        with redirect_stdout(buf):
-            issues = convert(inp, out, main_hint=main_hint,
-                             config_path=cfg, dry_run=dry_run)
-    except ConverterError as e:
-        return {"success": False, "errors": [str(e)], "warnings": [], "log": buf.getvalue()}
-    except SystemExit:
-        # Legacy guard for any sys.exit() paths that may still slip through.
-        output = buf.getvalue()
-        return {"success": False, "errors": [output.strip()], "warnings": [], "log": output}
+        if inp.is_dir():
+            tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+            tmp.close()
+            tmp_input_path = Path(tmp.name)
+            with zipfile.ZipFile(tmp_input_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for file in sorted(inp.rglob('*')):
+                    if not file.is_file():
+                        continue
+                    # Resolve symlinks; skip and warn if they escape the project root.
+                    try:
+                        file.resolve().relative_to(inp.resolve())
+                    except ValueError:
+                        extra_warnings.append(
+                            f"symlink escapes project root and was excluded: "
+                            f"{file.relative_to(inp)}"
+                        )
+                        continue
+                    parts = file.relative_to(inp).parts
+                    if any(p in {'.git', '__pycache__'} for p in parts):
+                        continue
+                    if file.suffix in {'.pyc', '.pyo'}:
+                        continue
+                    zf.write(file, file.relative_to(inp))
+            inp = tmp_input_path
+
+        buf = StringIO()
+        try:
+            with redirect_stdout(buf):
+                issues = convert(inp, out, main_hint=main_hint,
+                                 config_path=cfg, dry_run=dry_run)
+        except ConverterError as e:
+            return _error_envelope([str(e)], buf.getvalue(), extra_warnings)
+        except SystemExit:
+            output = buf.getvalue()
+            return _error_envelope([output.strip()], output, extra_warnings)
+        except Exception as e:
+            output = buf.getvalue()
+            return _error_envelope(
+                [f"unexpected error: {type(e).__name__}: {e}"], output, extra_warnings
+            )
+
+        result = MCPEnvelope(
+            success=len(issues.errors) == 0,
+            errors=issues.errors,
+            warnings=extra_warnings + issues.warnings,
+            log=buf.getvalue(),
+        )
+        if not dry_run and out.exists():
+            result["output_zip"] = str(out)
+            out_claimed = True
+        elif out.exists():
+            out.unlink()
+
+        return result
+
     finally:
-        if cleanup_input:
-            inp.unlink(missing_ok=True)
-
-    result: dict = {
-        "success": len(issues.errors) == 0,
-        "errors": issues.errors,
-        "warnings": issues.warnings,
-        "log": buf.getvalue(),
-    }
-    if not dry_run and out.exists():
-        result["output_zip"] = str(out)
-    elif out.exists():
-        out.unlink()
-
-    return result
+        if tmp_input_path is not None:
+            tmp_input_path.unlink(missing_ok=True)
+        if not out_claimed and out.exists():
+            out.unlink()
 
 
 @mcp.tool()
@@ -128,7 +159,7 @@ def validate_submission(
     path: str,
     main_tex: str | None = None,
     config: str | None = None,
-) -> dict:
+) -> MCPEnvelope:
     """Validate a LaTeX project against arXiv submission requirements (dry-run).
 
     Runs all pre-flight checks without producing output. Returns errors and
@@ -147,7 +178,7 @@ def clean_submission(
     path: str,
     main_tex: str | None = None,
     config: str | None = None,
-) -> dict:
+) -> MCPEnvelope:
     """Clean a LaTeX project and produce an arXiv-ready zip.
 
     Prunes unused files, strips comments and draft annotations, runs pre-flight

@@ -3,6 +3,7 @@ source = .
 omit =
     tests/*
     setup.py
+    make_demo.py
     docs/*
     vscode-extension/*
     build/*

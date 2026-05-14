@@ -21,7 +21,7 @@ _PRIVATE_FIELDS = {'abstract', 'file', 'keywords', 'mendeley-tags', 'annote'}
 
 def normalize_bibtex(source: str, cited_keys: set | None = None,
                      warn_fn: Callable[[str], None] | None = None) -> str:
-    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}"))
+    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}", file=__import__("sys").stderr))
     if not HAS_BIBTEXPARSER:
         _warn("bibtexparser not installed; skipping BibTeX normalization")
         return source

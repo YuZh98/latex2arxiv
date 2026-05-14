@@ -39,14 +39,18 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
+          ok=0
           for attempt in $(seq 1 30); do
             if pip install "latex2arxiv==${VERSION}" 2>/dev/null; then
+              ok=1
               break
             fi
             echo "PyPI not ready (attempt $attempt); sleeping 10s"
             sleep 10
           done
-          pip show latex2arxiv
+          [ "$ok" = "1" ] || { echo "PyPI did not serve ${VERSION} after 30 attempts" >&2; exit 1; }
+          installed=$(pip show latex2arxiv | awk '/^Version:/ {print $2}')
+          [ "$installed" = "${VERSION}" ] || { echo "Installed ${installed}, expected ${VERSION}" >&2; exit 1; }
 
       - name: Install TeX Live for demo PDF
         run: |

@@ -86,7 +86,7 @@ _KNOWN_KEYS = frozenset({
 
 
 def load_config(config_path: Path, warn_fn: Callable[[str], None] | None = None) -> dict:
-    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}"))
+    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}", file=__import__("sys").stderr))
     text = config_path.read_text(encoding='utf-8')
     if HAS_YAML:
         cfg = yaml.safe_load(text) or {}
@@ -119,7 +119,7 @@ def apply_config(source: str, config: dict, warn_fn: Callable[[str], None] | Non
     Uses ``config.get(key) or []`` so a YAML null (``commands_to_delete:`` with
     no value, parsing as ``None``) is treated the same as an absent key.
     """
-    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}"))
+    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}", file=__import__("sys").stderr))
 
     # 1. commands_to_delete: remove \cmd{...} entirely (including argument).
     # Brace-balanced so nested braces (e.g. \deleted{see \cite{x}}) are handled.
