@@ -2263,3 +2263,14 @@ class TestPublicAPI:
         assert "_emit_json" not in converter.__all__
         assert "_compile" not in converter.__all__
         assert "_do_convert" not in converter.__all__
+
+
+class TestDepAnnotations:
+    def test_find_used_images_return_annotation(self):
+        import typing
+        hints = typing.get_type_hints(find_used_images)
+        ret = hints.get("return")
+        assert ret is not None
+        # Must be a tuple annotation, not bare set
+        ret_str = str(ret).lower()
+        assert "tuple" in ret_str, f"Expected tuple annotation, got: {ret}"
