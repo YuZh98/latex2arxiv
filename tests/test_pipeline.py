@@ -2277,6 +2277,17 @@ class TestDepAnnotations:
 
 
 import zipfile as _zipfile
+import tempfile as _tempfile
+import os as _os
+
+
+def _make_single_tex_zip(content: str) -> str:
+    """Write a single-file LaTeX zip to a temp path and return the path string."""
+    fd, path = _tempfile.mkstemp(suffix=".zip")
+    _os.close(fd)
+    with _zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("main.tex", content)
+    return path
 
 
 class TestConfigWarningsRouted:
@@ -2293,3 +2304,159 @@ class TestConfigWarningsRouted:
         issues = convert(zp, out, config_path=cfg, dry_run=True)
         assert any("bad_key" in w or "unknown config" in w.lower() for w in issues.warnings), \
             f"Expected config warning in issues.warnings, got: {issues.warnings}"
+
+
+# ── T1: Pre-flight compliance checks ─────────────────────────────────────────
+
+class TestPreFlightChecks:
+    def test_today_warns(self, tmp_path):
+        """\\today inside \\date{} should produce a warning."""
+        from converter import convert
+        src = r"\documentclass{article}\begin{document}\date{\today}Hi\end{document}"
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert any("today" in w.lower() for w in issues.warnings), \
+            f"Expected \\today warning, got: {issues.warnings}"
+
+    def test_doublespacing_warns(self, tmp_path):
+        """\\doublespacing command should produce a warning."""
+        from converter import convert
+        src = (r"\documentclass{article}"
+               r"\begin{document}\doublespacing text\end{document}")
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert any("double-spacing" in w.lower() or "doublespacing" in w.lower()
+                   for w in issues.warnings), \
+            f"Expected doublespacing warning, got: {issues.warnings}"
+
+    def test_referee_documentclass_warns(self, tmp_path):
+        """referee option in \\documentclass should produce a warning."""
+        from converter import convert
+        src = r"\documentclass[referee]{article}\begin{document}hi\end{document}"
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert any("referee" in w.lower() for w in issues.warnings), \
+            f"Expected referee warning, got: {issues.warnings}"
+
+
+# ── T2: subfile + bibliographystyle warnings ──────────────────────────────────
+
+class TestSubfileAndBibStyle:
+    def _make_zip(self, tmp_path: Path, files: dict) -> Path:
+        zp = tmp_path / "proj.zip"
+        with _zipfile.ZipFile(zp, "w") as zf:
+            for name, content in files.items():
+                zf.writestr(name, content)
+        return zp
+
+    def test_subfile_with_bibliographystyle_warns(self, tmp_path):
+        """\\subfile pointing to a file containing \\bibliographystyle should warn."""
+        from converter import convert
+        main = (r"\documentclass{article}"
+                r"\usepackage{subfiles}"
+                r"\begin{document}"
+                r"\subfile{supplement}"
+                r"\end{document}")
+        supplement = (r"\documentclass[main]{subfiles}"
+                      r"\begin{document}"
+                      r"\bibliographystyle{plain}"
+                      r"\bibliography{refs}"
+                      r"\end{document}")
+        zp = self._make_zip(tmp_path, {
+            "main.tex": main,
+            "supplement.tex": supplement,
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert any("bibliographystyle" in w.lower() or "subfile" in w.lower()
+                   for w in issues.warnings), \
+            f"Expected subfile/bibliographystyle warning, got: {issues.warnings}"
+
+    def test_standalone_bibliographystyle_no_spurious_warn(self, tmp_path):
+        """\\bibliographystyle in the main file (no \\subfile) should NOT produce the subfile warning."""
+        from converter import convert
+        src = (r"\documentclass{article}"
+               r"\begin{document}"
+               r"\bibliographystyle{plain}"
+               r"\bibliography{refs}"
+               r"\end{document}")
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        # The subfile-specific warning must NOT fire for standalone use
+        assert not any("via \\subfile" in w for w in issues.warnings), \
+            f"Got unexpected subfile warning: {issues.warnings}"
+
+
+# ── T4: find_main_tex ranking heuristic tests ─────────────────────────────────
+
+class TestFindMainTex:
+    def _make_zip(self, tmp_path: Path, files: dict) -> Path:
+        zp = tmp_path / "proj.zip"
+        with _zipfile.ZipFile(zp, "w") as zf:
+            for name, content in files.items():
+                zf.writestr(name, content)
+        return zp
+
+    def test_single_documentclass_is_main(self, tmp_path):
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "main.tex": r"\documentclass{article}\begin{document}Hi\end{document}",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert issues.main_tex is not None
+        assert "main.tex" in issues.main_tex
+
+    def test_main_hint_overrides_auto(self, tmp_path):
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "paper.tex": r"\documentclass{article}\begin{document}Paper\end{document}",
+            "other.tex": r"\documentclass{article}\begin{document}Other\end{document}",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, main_hint="paper.tex", dry_run=True)
+        assert issues.main_tex is not None
+        assert "paper.tex" in issues.main_tex
+
+    def test_non_main_tex_without_documentclass_not_selected(self, tmp_path):
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "main.tex": r"\documentclass{article}\begin{document}Hi\end{document}",
+            "section.tex": "Just text, no documentclass.",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert issues.main_tex is not None
+        assert "main.tex" in issues.main_tex
+
+    def test_arxiv_named_file_preferred(self, tmp_path):
+        """A file named arxiv*.tex should rank over generic names."""
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "arxiv_submission.tex": r"\documentclass{article}\begin{document}arXiv\end{document}",
+            "draft.tex": r"\documentclass{article}\begin{document}Draft\end{document}",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert issues.main_tex is not None
+        assert "arxiv_submission.tex" in issues.main_tex
+
+    def test_response_letter_deprioritized(self, tmp_path):
+        """response*.tex should be deprioritized vs a plain paper.tex."""
+        from converter import convert
+        zp = self._make_zip(tmp_path, {
+            "paper.tex": r"\documentclass{article}\begin{document}Paper\end{document}",
+            "response.tex": r"\documentclass{article}\begin{document}Response\end{document}",
+        })
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True)
+        assert issues.main_tex is not None
+        assert "paper.tex" in issues.main_tex
