@@ -16,6 +16,10 @@ def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
         p = Path(cmd) if cmd.endswith('.tex') else Path(cmd + '.tex')
         # subfile paths are relative to the including file's directory
         full = (base / p).resolve()
+        try:
+            full.relative_to(root.resolve())
+        except ValueError:
+            continue
         if full in visited:
             continue
         visited.add(full)
@@ -47,6 +51,10 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
             for d in re.findall(r'\{([^}]+)\}', m.group(1)):
                 for base in [root_dir] + tex_dirs:
                     full = (base / d).resolve()
+                    try:
+                        full.relative_to(root_dir.resolve())
+                    except ValueError:
+                        continue
                     if full.is_dir() and full not in graphic_dirs:
                         graphic_dirs.append(full)
 
@@ -64,6 +72,10 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
             for c in candidates:
                 for base in search_dirs:
                     full = (base / c).resolve()
+                    try:
+                        full.relative_to(root_dir.resolve())
+                    except ValueError:
+                        continue
                     if full.exists():
                         used_paths.add(full)
                         break
