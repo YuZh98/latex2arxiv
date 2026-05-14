@@ -5,22 +5,31 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Breaking changes
-- **MCP error envelope**: all fatal-path responses from `validate_submission` / `clean_submission` now use `{"errors": [str], "warnings": [], "log": ""}` (list) instead of the former `{"error": str}` (singular key). MCP clients checking `result["error"]` must switch to `result["errors"][0]` or `result.get("errors", [])`.
+- **MCP error envelope**: all responses from `validate_submission` / `clean_submission` now use `{"errors": [str], "warnings": [], "log": ""}` (list) instead of the former `{"error": str}` (singular key). Clients checking `result["error"]` must switch to `result["errors"][0]` or `result.get("errors", [])`.
 
 ### Added
-- `__all__` in `converter.py` documents the stable public API: `Issues`, `ConverterError`, `convert`
-- `docs/json-schema.md` stability contract: error/warning string content is explicitly **not stable**; `compile` field documents its always-null behavior in non-`--compile` runs
-- Pre-commit config (ruff, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml)
-- Coverage gate (73%) and deprecation-strict CI job; Python matrix expanded to 3.10–3.13
+- **`__all__` in `converter.py`**: documents the stable public API — `Issues`, `ConverterError`, `convert`; internal helpers are no longer implicitly exported
+- **`--json` schema stability contract** (`docs/json-schema.md`): `errors[]` / `warnings[]` string content is explicitly **not stable** across releases; `compile` field documented as always `null` in v1.0 (including with `--compile`)
+- **`MCPEnvelope` TypedDict** in `mcp_server.py`: all MCP tool return types are now fully typed, preventing `"error"` vs `"errors"` drift at the type-checker level
+- Python matrix expanded to 3.10–3.13 in CI; `pyyaml`, `mcp`, `fastmcp` added to test dependencies so YAML and MCP tests never silently skip
+- Deprecation-strict CI job (`pytest -W error::DeprecationWarning`)
+- Coverage gate at 74% (measured against product code; `make_demo.py` excluded)
+- Pre-commit config: ruff, ruff-format, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml
+
+### Improved
+- **MCP server hardening**: temp files are cleaned up on all error paths; bare `except Exception` guarantees every unhandled exception returns a structured `MCPEnvelope` instead of crashing the tool call; symlink-escape files excluded from directory zip are now surfaced in `warnings` instead of silently dropped; empty-string `path` rejected explicitly; `Path.cwd()` consistently resolved before path containment checks
+- **Warning routing**: `load_config`, `apply_config`, and `normalize_bibtex` accept a `warn_fn` callback; callers in `convert()` pass `issues.warn`, making config and BibTeX warnings visible in `--json` output and the MCP `warnings` field
 
 ### Fixed
-- `--resize` bare flag (without value) now uses default 1600 px instead of exiting with error code 2
-- Config and BibTeX warnings now route through `issues.warn` — visible in `--json` and MCP `warnings` field
-- MCP directory zip excludes `__pycache__`, `.pyc`, and symlinks escaping the project root
-- `find_used_images` return annotation corrected to `tuple[set[Path], set[str]]`
+- `--resize` without a value now uses the default 1600 px (`nargs='?', const=DEFAULT_MAX_PX`) instead of exiting with error code 2
+- MCP directory zip excluded `__pycache__`, `.pyc` files, and symlinks escaping the project root
+- `find_used_images` return type annotation corrected from `set` to `tuple[set[Path], set[str]]`
 
 ### Changed
-- Publish workflow split into `publish` (PyPI) + `release-assets` (GitHub Release) jobs for independent re-runs
+- Publish workflow split into `publish` (PyPI only) and `release-assets` (TeX Live → demo PDF → GitHub Release) jobs; each can be re-run independently on failure
+- CI matrix uses `fail-fast: false` so a failure on one Python version does not cancel the others
+- `requirements.txt` removed; `pyproject.toml` is authoritative
+- `[project.urls]` added to `pyproject.toml` (Homepage, Source, Issues, Changelog)
 
 ---
 
