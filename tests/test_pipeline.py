@@ -2237,3 +2237,14 @@ Second.
         assert "main.tex" in names
         assert "ch1.tex" not in names
         assert "ch2.tex" not in names
+
+
+class TestResizeCLI:
+    def test_resize_bare_flag_uses_default(self, tmp_path):
+        """--resize with no value must not exit 2; it must use DEFAULT_MAX_PX."""
+        result = subprocess.run(
+            [sys.executable, "converter.py", "--demo", "--dry-run", "--resize"],
+            capture_output=True, text=True,
+            cwd="/Users/zhengyu/Desktop/Claude/Project/latex2arxiv",
+        )
+        assert result.returncode != 2, f"argparse rejected bare --resize: {result.stderr}"

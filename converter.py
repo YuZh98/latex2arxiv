@@ -985,8 +985,9 @@ def main():
     parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
     parser.add_argument('--main', help='Filename of the main .tex file (e.g. JASA_main.tex)')
     parser.add_argument('--compile', action='store_true', help='Compile output with pdflatex and open PDF')
-    parser.add_argument('--resize', type=int, metavar='PX',
-                        help=f'Resize images so longest side <= PX pixels (default: {DEFAULT_MAX_PX} if flag given)')
+    parser.add_argument('--resize', nargs='?', const=DEFAULT_MAX_PX, type=int, metavar='PX',
+                        help=f'Resize images so longest side <= PX pixels '
+                             f'(default: {DEFAULT_MAX_PX} if given without a value)')
     parser.add_argument('--config', metavar='FILE',
                         help='YAML config for custom removal rules (see arxiv_config.yaml)')
     parser.add_argument('--dry-run', action='store_true',
