@@ -2274,3 +2274,23 @@ class TestDepAnnotations:
         # Must be a tuple annotation, not bare set
         ret_str = str(ret).lower()
         assert "tuple" in ret_str, f"Expected tuple annotation, got: {ret}"
+
+
+import zipfile as _zipfile
+from pathlib import Path as _Path
+
+
+class TestConfigWarningsRouted:
+    def test_invalid_config_key_reaches_issues(self, tmp_path):
+        """Config warnings must appear in issues.warnings, not just stdout."""
+        from converter import convert
+        zp = tmp_path / "proj.zip"
+        with _zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("main.tex",
+                r"\documentclass{article}\begin{document}Hi\end{document}")
+        cfg = tmp_path / "bad.yaml"
+        cfg.write_text("bad_key: value\n", encoding="utf-8")
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, config_path=cfg, dry_run=True)
+        assert any("bad_key" in w or "unknown config" in w.lower() for w in issues.warnings), \
+            f"Expected config warning in issues.warnings, got: {issues.warnings}"

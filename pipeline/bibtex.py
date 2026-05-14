@@ -1,3 +1,5 @@
+from typing import Callable
+
 try:
     import bibtexparser
     from bibtexparser.bwriter import BibTexWriter
@@ -17,9 +19,11 @@ _FIELD_ORDER = [
 _PRIVATE_FIELDS = {'abstract', 'file', 'keywords', 'mendeley-tags', 'annote'}
 
 
-def normalize_bibtex(source: str, cited_keys: set | None = None) -> str:
+def normalize_bibtex(source: str, cited_keys: set | None = None,
+                     warn_fn: Callable[[str], None] | None = None) -> str:
+    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}"))
     if not HAS_BIBTEXPARSER:
-        print("  [warn] bibtexparser not installed; skipping BibTeX normalization")
+        _warn("bibtexparser not installed; skipping BibTeX normalization")
         return source
 
     parser = BibTexParser(common_strings=True)
@@ -49,7 +53,7 @@ def normalize_bibtex(source: str, cited_keys: set | None = None) -> str:
                 chosen = entries[0]
             skipped = [e['ID'] for e in entries if e is not chosen]
             for s in skipped:
-                print(f"  [warn] duplicate entry skipped: {s}")
+                _warn(f"duplicate entry skipped: {s}")
 
         # Strip private fields
         for f in _PRIVATE_FIELDS:

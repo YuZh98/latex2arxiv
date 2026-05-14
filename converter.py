@@ -480,7 +480,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                 # encoding declarations, and aux file lists.
                 whitelist.add(path.resolve())
 
-        user_config = load_config(config_path) if config_path else {}
+        user_config = load_config(config_path, warn_fn=issues.warn) if config_path else {}
         kept_files: set[Path] = set()
         removed_names: list[str] = []
 
@@ -531,7 +531,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                     src = remove_draft_annotations(src)
                     src = remove_draft_packages(src)
                     if user_config:
-                        src = apply_config(src, user_config)
+                        src = apply_config(src, user_config, warn_fn=issues.warn)
                     if path == main_tex:
                         src = ensure_pdfoutput(src)
                     path.write_text(src, encoding='utf-8')
@@ -542,7 +542,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                     print(f"  would process (bib): {rel}")
                 else:
                     src = path.read_text(encoding='utf-8', errors='replace')
-                    src = normalize_bibtex(src, cited_keys=cited_keys)
+                    src = normalize_bibtex(src, cited_keys=cited_keys, warn_fn=issues.warn)
                     path.write_text(src, encoding='utf-8')
 
         # 3b. Compliance + pre-flight checks
