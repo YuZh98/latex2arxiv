@@ -47,6 +47,12 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["mcp>=1.0"]
 
+[project.urls]
+Homepage = "https://github.com/YuZh98/latex2arxiv"
+Source = "https://github.com/YuZh98/latex2arxiv"
+Issues = "https://github.com/YuZh98/latex2arxiv/issues"
+Changelog = "https://github.com/YuZh98/latex2arxiv/blob/main/CHANGELOG.md"
+
 [project.scripts]
 latex2arxiv = "converter:main"
 latex2arxiv-mcp = "mcp_server:main"

@@ -45,7 +45,7 @@ All notable changes to this project will be documented in this file.
   submissions directly via `latex2arxiv-mcp`. Install with `pip install "latex2arxiv[mcp]"`.
   Two tools: `validate_submission` (dry-run pre-flight) and `clean_submission` (full conversion).
   See [docs/mcp.md](docs/mcp.md) for setup.
-- MCP documentation (`docs/mcp.md`) with Claude Desktop, Cursor, and Zed setup instructions
+- MCP documentation (`docs/mcp.md`) with Claude Desktop and Cursor setup instructions (Zed support deferred)
 
 ### Changed
 - README rewritten: "Works everywhere" hero section (CLI/CI/AI), decision-funnel structure,
@@ -236,3 +236,7 @@ All notable changes to this project will be documented in this file.
 - `--compile` flag: runs `pdflatex` and opens the resulting PDF
 - Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\begin{overpic}`, `\bibliography`
 - Compliance warnings: referee/double-space mode, custom style files, `\today` in `\date`, `.eps` images
+
+---
+
+[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v0.10.0...HEAD
