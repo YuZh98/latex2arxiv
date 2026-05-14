@@ -38,11 +38,11 @@ def _validate_path(raw: str) -> tuple[Path | None, dict | None]:
     Rejects tilde-prefixed paths before resolution so agents cannot probe home dirs.
     """
     if raw.startswith("~"):
-        return None, {"success": False, "error": f"Path outside allowed base directory: {raw}"}
+        return None, {"success": False, "errors": [f"Path outside allowed base directory: {raw}"], "warnings": [], "log": ""}
     resolved = Path(raw).resolve()
     root = _safe_root()
     if not resolved.is_relative_to(root):
-        return None, {"success": False, "error": f"Path outside allowed base directory: {raw}"}
+        return None, {"success": False, "errors": [f"Path outside allowed base directory: {raw}"], "warnings": [], "log": ""}
     return resolved, None
 
 
@@ -51,9 +51,9 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
     """Run the converter and capture structured results."""
     inp, err = _validate_path(path)
     if err or inp is None:
-        return err or {"success": False, "error": "internal: path validation failed"}
+        return err or {"success": False, "errors": ["internal: path validation failed"], "warnings": [], "log": ""}
     if not inp.exists():
-        return {"success": False, "error": f"Path not found: {path}"}
+        return {"success": False, "errors": [f"Path not found: {path}"], "warnings": [], "log": ""}
 
     # If input is a directory, we pass it through; if zip, use directly
     if inp.is_dir():
@@ -76,7 +76,7 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
     if config_path is not None:
         cfg_resolved, cfg_err = _validate_path(config_path)
         if cfg_err or cfg_resolved is None:
-            return cfg_err or {"success": False, "error": "internal: config path validation failed"}
+            return cfg_err or {"success": False, "errors": ["internal: config path validation failed"], "warnings": [], "log": ""}
         cfg = cfg_resolved
     else:
         cfg = None
@@ -88,11 +88,11 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
             issues = convert(inp, out, main_hint=main_hint,
                              config_path=cfg, dry_run=dry_run)
     except ConverterError as e:
-        return {"success": False, "error": str(e), "log": buf.getvalue()}
+        return {"success": False, "errors": [str(e)], "warnings": [], "log": buf.getvalue()}
     except SystemExit:
         # Legacy guard for any sys.exit() paths that may still slip through.
         output = buf.getvalue()
-        return {"success": False, "error": output.strip(), "log": output}
+        return {"success": False, "errors": [output.strip()], "warnings": [], "log": output}
     finally:
         if cleanup_input:
             inp.unlink(missing_ok=True)

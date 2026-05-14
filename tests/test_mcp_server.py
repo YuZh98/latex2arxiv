@@ -38,14 +38,14 @@ class TestValidateSubmission:
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
         result = validate_submission('/nonexistent/path.zip')
         assert result['success'] is False
-        assert 'outside allowed base directory' in result['error']
+        assert any('outside allowed base directory' in e for e in result['errors'])
 
     def test_nonexistent_in_root_returns_not_found(self, tmp_path, monkeypatch):
         """A missing path that is inside the safe root returns a 'not found' error."""
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
         result = validate_submission(str(tmp_path / 'missing.zip'))
         assert result['success'] is False
-        assert 'not found' in result['error'].lower()
+        assert any('not found' in e.lower() for e in result['errors'])
 
     def test_directory_input(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
@@ -110,19 +110,19 @@ class TestPathSecurity:
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
         result = validate_submission("~/.ssh/id_rsa")
         assert result['success'] is False
-        assert 'outside allowed base directory' in result['error']
+        assert any('outside allowed base directory' in e for e in result['errors'])
 
     def test_tilde_expansion_rejected_clean(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
         result = clean_submission("~/.ssh/id_rsa")
         assert result['success'] is False
-        assert 'outside allowed base directory' in result['error']
+        assert any('outside allowed base directory' in e for e in result['errors'])
 
     def test_absolute_path_outside_root_rejected(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
         result = validate_submission('/etc/passwd')
         assert result['success'] is False
-        assert 'outside allowed base directory' in result['error']
+        assert any('outside allowed base directory' in e for e in result['errors'])
 
     def test_dotdot_traversal_rejected(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
@@ -130,7 +130,7 @@ class TestPathSecurity:
         traversal = str(tmp_path / '..' / 'escape.zip')
         result = validate_submission(traversal)
         assert result['success'] is False
-        assert 'outside allowed base directory' in result['error']
+        assert any('outside allowed base directory' in e for e in result['errors'])
 
     def test_config_absolute_escape_rejected(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
@@ -138,7 +138,7 @@ class TestPathSecurity:
         _make_zip({'main.tex': r'\documentclass{article}\begin{document}hi\end{document}'}, z)
         result = validate_submission(str(z), config='/etc/passwd')
         assert result['success'] is False
-        assert 'outside allowed base directory' in result['error']
+        assert any('outside allowed base directory' in e for e in result['errors'])
 
     def test_config_tilde_rejected(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
@@ -146,7 +146,7 @@ class TestPathSecurity:
         _make_zip({'main.tex': r'\documentclass{article}\begin{document}hi\end{document}'}, z)
         result = validate_submission(str(z), config='~/.config/evil.yaml')
         assert result['success'] is False
-        assert 'outside allowed base directory' in result['error']
+        assert any('outside allowed base directory' in e for e in result['errors'])
 
     def test_legitimate_relative_path_accepted(self, tmp_path, monkeypatch):
         """A cwd-relative path that resolves inside the safe root is accepted."""
@@ -156,3 +156,33 @@ class TestPathSecurity:
         _make_zip({'main.tex': r'\documentclass{article}\begin{document}hi\end{document}'}, z)
         result = validate_submission('paper.zip')
         assert result['success'] is True
+
+
+class TestErrorEnvelope:
+    def test_path_not_found_has_errors_list(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        result = validate_submission(str(tmp_path / "nonexistent.zip"))
+        assert "errors" in result
+        assert isinstance(result["errors"], list)
+        assert result["success"] is False
+
+    def test_path_outside_root_has_errors_list(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        result = validate_submission("/etc/passwd")
+        assert "errors" in result
+        assert isinstance(result["errors"], list)
+        assert result["success"] is False
+
+    def test_success_path_has_errors_list(self, tmp_path, monkeypatch):
+        """Success result must also carry 'errors' key (not just 'error')."""
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        (proj / "main.tex").write_text(
+            r"\documentclass{article}\begin{document}Hi\end{document}",
+            encoding="utf-8",
+        )
+        result = validate_submission(str(proj))
+        assert "errors" in result
+        assert "warnings" in result
+        assert "error" not in result  # singular key must be gone
