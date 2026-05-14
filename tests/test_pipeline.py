@@ -2245,7 +2245,7 @@ class TestResizeCLI:
         result = subprocess.run(
             [sys.executable, "converter.py", "--demo", "--dry-run", "--resize"],
             capture_output=True, text=True,
-            cwd="/Users/zhengyu/Desktop/Claude/Project/latex2arxiv",
+            cwd=str(Path(__file__).parent.parent),
         )
         assert result.returncode != 2, f"argparse rejected bare --resize: {result.stderr}"
 

@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Breaking changes
+- **MCP error envelope**: all fatal-path responses from `validate_submission` / `clean_submission` now use `{"errors": [str], "warnings": [], "log": ""}` (list) instead of the former `{"error": str}` (singular key). MCP clients checking `result["error"]` must switch to `result["errors"][0]` or `result.get("errors", [])`.
+
+### Added
+- `__all__` in `converter.py` documents the stable public API: `Issues`, `ConverterError`, `convert`
+- `docs/json-schema.md` stability contract: error/warning string content is explicitly **not stable**; `compile` field documents its always-null behavior in non-`--compile` runs
+- Pre-commit config (ruff, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml)
+- Coverage gate (73%) and deprecation-strict CI job; Python matrix expanded to 3.10–3.13
+
+### Fixed
+- `--resize` bare flag (without value) now uses default 1600 px instead of exiting with error code 2
+- Config and BibTeX warnings now route through `issues.warn` — visible in `--json` and MCP `warnings` field
+- MCP directory zip excludes `__pycache__`, `.pyc`, and symlinks escaping the project root
+- `find_used_images` return annotation corrected to `tuple[set[Path], set[str]]`
+
+### Changed
+- Publish workflow split into `publish` (PyPI) + `release-assets` (GitHub Release) jobs for independent re-runs
+
 ---
 
 ## [0.10.0] - 2026-05-13
