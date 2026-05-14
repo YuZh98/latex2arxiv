@@ -1561,10 +1561,10 @@ class TestDemoFlag:
     def test_demo_dry_run(self, tmp_path):
         """--demo --dry-run should print dry-run output and not create any output zip."""
         from converter import convert
-        from importlib import resources
-        import converter as conv_module
 
-        ref = resources.files(conv_module).joinpath('demo_project.zip')
+        import pipeline as _pipeline_mod
+        from importlib import resources
+        ref = resources.files(_pipeline_mod).joinpath('demo_project.zip')
         demo_zip = Path(str(ref))
         assert demo_zip.exists(), "demo_project.zip not found in package"
 

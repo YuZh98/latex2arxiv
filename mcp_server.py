@@ -13,7 +13,7 @@ import zipfile
 from io import StringIO
 from pathlib import Path
 from contextlib import redirect_stdout
-from typing import TypedDict, NotRequired
+from typing import TypedDict
 
 from mcp.server.fastmcp import FastMCP
 
@@ -26,13 +26,20 @@ mcp = FastMCP("latex2arxiv", instructions=(
 ))
 
 
-class MCPEnvelope(TypedDict):
-    """Stable return shape for all MCP tools (v1.0)."""
+class _MCPEnvelopeBase(TypedDict):
+    """Required keys for all MCP tool responses."""
     success: bool
     errors: list[str]
     warnings: list[str]
     log: str
-    output_zip: NotRequired[str]  # present in clean_submission on success
+
+
+class MCPEnvelope(_MCPEnvelopeBase, total=False):
+    """Stable return shape for all MCP tools (v1.0).
+
+    ``output_zip`` is present on a successful ``clean_submission`` call only.
+    """
+    output_zip: str
 
 
 def _error_envelope(errors: list[str], log: str = "",
