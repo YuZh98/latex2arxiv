@@ -1564,6 +1564,7 @@ class TestDemoFlag:
 
         import pipeline as _pipeline_mod
         from importlib import resources
+
         ref = resources.files(_pipeline_mod).joinpath('demo_project.zip')
         demo_zip = Path(str(ref))
         assert demo_zip.exists(), "demo_project.zip not found in package"
