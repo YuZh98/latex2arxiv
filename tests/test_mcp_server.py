@@ -158,6 +158,52 @@ class TestPathSecurity:
         assert result['success'] is True
 
 
+class TestDirectoryZip:
+    def test_pycache_excluded_from_directory_input(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        (proj / "main.tex").write_text(
+            r"\documentclass{article}\begin{document}Hi\end{document}",
+            encoding="utf-8",
+        )
+        pycache = proj / "__pycache__"
+        pycache.mkdir()
+        (pycache / "module.cpython-312.pyc").write_bytes(b"fake")
+        result = validate_submission(str(proj))
+        # __pycache__ file must not enter the zip at all — if it did,
+        # the converter would log "remove: __pycache__/..." before dropping it.
+        assert "__pycache__" not in result.get("log", "")
+
+    def test_pyc_file_at_root_excluded_from_directory_input(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        (proj / "main.tex").write_text(
+            r"\documentclass{article}\begin{document}Hi\end{document}",
+            encoding="utf-8",
+        )
+        (proj / "helper.pyc").write_bytes(b"fake")
+        result = validate_submission(str(proj))
+        assert "helper.pyc" not in result.get("log", "")
+
+    def test_symlink_escaping_root_excluded(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        (proj / "main.tex").write_text(
+            r"\documentclass{article}\begin{document}Hi\end{document}",
+            encoding="utf-8",
+        )
+        # Create a file outside the project root and symlink to it from inside
+        outside = tmp_path / "outside_secret.tex"
+        outside.write_text("secret content", encoding="utf-8")
+        (proj / "evil_link.tex").symlink_to(outside)
+        result = validate_submission(str(proj))
+        # The outside file must not appear in the converter log at all
+        assert "evil_link" not in result.get("log", "")
+
+
 class TestErrorEnvelope:
     def test_path_not_found_has_errors_list(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))

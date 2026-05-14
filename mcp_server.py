@@ -63,8 +63,20 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
         tmp_path = Path(tmp.name)
         with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as zf:
             for file in sorted(inp.rglob('*')):
-                if file.is_file() and '.git' not in file.parts:
-                    zf.write(file, file.relative_to(inp))
+                if not file.is_file():
+                    continue
+                # Skip symlinks that escape the project root
+                try:
+                    file.resolve().relative_to(inp.resolve())
+                except ValueError:
+                    continue
+                # Skip .git, __pycache__, and compiled Python files
+                parts = file.relative_to(inp).parts
+                if any(p in {'.git', '__pycache__'} for p in parts):
+                    continue
+                if file.suffix in {'.pyc', '.pyo'}:
+                    continue
+                zf.write(file, file.relative_to(inp))
         inp = tmp_path
         cleanup_input = True
     else:
