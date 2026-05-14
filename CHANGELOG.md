@@ -12,8 +12,8 @@ API stability work and CI hardening ahead of v1.0. MCP error envelope is now a l
 - `__all__` in `converter.py` exports the stable public API: `Issues`, `ConverterError`, `convert`
 - JSON schema stability contract in `docs/json-schema.md`
 - Deprecation-strict CI job (`pytest -W error::DeprecationWarning`)
-- Coverage gate at 73% in CI
-- Pre-commit config (ruff, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml)
+- Coverage gate at 85% in CI; `mcp_server.py` excluded (requires optional `[mcp]` extra)
+- Pre-commit config (ruff, ruff-format, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml)
 - CI Python matrix expanded to 3.10–3.13; `pyyaml`, `mcp`, `fastmcp` added to test deps
 
 ### Fixed

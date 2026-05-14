@@ -2,10 +2,14 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pipeline.guide import extract_metadata, count_stats, format_summary, format_guide
+from pipeline.guide import (
+    extract_metadata, count_stats, format_summary, format_guide,
+    _extract_braced, _count_pages,
+)
 
 
 class TestExtractTitle:
@@ -148,3 +152,102 @@ class TestFormatGuide:
         guide = self._make_guide()
         assert ".sty" in guide
         assert "IGNORE" in guide
+
+
+class TestExtractBracedEdgeCases:
+    def test_escaped_brace_skipped(self):
+        # \{ and \} inside braces must not be counted as depth changes
+        result = _extract_braced(r"{\{escaped\}}", 0)
+        assert result == r"\{escaped\}"
+
+    def test_unclosed_brace_returns_none(self):
+        assert _extract_braced("{unclosed", 0) is None
+
+    def test_not_starting_at_brace_returns_none(self):
+        assert _extract_braced("hello{world}", 0) is None
+
+    def test_past_end_returns_none(self):
+        assert _extract_braced("hi", 10) is None
+
+
+class TestAuthorsWithThanks:
+    def test_thanks_stripped(self):
+        tex = r"\author{Alice Smith\thanks{Supported by NSF grant}}"
+        result = extract_metadata(tex)["authors"]
+        assert result is not None
+        assert "Alice" in result
+        assert "NSF" not in result
+
+    def test_affiliation_line_skipped(self):
+        tex = r"\author{Alice Smith \\ University of Excellence}"
+        result = extract_metadata(tex)["authors"]
+        assert result is not None
+        assert "Alice Smith" in result
+        assert "University" not in result
+
+    def test_command_only_split_segment_skipped(self):
+        # A \\ split segment that reduces to empty after LaTeX command removal
+        # should be silently skipped rather than emitting a blank name
+        tex = r"\author{Alice Smith \\ \footnote{hidden note} \\ MIT}"
+        result = extract_metadata(tex)["authors"]
+        assert result is not None
+        assert "Alice" in result
+
+    def test_thanks_without_brace_does_not_loop_forever(self):
+        # \thanksNote contains the substring \thanks but has no { after it;
+        # must not infinite-loop
+        tex = r"\author{Alice Smith\thanksNote}"
+        result = extract_metadata(tex)["authors"]
+        assert result is not None
+
+
+class TestFormatSummaryTruncation:
+    def test_long_title_capped_at_70_chars(self):
+        long_title = "A" * 80
+        meta = {"title": long_title, "authors": "A", "abstract": "Ab"}
+        out = format_summary(meta, {}, "out.zip", 0.1)
+        assert "..." in out
+
+    def test_long_abstract_capped_at_150_chars(self):
+        long_abstract = "B" * 200
+        meta = {"title": "T", "authors": "A", "abstract": long_abstract}
+        out = format_summary(meta, {}, "out.zip", 0.1)
+        assert "..." in out
+
+
+class TestCountPages:
+    def test_nonexistent_path_returns_none(self):
+        assert _count_pages("/no/such/file.pdf") is None
+
+    def test_empty_path_returns_none(self):
+        assert _count_pages("") is None
+
+    def test_pdfinfo_output_parsed(self, tmp_path):
+        fake = tmp_path / "x.pdf"
+        fake.write_bytes(b"%PDF")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="Pages:   7\n")
+            result = _count_pages(str(fake))
+        assert result == 7
+
+    def test_pdfinfo_no_pages_line_falls_back_to_binary(self, tmp_path):
+        fake = tmp_path / "x.pdf"
+        fake.write_bytes(b"/Type /Page /Type /Page /Type /Pages")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="Other: value\n")
+            result = _count_pages(str(fake))
+        assert result == 2
+
+    def test_pdfinfo_unavailable_uses_binary_fallback(self, tmp_path):
+        fake = tmp_path / "x.pdf"
+        fake.write_bytes(b"/Type /Page")
+        with patch("subprocess.run", side_effect=Exception("no pdfinfo")):
+            result = _count_pages(str(fake))
+        assert result == 1
+
+    def test_count_stats_includes_page_count_when_pdf_given(self, tmp_path):
+        fake = tmp_path / "x.pdf"
+        fake.write_bytes(b"/Type /Page")
+        with patch("subprocess.run", side_effect=Exception("no pdfinfo")):
+            stats = count_stats("some tex", pdf_path=str(fake))
+        assert stats["pages"] == 1

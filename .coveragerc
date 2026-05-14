@@ -4,6 +4,7 @@ omit =
     tests/*
     setup.py
     make_demo.py
+    mcp_server.py
     docs/*
     vscode-extension/*
     build/*

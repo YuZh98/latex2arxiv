@@ -13,7 +13,6 @@ import zipfile
 from io import StringIO
 from pathlib import Path
 from contextlib import redirect_stdout
-
 from mcp.server.fastmcp import FastMCP
 
 from converter import convert, ConverterError
