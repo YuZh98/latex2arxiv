@@ -2277,7 +2277,6 @@ class TestDepAnnotations:
 
 
 import zipfile as _zipfile
-from pathlib import Path as _Path
 
 
 class TestConfigWarningsRouted:
