@@ -18,8 +18,19 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
 
+      - name: Validate version input
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: version input '$VERSION' does not match expected format X.Y.Z" >&2
+            exit 1
+          fi
+
       - name: Bump version in pyproject.toml
-        run: sed -i "s/^version = .*/version = \"${{ github.event.inputs.version }}\"/" pyproject.toml
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
 
       - name: Create PR
         uses: peter-evans/create-pull-request@v8

@@ -40,6 +40,9 @@ IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
 # Output zip size threshold for advisory warning (MB).
 SIZE_WARN_MB = 50
 
+# Maximum total uncompressed size accepted from the input zip (zip-bomb guard).
+_MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024  # 500 MB
+
 # Packages that require shell-escape; arXiv compiles without it, so these fail.
 # Matched by exact name against comma-split \usepackage arguments, not as a regex
 # substring — otherwise 'pst-pdf' would falsely match inside 'auto-pst-pdf'.
@@ -363,6 +366,13 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         # Aborts before any disk write if a member would escape the temp root
         # via .. or absolute-style paths.
         with zipfile.ZipFile(input_zip) as zf:
+            total_size = sum(m.file_size for m in zf.infolist())
+            if total_size > _MAX_UNCOMPRESSED_BYTES:
+                raise ConverterError(
+                    f"refusing to extract — uncompressed size "
+                    f"({total_size / (1024 * 1024):.0f} MB) exceeds the "
+                    f"{_MAX_UNCOMPRESSED_BYTES // (1024 * 1024)} MB safety cap"
+                )
             root_abs = root.resolve()
             for name in zf.namelist():
                 target = (root / name).resolve()
@@ -714,6 +724,16 @@ def _compile(output_zip: Path, main_hint: str | None):
     with tempfile.TemporaryDirectory() as tmpdir:
         compile_dir = Path(tmpdir)
         with zipfile.ZipFile(output_zip) as zf:
+            compile_dir_abs = compile_dir.resolve()
+            for name in zf.namelist():
+                target = (compile_dir / name).resolve()
+                try:
+                    target.relative_to(compile_dir_abs)
+                except ValueError:
+                    raise ConverterError(
+                        f"output zip contains a path-traversal member — "
+                        f"refusing to compile: {name!r}"
+                    )
             zf.extractall(compile_dir)
 
         # Find main tex
@@ -738,11 +758,14 @@ def _compile(output_zip: Path, main_hint: str | None):
             try:
                 result = subprocess.run(
                     ['pdflatex', '-interaction=nonstopmode', tex_name],
-                    cwd=run_dir, capture_output=True
+                    cwd=run_dir, capture_output=True, timeout=300
                 )
             except FileNotFoundError:
                 print("  [compile] pdflatex not found — install TeX Live "
                       "(https://tug.org/texlive/) or MacTeX to use --compile.")
+                return False
+            except subprocess.TimeoutExpired:
+                print("  [compile] pdflatex timed out after 5 minutes")
                 return False
             stdout = result.stdout.decode('utf-8', errors='replace')
             if final and ('! Fatal error' in stdout or ('! ' in stdout and 'Output written' not in stdout)):
@@ -752,8 +775,8 @@ def _compile(output_zip: Path, main_hint: str | None):
             return True
 
         if not run_pdflatex():
-            # pdflatex not installed — abort early; subsequent calls would print the
-            # same error twice more.
+            # pdflatex not available or timed out — abort early; subsequent calls
+            # would repeat the same error.
             return
 
         # Run biber for biblatex projects, else bibtex.
@@ -768,11 +791,15 @@ def _compile(output_zip: Path, main_hint: str | None):
             cmd = 'biber' if uses_biblatex else 'bibtex'
             print(f"  Running {cmd} ...")
             try:
-                result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True)
+                result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True,
+                                        timeout=300)
             except FileNotFoundError:
                 print(f"  [compile] {cmd} not found — install it (part of TeX Live) "
                       f"or pre-compile your .bbl and ship it. Continuing without "
                       f"bibliography processing; citations will be unresolved.")
+                result = None
+            except subprocess.TimeoutExpired:
+                print(f"  [compile] {cmd} timed out after 5 minutes")
                 result = None
             if result is not None and result.returncode != 0:
                 # biber emits to stderr; bibtex emits to stdout — pick whichever has content.
