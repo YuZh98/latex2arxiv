@@ -27,6 +27,8 @@ from pipeline.images import resize_image, DEFAULT_MAX_PX
 from pipeline.flatten import flatten_tex
 from pipeline.guide import extract_metadata, count_stats, format_summary, format_guide, _count_pages
 
+__all__ = ["Issues", "ConverterError", "convert"]
+
 
 def _get_version() -> str:
     try:

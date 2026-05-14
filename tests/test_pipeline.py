@@ -2248,3 +2248,18 @@ class TestResizeCLI:
             cwd="/Users/zhengyu/Desktop/Claude/Project/latex2arxiv",
         )
         assert result.returncode != 2, f"argparse rejected bare --resize: {result.stderr}"
+
+
+class TestPublicAPI:
+    def test_all_exports_present(self):
+        import converter
+        assert hasattr(converter, "__all__")
+        assert "Issues" in converter.__all__
+        assert "ConverterError" in converter.__all__
+        assert "convert" in converter.__all__
+
+    def test_internal_not_in_all(self):
+        import converter
+        assert "_emit_json" not in converter.__all__
+        assert "_compile" not in converter.__all__
+        assert "_do_convert" not in converter.__all__
