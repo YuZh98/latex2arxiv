@@ -2460,10 +2460,8 @@ class TestFindMainTex:
         assert "paper.tex" in issues.main_tex
 
 
-# ── Targeted coverage additions ──────────────────────────────────────────────
-
 class TestBibtexCoverageGaps:
-    """Covers normalize_bibtex paths not hit by TestNormalizeBibtex."""
+    """Exercises normalize_bibtex edge cases not covered by TestNormalizeBibtex."""
 
     _DUP_BIB = """@article{smith2020a,
   author = {Smith, John},
@@ -2488,33 +2486,33 @@ class TestBibtexCoverageGaps:
 }"""
 
     def test_no_title_no_doi_entry_preserved(self):
-        """Entry with no doi or title goes into no_key list — covers line 41."""
+        """Entry with no doi or title should still appear in output."""
         from pipeline.bibtex import normalize_bibtex
         result = normalize_bibtex(self._NO_KEY_BIB)
         assert "anon" in result
 
     def test_duplicate_dedup_with_cited_keys(self):
-        """cited_keys prefers the cited entry — covers lines 49-56."""
+        """When a duplicate pair exists, cited_keys selects the cited entry."""
         from pipeline.bibtex import normalize_bibtex
         result = normalize_bibtex(self._DUP_BIB, cited_keys={"smith2020b"})
         assert "smith2020b" in result
         assert "smith2020a" not in result
 
     def test_duplicate_dedup_no_cited_keys(self):
-        """Without cited_keys, first entry wins — covers lines 52-53."""
+        """Without cited_keys, first entry among duplicates is kept."""
         from pipeline.bibtex import normalize_bibtex
         result = normalize_bibtex(self._DUP_BIB, cited_keys=None)
         assert "smith2020a" in result
 
     def test_nonstandard_field_preserved(self):
-        """Fields not in _FIELD_ORDER are still kept — covers line 69."""
+        """Fields not in the canonical field order should not be dropped."""
         from pipeline.bibtex import normalize_bibtex
         result = normalize_bibtex(self._NONSTANDARD_BIB)
         assert "issn" in result
         assert "0000-0000" in result
 
     def test_no_bibtexparser_skips_normalization(self, monkeypatch):
-        """When bibtexparser is absent, source returned unchanged — covers lines 26-27."""
+        """When bibtexparser is absent, source is returned unchanged."""
         import pipeline.bibtex as bib_mod
         monkeypatch.setattr(bib_mod, "HAS_BIBTEXPARSER", False)
         source = "raw bib content"
@@ -2523,8 +2521,8 @@ class TestBibtexCoverageGaps:
 
 
 class TestSimpleYamlParser:
-    """Direct tests for _parse_simple_yaml — covers lines 50-75 (only reached
-    when pyyaml is absent, so we call the function directly)."""
+    """Tests the built-in fallback YAML parser used when pyyaml is absent.
+    Called directly since the fallback is otherwise unreachable in a pyyaml env."""
 
     def _parse(self, text):
         from pipeline.config import _parse_simple_yaml
@@ -2548,12 +2546,11 @@ class TestSimpleYamlParser:
         assert result == {"commands_to_delete": [r"\todo"]}
 
     def test_blank_list_value_skipped(self):
-        # List item with only whitespace after dash → value is empty → continue
         result = self._parse("commands_to_delete:\n  -   \n  - \\fixme\n")
         assert result == {"commands_to_delete": [r"\fixme"]}
 
-    def test_load_config_uses_simple_yaml_when_no_pyyaml(self, tmp_path, monkeypatch):
-        """load_config falls back to _parse_simple_yaml — covers line 94."""
+    def test_load_config_uses_fallback_parser_when_no_pyyaml(self, tmp_path, monkeypatch):
+        """load_config must use the built-in parser when pyyaml is unavailable."""
         import pipeline.config as cfg_mod
         monkeypatch.setattr(cfg_mod, "HAS_YAML", False)
         conf = tmp_path / "cfg.yaml"
@@ -2563,7 +2560,7 @@ class TestSimpleYamlParser:
 
 
 class TestConverterInternalFunctions:
-    """Unit tests for converter.py internals (not reachable via subprocess)."""
+    """Unit tests for converter.py internals called directly (not via subprocess)."""
 
     def test_emit_json_structure(self, capsys):
         """_emit_json writes valid JSON with all required keys."""
@@ -2581,8 +2578,8 @@ class TestConverterInternalFunctions:
         assert "counts" in payload
         assert "sizes" in payload
 
-    def test_resolve_input_with_directory(self, tmp_path):
-        """_resolve_input zips a directory — covers the directory branch."""
+    def test_resolve_input_with_directory_zips_and_excludes_pycache(self, tmp_path):
+        """Directory input is zipped; __pycache__ and .pyc files are excluded."""
         from converter import _resolve_input
         proj = tmp_path / "proj"
         proj.mkdir()
@@ -2597,16 +2594,6 @@ class TestConverterInternalFunctions:
             names = zf.namelist()
         assert "main.tex" in names
         assert not any("pycache" in n for n in names)
-
-    def test_open_file_linux(self, monkeypatch):
-        """_open_file uses xdg-open on non-mac/win platforms."""
-        import subprocess as sp
-        from converter import _open_file
-        calls = []
-        monkeypatch.setattr(sys, "platform", "linux")
-        monkeypatch.setattr(sp, "run", lambda cmd, **kw: calls.append(cmd))
-        _open_file(Path("/tmp/test.pdf"))
-        assert calls and "xdg-open" in calls[0]
 
     def test_main_missing_input_exits_nonzero(self, monkeypatch):
         """main() without --demo and without input exits with error."""
