@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # required for trusted publishing
-      contents: write  # required for creating GitHub releases
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -24,6 +23,30 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  release-assets:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # required for creating GitHub releases
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Wait for PyPI and install latex2arxiv
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          for attempt in $(seq 1 30); do
+            if pip install "latex2arxiv==${VERSION}" 2>/dev/null; then
+              break
+            fi
+            echo "PyPI not ready (attempt $attempt); sleeping 10s"
+            sleep 10
+          done
+          pip show latex2arxiv
 
       - name: Install TeX Live for demo PDF
         run: |
@@ -41,7 +64,6 @@ jobs:
 
       - name: Generate demo_project_arxiv.pdf
         run: |
-          pip install dist/*.whl
           latex2arxiv --demo --compile
           test -f demo_project_arxiv.pdf
           test "$(stat -c%s demo_project_arxiv.pdf)" -gt 10000
