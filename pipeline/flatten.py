@@ -122,6 +122,14 @@ def _process_line(line: str, tex_file: Path, root: Path,
         target_name = target if target.endswith(".tex") else target + ".tex"
         target_path = (base / target_name).resolve()
 
+        try:
+            target_path.relative_to(root.resolve())
+        except ValueError:
+            issues.warn(
+                f"flatten: \\{cmd}{{{target}}} escapes the project root — skipped"
+            )
+            continue
+
         if not target_path.exists():
             issues.warn(f"flatten: referenced file not found: {target_name}")
             continue

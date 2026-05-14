@@ -25,6 +25,7 @@ from pipeline.deps import find_included_tex, find_used_images, find_used_bib_fil
 from pipeline.config import load_config, apply_config
 from pipeline.images import resize_image, DEFAULT_MAX_PX
 from pipeline.flatten import flatten_tex
+from pipeline.guide import extract_metadata, count_stats, format_summary, format_guide, _count_pages
 
 
 def _get_version() -> str:
@@ -38,6 +39,9 @@ IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
 
 # Output zip size threshold for advisory warning (MB).
 SIZE_WARN_MB = 50
+
+# Maximum total uncompressed size accepted from the input zip (zip-bomb guard).
+_MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024  # 500 MB
 
 # Packages that require shell-escape; arXiv compiles without it, so these fail.
 # Matched by exact name against comma-split \usepackage arguments, not as a regex
@@ -73,6 +77,7 @@ class Issues:
         # --flatten state (always present in the JSON payload).
         self.flatten: bool = False
         self.inlined_files: list[str] = []
+        self.metadata: dict | None = None
 
     def warn(self, msg: str) -> None:
         print(f"  [warn] {msg}")
@@ -351,7 +356,7 @@ def _print_summary(removed: int, kept: int, issues: Issues,
 def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             compile_pdf: bool = False, resize: int | None = None,
             config_path: Path | None = None, dry_run: bool = False,
-            flatten: bool = False) -> Issues:
+            flatten: bool = False, guide: bool = False) -> Issues:
     issues = Issues()
     issues.flatten = flatten
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -361,6 +366,13 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         # Aborts before any disk write if a member would escape the temp root
         # via .. or absolute-style paths.
         with zipfile.ZipFile(input_zip) as zf:
+            total_size = sum(m.file_size for m in zf.infolist())
+            if total_size > _MAX_UNCOMPRESSED_BYTES:
+                raise ConverterError(
+                    f"refusing to extract — uncompressed size "
+                    f"({total_size / (1024 * 1024):.0f} MB) exceeds the "
+                    f"{_MAX_UNCOMPRESSED_BYTES // (1024 * 1024)} MB safety cap"
+                )
             root_abs = root.resolve()
             for name in zf.namelist():
                 target = (root / name).resolve()
@@ -537,6 +549,48 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         _check_files(root, kept_files, issues)
         _check_uncompressed_size(kept_files, issues)
 
+        # Check for undefined citations in cleaned output
+        cleaned_sources = []
+        for path in kept_files:
+            if path.suffix == '.tex':
+                try:
+                    cleaned_sources.append(path.read_text(encoding='utf-8', errors='replace'))
+                except Exception:
+                    pass
+        if cleaned_sources:
+            final_cited = find_cited_keys(cleaned_sources)
+            defined_keys = set()
+            for path in kept_files:
+                if path.suffix == '.bib':
+                    try:
+                        bib_content = path.read_text(encoding='utf-8', errors='replace')
+                        for m in re.finditer(r'@\w+\{\s*([^,\s]+)', bib_content):
+                            defined_keys.add(m.group(1).strip())
+                    except Exception:
+                        pass
+            for path in kept_files:
+                if path.suffix == '.bbl':
+                    try:
+                        bbl_content = path.read_text(encoding='utf-8', errors='replace')
+                        for m in re.finditer(r'\\bibitem(?:\[[^\]]*\])?\{([^}]+)\}', bbl_content):
+                            defined_keys.add(m.group(1).strip())
+                    except Exception:
+                        pass
+            if defined_keys:
+                undefined = final_cited - defined_keys
+                if undefined:
+                    sample = sorted(undefined)[:5]
+                    more = f" (and {len(undefined) - 5} more)" if len(undefined) > 5 else ""
+                    issues.warn(f"{len(undefined)} undefined citation(s): {', '.join(sample)}{more} — "
+                                "ensure all cited references exist in your .bib or .bbl file")
+
+        # Advisory: custom style/class files
+        for path in kept_files:
+            if path.suffix.lower() in {'.cls', '.sty'}:
+                issues.warn(f"custom style file kept: {path.relative_to(root)} — "
+                            "arXiv may suggest removing this; ignore that warning, "
+                            "the file is required for compilation")
+
         # Populate JSON-payload fields on the Issues object so --json mode has
         # everything it needs without re-scanning the (possibly cleaned-up)
         # temp dir later.
@@ -573,8 +627,55 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         issues.output_path = str(output_zip)
         issues.sizes_output = output_zip.stat().st_size if output_zip.exists() else None
 
+        # Read cleaned main tex for metadata extraction
+        try:
+            with zipfile.ZipFile(output_zip) as zf:
+                main_tex_content = zf.read(issues.main_tex).decode('utf-8', errors='replace')
+                # Count figures/tables across ALL tex files in the zip
+                all_tex_content = '\n'.join(
+                    zf.read(n).decode('utf-8', errors='replace')
+                    for n in zf.namelist() if n.endswith('.tex')
+                )
+
+            metadata = extract_metadata(main_tex_content)
+            pdf_path = None  # will be set after compile if applicable
+            stats = count_stats(all_tex_content, pdf_path)
+
+            out_size_mb = output_zip.stat().st_size / (1024 * 1024)
+            print()
+            print(format_summary(metadata, stats, str(output_zip), out_size_mb))
+
+            if guide:
+                guide_path = output_zip.with_name(output_zip.stem + '_UPLOAD_GUIDE.txt')
+                guide_text = format_guide(metadata, stats, str(output_zip), out_size_mb,
+                                          issues.kept_files, issues.main_tex or '')
+                guide_path.write_text(guide_text, encoding='utf-8')
+                print(f"  Upload guide → {guide_path}")
+
+            # Store metadata on issues for JSON output
+            issues.metadata = {**metadata, "stats": stats}
+        except Exception as exc:
+            print(f"  [warn] could not generate upload summary: {exc}")
+
     if compile_pdf:
         _compile(output_zip, main_hint)
+        # Update guide with page count from compiled PDF
+        compiled_pdf = output_zip.with_suffix('.pdf')
+        if compiled_pdf.exists() and hasattr(issues, 'metadata') and issues.metadata:
+            pages = _count_pages(str(compiled_pdf))
+            if pages:
+                stats = issues.metadata.get('stats', {})
+                stats['pages'] = pages
+                issues.metadata['stats'] = stats
+                print(f"  Pages: {pages}")
+                if guide:
+                    guide_path = output_zip.with_name(output_zip.stem + '_UPLOAD_GUIDE.txt')
+                    if guide_path.exists():
+                        out_size_mb = output_zip.stat().st_size / (1024 * 1024)
+                        meta = {k: v for k, v in issues.metadata.items() if k != 'stats'}
+                        guide_text = format_guide(meta, stats, str(output_zip), out_size_mb,
+                                                  issues.kept_files, issues.main_tex or '')
+                        guide_path.write_text(guide_text, encoding='utf-8')
     return issues
 
 
@@ -623,6 +724,16 @@ def _compile(output_zip: Path, main_hint: str | None):
     with tempfile.TemporaryDirectory() as tmpdir:
         compile_dir = Path(tmpdir)
         with zipfile.ZipFile(output_zip) as zf:
+            compile_dir_abs = compile_dir.resolve()
+            for name in zf.namelist():
+                target = (compile_dir / name).resolve()
+                try:
+                    target.relative_to(compile_dir_abs)
+                except ValueError:
+                    raise ConverterError(
+                        f"output zip contains a path-traversal member — "
+                        f"refusing to compile: {name!r}"
+                    )
             zf.extractall(compile_dir)
 
         # Find main tex
@@ -647,11 +758,14 @@ def _compile(output_zip: Path, main_hint: str | None):
             try:
                 result = subprocess.run(
                     ['pdflatex', '-interaction=nonstopmode', tex_name],
-                    cwd=run_dir, capture_output=True
+                    cwd=run_dir, capture_output=True, timeout=300
                 )
             except FileNotFoundError:
                 print("  [compile] pdflatex not found — install TeX Live "
                       "(https://tug.org/texlive/) or MacTeX to use --compile.")
+                return False
+            except subprocess.TimeoutExpired:
+                print("  [compile] pdflatex timed out after 5 minutes")
                 return False
             stdout = result.stdout.decode('utf-8', errors='replace')
             if final and ('! Fatal error' in stdout or ('! ' in stdout and 'Output written' not in stdout)):
@@ -661,8 +775,8 @@ def _compile(output_zip: Path, main_hint: str | None):
             return True
 
         if not run_pdflatex():
-            # pdflatex not installed — abort early; subsequent calls would print the
-            # same error twice more.
+            # pdflatex not available or timed out — abort early; subsequent calls
+            # would repeat the same error.
             return
 
         # Run biber for biblatex projects, else bibtex.
@@ -677,11 +791,15 @@ def _compile(output_zip: Path, main_hint: str | None):
             cmd = 'biber' if uses_biblatex else 'bibtex'
             print(f"  Running {cmd} ...")
             try:
-                result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True)
+                result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True,
+                                        timeout=300)
             except FileNotFoundError:
                 print(f"  [compile] {cmd} not found — install it (part of TeX Live) "
                       f"or pre-compile your .bbl and ship it. Continuing without "
                       f"bibliography processing; citations will be unresolved.")
+                result = None
+            except subprocess.TimeoutExpired:
+                print(f"  [compile] {cmd} timed out after 5 minutes")
                 result = None
             if result is not None and result.returncode != 0:
                 # biber emits to stderr; bibtex emits to stdout — pick whichever has content.
@@ -805,6 +923,7 @@ def _emit_json(issues: Issues) -> None:
         "compile": issues.compile_result,
         "flatten": issues.flatten,
         "inlined_files": issues.inlined_files,
+        "metadata": issues.metadata,
     }
     json.dump(payload, sys.stdout, indent=2)
     sys.stdout.write("\n")
@@ -836,7 +955,7 @@ def _do_convert(args: argparse.Namespace, cleanup_tmp: list[str]) -> Issues:
                     demo_config.write_bytes(zf.read(cfg_name))
             return convert(demo_zip, out, compile_pdf=args.compile,
                            config_path=demo_config, dry_run=args.dry_run,
-                           flatten=args.flatten)
+                           flatten=args.flatten, guide=args.guide)
 
     inp_raw = args.input
     inp = _resolve_input(inp_raw, cleanup_tmp)
@@ -856,7 +975,7 @@ def _do_convert(args: argparse.Namespace, cleanup_tmp: list[str]) -> Issues:
     print(f"Converting {inp_raw} → {out}\n")
     return convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
                    resize=args.resize, config_path=config_path, dry_run=args.dry_run,
-                   flatten=args.flatten)
+                   flatten=args.flatten, guide=args.guide)
 
 
 def main():
@@ -878,6 +997,8 @@ def main():
                         help='Emit a machine-readable JSON summary on stdout; route progress to stderr')
     parser.add_argument('--flatten', action='store_true',
                         help='Inline every \\input / \\include / \\subfile into the main .tex')
+    parser.add_argument('--guide', action='store_true',
+                        help='Write a detailed arXiv upload guide to a text file alongside the output')
     args = parser.parse_args()
 
     # argparse-level validation. Fail fast before setting up stdout capture —
