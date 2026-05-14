@@ -2,10 +2,14 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pipeline.guide import extract_metadata, count_stats, format_summary, format_guide
+from pipeline.guide import (
+    extract_metadata, count_stats, format_summary, format_guide,
+    _extract_braced, _count_pages,
+)
 
 
 class TestExtractTitle:
@@ -148,3 +152,112 @@ class TestFormatGuide:
         guide = self._make_guide()
         assert ".sty" in guide
         assert "IGNORE" in guide
+
+
+class TestExtractBracedEdgeCases:
+    def test_escaped_brace_skipped(self):
+        # \{ and \} inside braces must not be counted as depth changes
+        result = _extract_braced(r"{\{escaped\}}", 0)
+        assert result == r"\{escaped\}"
+
+    def test_unclosed_brace_returns_none(self):
+        assert _extract_braced("{unclosed", 0) is None
+
+    def test_not_starting_at_brace_returns_none(self):
+        assert _extract_braced("hello{world}", 0) is None
+
+    def test_past_end_returns_none(self):
+        assert _extract_braced("hi", 10) is None
+
+
+class TestAuthorsWithThanks:
+    def test_thanks_stripped(self):
+        # Covers lines 67-73: the \thanks stripping loop
+        tex = r"\author{Alice Smith\thanks{Supported by NSF grant}}"
+        result = extract_metadata(tex)["authors"]
+        assert result is not None
+        assert "Alice" in result
+        assert "NSF" not in result
+
+    def test_affiliation_line_skipped(self):
+        # Covers affiliation `continue` branch
+        tex = r"\author{Alice Smith \\ University of Excellence}"
+        result = extract_metadata(tex)["authors"]
+        assert result is not None
+        assert "Alice Smith" in result
+        assert "University" not in result
+
+    def test_empty_line_after_cleanup_skipped(self):
+        # Covers the `if not line_clean: continue` branch — fires when a split
+        # segment reduces to empty after stripping LaTeX commands
+        tex = r"\author{Alice Smith \\ \footnote{hidden note} \\ MIT}"
+        result = extract_metadata(tex)["authors"]
+        assert result is not None
+        assert "Alice" in result
+
+    def test_thanks_lookalike_breaks_loop(self):
+        # Covers the `if not tm: break` branch — `\thanks` appears as a
+        # substring of `\thanksNote` but no `\thanks{` pattern is found
+        tex = r"\author{Alice Smith\thanksNote}"
+        result = extract_metadata(tex)["authors"]
+        assert result is not None
+
+
+class TestFormatSummaryTruncation:
+    def test_long_title_truncated(self):
+        # Covers line 188
+        long_title = "A" * 80
+        meta = {"title": long_title, "authors": "A", "abstract": "Ab"}
+        out = format_summary(meta, {}, "out.zip", 0.1)
+        assert "..." in out
+
+    def test_long_abstract_truncated(self):
+        # Covers line 192
+        long_abstract = "B" * 200
+        meta = {"title": "T", "authors": "A", "abstract": long_abstract}
+        out = format_summary(meta, {}, "out.zip", 0.1)
+        assert "..." in out
+
+
+class TestCountPages:
+    def test_nonexistent_path_returns_none(self):
+        # Covers lines 159-160
+        assert _count_pages("/no/such/file.pdf") is None
+
+    def test_empty_path_returns_none(self):
+        assert _count_pages("") is None
+
+    def test_pdfinfo_success(self, tmp_path):
+        # Covers lines 161-166 (pdfinfo path)
+        fake = tmp_path / "x.pdf"
+        fake.write_bytes(b"%PDF")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="Pages:   7\n")
+            result = _count_pages(str(fake))
+        assert result == 7
+
+    def test_pdfinfo_no_pages_line_falls_back(self, tmp_path):
+        # Covers the loop-without-match then binary fallback (lines 167-179)
+        fake = tmp_path / "x.pdf"
+        # Write 2 /Type /Page markers in binary content
+        fake.write_bytes(b"/Type /Page /Type /Page /Type /Pages")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="Other: value\n")
+            result = _count_pages(str(fake))
+        assert result == 2
+
+    def test_pdfinfo_exception_uses_binary_fallback(self, tmp_path):
+        # Covers exception → fallback path (lines 167 + 169-179)
+        fake = tmp_path / "x.pdf"
+        fake.write_bytes(b"/Type /Page")
+        with patch("subprocess.run", side_effect=Exception("no pdfinfo")):
+            result = _count_pages(str(fake))
+        assert result == 1
+
+    def test_count_stats_with_pdf_path(self, tmp_path):
+        # Covers line 142: `pages = _count_pages(pdf_path)` branch
+        fake = tmp_path / "x.pdf"
+        fake.write_bytes(b"/Type /Page")
+        with patch("subprocess.run", side_effect=Exception("no pdfinfo")):
+            stats = count_stats("some tex", pdf_path=str(fake))
+        assert stats["pages"] == 1

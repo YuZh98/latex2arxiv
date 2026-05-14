@@ -15,7 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - **`MCPEnvelope` TypedDict** in `mcp_server.py`: all MCP tool return types are now fully typed, preventing `"error"` vs `"errors"` drift at the type-checker level
 - Python matrix expanded to 3.10–3.13 in CI; `pyyaml`, `mcp`, `fastmcp` added to test dependencies so YAML and MCP tests never silently skip
 - Deprecation-strict CI job (`pytest -W error::DeprecationWarning`)
-- Coverage gate at 74% (measured against product code; `make_demo.py` excluded)
+- Coverage gate at 85% (measured against product code; `make_demo.py` excluded)
 - Pre-commit config: ruff, ruff-format, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml
 
 ### Improved

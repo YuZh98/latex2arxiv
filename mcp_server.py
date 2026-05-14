@@ -45,7 +45,7 @@ class MCPEnvelope(_MCPEnvelopeBase, total=False):
 def _error_envelope(errors: list[str], log: str = "",
                     warnings: list[str] | None = None) -> MCPEnvelope:
     return MCPEnvelope(success=False, errors=errors,
-                       warnings=warnings or [], log=log) origin/main
+                       warnings=warnings or [], log=log)
 
 
 def _safe_root() -> Path:

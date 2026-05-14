@@ -2458,3 +2458,189 @@ class TestFindMainTex:
         issues = convert(zp, out, dry_run=True)
         assert issues.main_tex is not None
         assert "paper.tex" in issues.main_tex
+
+
+# ── Targeted coverage additions ──────────────────────────────────────────────
+
+class TestBibtexCoverageGaps:
+    """Covers normalize_bibtex paths not hit by TestNormalizeBibtex."""
+
+    _DUP_BIB = """@article{smith2020a,
+  author = {Smith, John},
+  title = {Shared Title},
+  year = {2020},
+}
+@article{smith2020b,
+  author = {Smith, John},
+  title = {Shared Title},
+  year = {2020},
+}"""
+
+    _NO_KEY_BIB = """@misc{anon,
+  note = {No doi or title here},
+}"""
+
+    _NONSTANDARD_BIB = """@article{fancy2020,
+  author = {Author},
+  title = {Title},
+  year = {2020},
+  issn = {0000-0000},
+}"""
+
+    def test_no_title_no_doi_entry_preserved(self):
+        """Entry with no doi or title goes into no_key list — covers line 41."""
+        from pipeline.bibtex import normalize_bibtex
+        result = normalize_bibtex(self._NO_KEY_BIB)
+        assert "anon" in result
+
+    def test_duplicate_dedup_with_cited_keys(self):
+        """cited_keys prefers the cited entry — covers lines 49-56."""
+        from pipeline.bibtex import normalize_bibtex
+        result = normalize_bibtex(self._DUP_BIB, cited_keys={"smith2020b"})
+        assert "smith2020b" in result
+        assert "smith2020a" not in result
+
+    def test_duplicate_dedup_no_cited_keys(self):
+        """Without cited_keys, first entry wins — covers lines 52-53."""
+        from pipeline.bibtex import normalize_bibtex
+        result = normalize_bibtex(self._DUP_BIB, cited_keys=None)
+        assert "smith2020a" in result
+
+    def test_nonstandard_field_preserved(self):
+        """Fields not in _FIELD_ORDER are still kept — covers line 69."""
+        from pipeline.bibtex import normalize_bibtex
+        result = normalize_bibtex(self._NONSTANDARD_BIB)
+        assert "issn" in result
+        assert "0000-0000" in result
+
+    def test_no_bibtexparser_skips_normalization(self, monkeypatch):
+        """When bibtexparser is absent, source returned unchanged — covers lines 26-27."""
+        import pipeline.bibtex as bib_mod
+        monkeypatch.setattr(bib_mod, "HAS_BIBTEXPARSER", False)
+        source = "raw bib content"
+        result = bib_mod.normalize_bibtex(source)
+        assert result == source
+
+
+class TestSimpleYamlParser:
+    """Direct tests for _parse_simple_yaml — covers lines 50-75 (only reached
+    when pyyaml is absent, so we call the function directly)."""
+
+    def _parse(self, text):
+        from pipeline.config import _parse_simple_yaml
+        return _parse_simple_yaml(text)
+
+    def test_simple_list(self):
+        result = self._parse("commands_to_delete:\n  - \\todo\n  - \\fixme\n")
+        assert result == {"commands_to_delete": [r"\todo", r"\fixme"]}
+
+    def test_inline_mapping(self):
+        result = self._parse(
+            "replacements:\n"
+            "  - pattern: foo\n"
+            "    replacement: bar\n"
+        )
+        assert result["replacements"][0]["pattern"] == "foo"
+        assert result["replacements"][0]["replacement"] == "bar"
+
+    def test_inline_comment_stripped(self):
+        result = self._parse("commands_to_delete:\n  - \\todo  # inline comment\n")
+        assert result == {"commands_to_delete": [r"\todo"]}
+
+    def test_blank_list_value_skipped(self):
+        # List item with only whitespace after dash → value is empty → continue
+        result = self._parse("commands_to_delete:\n  -   \n  - \\fixme\n")
+        assert result == {"commands_to_delete": [r"\fixme"]}
+
+    def test_load_config_uses_simple_yaml_when_no_pyyaml(self, tmp_path, monkeypatch):
+        """load_config falls back to _parse_simple_yaml — covers line 94."""
+        import pipeline.config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "HAS_YAML", False)
+        conf = tmp_path / "cfg.yaml"
+        conf.write_text("commands_to_delete:\n  - \\todo\n")
+        result = cfg_mod.load_config(conf)
+        assert r"\todo" in result.get("commands_to_delete", [])
+
+
+class TestConverterInternalFunctions:
+    """Unit tests for converter.py internals (not reachable via subprocess)."""
+
+    def test_emit_json_structure(self, capsys):
+        """_emit_json writes valid JSON with all required keys."""
+        from converter import _emit_json, Issues
+        issues = Issues()
+        issues.input_path = "in.zip"
+        issues.output_path = "out.zip"
+        issues.main_tex = "main.tex"
+        _emit_json(issues)
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["schema_version"] == 1
+        assert "errors" in payload
+        assert "warnings" in payload
+        assert "counts" in payload
+        assert "sizes" in payload
+
+    def test_resolve_input_with_directory(self, tmp_path):
+        """_resolve_input zips a directory — covers the directory branch."""
+        from converter import _resolve_input
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        (proj / "main.tex").write_text(r"\documentclass{article}\begin{document}\end{document}")
+        (proj / "__pycache__").mkdir()
+        (proj / "__pycache__" / "junk.pyc").write_bytes(b"")
+        cleanup = []
+        result = _resolve_input(str(proj), cleanup)
+        assert result.suffix == ".zip"
+        assert result.exists()
+        with zipfile.ZipFile(result) as zf:
+            names = zf.namelist()
+        assert "main.tex" in names
+        assert not any("pycache" in n for n in names)
+
+    def test_open_file_linux(self, monkeypatch):
+        """_open_file uses xdg-open on non-mac/win platforms."""
+        import subprocess as sp
+        from converter import _open_file
+        calls = []
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setattr(sp, "run", lambda cmd, **kw: calls.append(cmd))
+        _open_file(Path("/tmp/test.pdf"))
+        assert calls and "xdg-open" in calls[0]
+
+    def test_main_missing_input_exits_nonzero(self, monkeypatch):
+        """main() without --demo and without input exits with error."""
+        from converter import main
+        monkeypatch.setattr(sys, "argv", ["converter.py"])
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code != 0
+
+    def test_main_demo_dry_run(self, tmp_path, monkeypatch):
+        """main() with --demo --dry-run completes without creating output."""
+        from converter import main
+        monkeypatch.setattr(sys, "argv", ["converter.py", "--demo", "--dry-run"])
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 0
+
+    def test_main_converter_error_exits_nonzero(self, tmp_path, monkeypatch):
+        """main() with a nonexistent input file exits with code 1."""
+        from converter import main
+        monkeypatch.setattr(sys, "argv", ["converter.py", str(tmp_path / "nope.zip")])
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 1
+
+    def test_main_json_flag_emits_json(self, tmp_path, monkeypatch, capsys):
+        """main() with --json emits JSON on stdout even on error."""
+        from converter import main
+        monkeypatch.setattr(sys, "argv", ["converter.py", "--demo", "--dry-run", "--json"])
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(SystemExit):
+            main()
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert "schema_version" in payload

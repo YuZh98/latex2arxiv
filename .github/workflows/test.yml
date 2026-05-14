@@ -20,7 +20,7 @@ jobs:
       - name: Coverage report
         if: matrix.python-version == '3.12'
         run: |
-          pytest tests/ --cov=. --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=74
+          pytest tests/ --cov=. --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=85
 
   package:
     runs-on: ubuntu-latest
