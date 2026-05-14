@@ -128,6 +128,16 @@ jobs:
           test -f /tmp/biber_arxiv.pdf
           test "$(stat -c%s /tmp/biber_arxiv.pdf)" -gt 5000
 
+  deprecation-strict:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install pytest bibtexparser Pillow pyyaml mcp fastmcp
+      - run: pytest tests/ -W error::DeprecationWarning -v
+
   action-smoke:
     # Smoke-tests action.yml against fixture projects.
     # We pre-install latex2arxiv from local source so the action's own
