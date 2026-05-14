@@ -7,6 +7,7 @@ Run with:
 
 from __future__ import annotations
 
+import os
 import tempfile
 import zipfile
 from io import StringIO
@@ -24,10 +25,33 @@ mcp = FastMCP("latex2arxiv", instructions=(
 ))
 
 
+def _safe_root() -> Path:
+    """Return the base directory that MCP tool paths must reside under."""
+    env = os.environ.get("LATEX2ARXIV_MCP_BASE_DIR")
+    return Path(env).resolve() if env else Path.cwd()
+
+
+def _validate_path(raw: str) -> tuple[Path | None, dict | None]:
+    """Resolve *raw* and verify it is inside the safe root.
+
+    Returns (resolved_path, None) on success, or (None, error_dict) on rejection.
+    Rejects tilde-prefixed paths before resolution so agents cannot probe home dirs.
+    """
+    if raw.startswith("~"):
+        return None, {"success": False, "error": f"Path outside allowed base directory: {raw}"}
+    resolved = Path(raw).resolve()
+    root = _safe_root()
+    if not resolved.is_relative_to(root):
+        return None, {"success": False, "error": f"Path outside allowed base directory: {raw}"}
+    return resolved, None
+
+
 def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
                  config_path: str | None = None) -> dict:
     """Run the converter and capture structured results."""
-    inp = Path(path).expanduser().resolve()
+    inp, err = _validate_path(path)
+    if err or inp is None:
+        return err or {"success": False, "error": "internal: path validation failed"}
     if not inp.exists():
         return {"success": False, "error": f"Path not found: {path}"}
 
@@ -46,8 +70,16 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
     else:
         cleanup_input = False
 
-    out = Path(tempfile.mktemp(suffix='_arxiv.zip'))
-    cfg = Path(config_path) if config_path else None
+    fd, _tmp = tempfile.mkstemp(suffix='_arxiv.zip')
+    os.close(fd)
+    out = Path(_tmp)
+    if config_path is not None:
+        cfg_resolved, cfg_err = _validate_path(config_path)
+        if cfg_err or cfg_resolved is None:
+            return cfg_err or {"success": False, "error": "internal: config path validation failed"}
+        cfg = cfg_resolved
+    else:
+        cfg = None
 
     # Capture stdout (the tool's print output)
     buf = StringIO()
