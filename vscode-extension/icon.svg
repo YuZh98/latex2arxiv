@@ -14,8 +14,8 @@
   </g>
 
   <!-- arXiv-red checkmark badge (Cornell red), white ring lifts it off the doc edge -->
-  <circle cx="92" cy="92" r="22" fill="#b31b1b" stroke="#ffffff" stroke-width="2"/>
-  <path d="M82 92 L90 100 L104 84"
+  <circle cx="91" cy="91" r="22" fill="#b31b1b" stroke="#ffffff" stroke-width="2"/>
+  <path d="M81 91 L89 99 L103 83"
         stroke="#ffffff" stroke-width="5" fill="none"
         stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

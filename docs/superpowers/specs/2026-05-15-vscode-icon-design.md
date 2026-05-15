@@ -23,7 +23,7 @@ The arXiv-red badge intentionally inverts the universal "red = error" convention
 128×128 square, opaque white background. Two foreground elements:
 
 1. **Document (dark editor page)** — rounded rectangle, 64×84 (about one-third of the canvas), top-left biased, leaving room for the badge bottom-right. Contains four left-aligned text lines styled as syntax-highlighted LaTeX source.
-2. **Badge (arXiv-red ✓)** — circle, radius ~22, centred near (92, 92). Overlaps the document's bottom-right corner for a "stamp" feel. Optional 2 px white stroke lifts the badge off the document edge.
+2. **Badge (arXiv-red ✓)** — circle, radius 22, centred at (91, 91). Overlaps the document's bottom-right corner for a "stamp" feel. 2 px white stroke lifts the badge off the document edge and yields a 14 px visual margin on the right and bottom.
 
 Margins are generous (≥14 px on all sides) so platforms that mask icons with rounded corners do not clip content.
 
@@ -37,7 +37,7 @@ Margins are generous (≥14 px on all sides) so platforms that mask icons with r
 | `\section` line | `#fbbf24` (amber-400) | Function/identifier yellow |
 | `\input` line | `#67e8f9` (cyan-300) | Import/path cyan |
 | `\cite` line | `#86efac` (green-300) | Reference green |
-| Badge fill | `#B31B1B` | Cornell red / arXiv signature |
+| Badge fill | `#b31b1b` | Cornell red / arXiv signature |
 | Checkmark stroke | `#ffffff` | High contrast on red |
 | Badge stroke (optional) | `#ffffff` 2 px | Lifts badge off document |
 
