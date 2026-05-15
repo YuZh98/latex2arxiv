@@ -123,3 +123,92 @@ class TestMultifileGraphicspathFixture:
         assert 'figures/fig1.pdf' in names
         assert 'figures/unused_diagram.pdf' not in names
         assert 'spare_notes.tex' not in names
+
+
+class TestGuideE2E:
+    _COMPLEX_AUTHOR_TEX = r"""
+\documentclass{article}
+\title{Complex Author Test Paper}
+\author{Alice Smith\thanks{Supported by NSF grant 12345}
+  \and
+  Bob Jones\thanks{Funded by NIH}
+  \and
+  Carol Wu \\ Department of Statistics \\ MIT}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We propose a novel framework for solving hard problems efficiently.
+The method achieves state-of-the-art results on all benchmarks.
+\end{abstract}
+
+\section{Introduction}
+Main content here.
+
+\end{document}
+"""
+
+    def test_guide_written_alongside_output_zip(self, tmp_path):
+        """convert(guide=True) writes an UPLOAD_GUIDE.txt next to the output zip."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('main.tex', self._COMPLEX_AUTHOR_TEX)
+        inp = tmp_path / 'paper.zip'
+        out = tmp_path / 'paper_out.zip'
+        inp.write_bytes(buf.getvalue())
+        convert(inp, out, guide=True)
+        guide_path = out.with_name('paper_out_UPLOAD_GUIDE.txt')
+        assert guide_path.exists(), "guide file must be written alongside the output zip"
+
+    def test_guide_extracts_all_three_authors_from_complex_block(self, tmp_path):
+        """Authors separated by \\and and affiliation lines via \\\\ are all extracted."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('main.tex', self._COMPLEX_AUTHOR_TEX)
+        inp = tmp_path / 'paper.zip'
+        out = tmp_path / 'paper_out.zip'
+        inp.write_bytes(buf.getvalue())
+        convert(inp, out, guide=True)
+        guide_text = (out.with_name('paper_out_UPLOAD_GUIDE.txt')).read_text()
+        assert 'Alice Smith' in guide_text
+        assert 'Bob Jones' in guide_text
+        assert 'Carol Wu' in guide_text
+
+    def test_guide_excludes_thanks_content_from_author_list(self, tmp_path):
+        """\\thanks{...} footnotes must not appear in the author list in the guide."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('main.tex', self._COMPLEX_AUTHOR_TEX)
+        inp = tmp_path / 'paper.zip'
+        out = tmp_path / 'paper_out.zip'
+        inp.write_bytes(buf.getvalue())
+        convert(inp, out, guide=True)
+        guide_text = (out.with_name('paper_out_UPLOAD_GUIDE.txt')).read_text()
+        assert 'NSF grant' not in guide_text
+        assert 'NIH' not in guide_text
+
+    def test_guide_contains_all_seven_steps(self, tmp_path):
+        """The guide must contain Steps 1 through 7."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('main.tex', self._COMPLEX_AUTHOR_TEX)
+        inp = tmp_path / 'paper.zip'
+        out = tmp_path / 'paper_out.zip'
+        inp.write_bytes(buf.getvalue())
+        convert(inp, out, guide=True)
+        guide_text = (out.with_name('paper_out_UPLOAD_GUIDE.txt')).read_text()
+        for i in range(1, 8):
+            assert f'Step {i}:' in guide_text, f"Step {i}: missing from guide"
+
+    def test_guide_dry_run_suppresses_guide_file(self, tmp_path):
+        """In dry-run mode, the guide file must NOT be written (no output zip produced)."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('main.tex', self._COMPLEX_AUTHOR_TEX)
+        inp = tmp_path / 'paper.zip'
+        out = tmp_path / 'paper_out.zip'
+        inp.write_bytes(buf.getvalue())
+        convert(inp, out, guide=True, dry_run=True)
+        guide_path = out.with_name('paper_out_UPLOAD_GUIDE.txt')
+        assert not guide_path.exists(), "guide must not be written in dry-run mode"
