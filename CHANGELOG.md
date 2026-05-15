@@ -6,14 +6,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-15
+
+v1.0 stability commitment. Promotes the project from Beta to Production/Stable. No new runtime behaviour vs v0.11.0; all substantive changes since are metadata (PyPI classifier), VS Code Marketplace assets (icon, LICENSE, listing rewrite), and CI/format hardening.
+
 ### Added
 - VS Code extension package icon (`vscode-extension/icon.{svg,png}`) wired into the Marketplace listing via `package.json` `"icon"` field (#128)
 - `vscode-extension/LICENSE` so `vsce package` no longer warns and the Marketplace listing shows the licence (#128)
 - Design spec for the icon at `docs/superpowers/specs/2026-05-15-vscode-icon-design.md` (#128)
+- CI `ruff format --check .` step alongside the existing `ruff check .` lint step, with `ruff` pinned to `0.11.*` to match the pre-commit hook so the two enforcement points cannot diverge (#131)
 
 ### Changed
-- PyPI classifier upgraded from `Development Status :: 4 - Beta` to `5 - Production/Stable` ahead of v1.0.0 tag (#129)
-- VS Code extension Marketplace listing rewritten — badges, hero pitch, features list, quick start, troubleshooting; bumped to v0.1.1
+- PyPI classifier upgraded from `Development Status :: 4 - Beta` to `5 - Production/Stable` (#129)
+- VS Code extension Marketplace listing rewritten — badges, hero pitch, features list, quick start, troubleshooting; bumped to v0.1.1 (#130)
+- VS Code extension integration row in main README flipped from `🔜 Planned` to `✅ Manual install` and now points at the published Marketplace listing (#127)
+- Full-repo `pre-commit run --all-files` normalization — 20 .py files ruff-formatted, `docs/overleaf.md` trailing whitespace stripped, `pipeline/__init__.py` EOF fixed. AST-verified reformat-only; 379 tests pass identically before and after (#131)
 
 ## [0.11.0] - 2026-05-15
 

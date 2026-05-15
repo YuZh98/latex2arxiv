@@ -2,16 +2,16 @@
 
 ## Supported versions
 
-`latex2arxiv` currently ships on a rolling-stable model: only the latest
-released minor version receives security fixes.
+As of v1.0, `latex2arxiv` supports the latest two minor versions for at
+least 6 months each. The currently supported lines are:
 
 | Version | Supported          |
 |---------|--------------------|
+| 1.0.x   | :white_check_mark: |
 | 0.11.x  | :white_check_mark: |
 | < 0.11  | :x:                |
 
-Once a 1.0 release is cut, this policy will switch to supporting the
-latest two minor versions for at least 6 months each.
+Once 1.1 ships, the 0.11.x line moves to end-of-life.
 
 ## Reporting a vulnerability
 
