@@ -68,3 +68,42 @@ class TestFixtureManifests:
         assert 'main.tex' in names
         assert 'ch2.tex' in names
         assert 'chapters/ch1.tex' in names
+
+
+class TestOverleafZipHandling:
+    def test_macosx_entries_excluded_from_output(self, tmp_path):
+        """__MACOSX/ Apple metadata and .DS_Store must not appear in the cleaned zip."""
+        main_tex = r'\documentclass{article}\begin{document}Hello world.\end{document}'
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('main.tex', main_tex)
+            zf.writestr('__MACOSX/._main.tex', b'\x00\x05\x16\x07')
+            zf.writestr('__MACOSX/._fig.png', b'\x00\x05\x16\x07')
+            zf.writestr('.DS_Store', b'\x00' * 32)
+        inp = tmp_path / 'overleaf.zip'
+        out = tmp_path / 'out.zip'
+        inp.write_bytes(buf.getvalue())
+        convert(inp, out)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+        assert 'main.tex' in names
+        assert not any('__MACOSX' in n for n in names)
+        assert '.DS_Store' not in names
+
+    def test_wrapper_directory_zip_converts_without_error(self, tmp_path):
+        """Overleaf sometimes wraps all files in a top-level directory inside the zip."""
+        main_tex = r'\documentclass{article}\begin{document}Hello world.\end{document}'
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('MyPaper/main.tex', main_tex)
+            zf.writestr('MyPaper/fig.png', b'PNG')
+            zf.writestr('MyPaper/__MACOSX/._main.tex', b'\x00')
+        inp = tmp_path / 'overleaf_wrapped.zip'
+        out = tmp_path / 'out.zip'
+        inp.write_bytes(buf.getvalue())
+        issues = convert(inp, out)
+        assert len(issues.errors) == 0
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+        assert any('main.tex' in n for n in names)
+        assert not any('__MACOSX' in n for n in names)
