@@ -48,10 +48,13 @@ On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)
 
 ## Who is this for?
 
-- **First time submitting to arXiv?** You have a LaTeX project that compiles locally, but you're not sure what arXiv will accept. latex2arxiv cleans your project, catches errors that would cause rejection, and writes a step-by-step upload guide so you know exactly what to paste where. → `latex2arxiv paper.zip --compile --guide`
-- You wrote your paper in Overleaf and need a clean, arXiv-ready zip without manually pruning files. → [Overleaf → arXiv quickstart](docs/overleaf.md)
-- You want to gate a paper repo's CI on arXiv compliance so a bad merge can't slip through. → `--dry-run` + non-zero exit on `[error]` ([details](#pre-flight-checks))
-- Your paper uses custom revision-tracking macros (`\added`, `\deleted`, `\textcolor{red}{...}`) that you need stripped before submission. → [Custom removal rules](#custom-removal-rules---config)
+**You've never submitted to arXiv before.** Your project compiles locally. arXiv might still reject it for reasons nobody warned you about. `latex2arxiv paper.zip --compile --guide` flags the rejection-causing issues and writes you a copy-paste-ready upload walkthrough.
+
+**You wrote it in Overleaf.** Overleaf gave you 800 files. arXiv wants ~30. [Overleaf → arXiv quickstart →](docs/overleaf.md)
+
+**You're CI-gating a paper repo.** `latex2arxiv paper.zip --dry-run` exits non-zero on rejection-causing errors. Drop it into your build matrix.
+
+**Your paper has revision tracking.** `\added{}`, `\deleted{}`, `\textcolor{red}{}` — gone, no manual cleanup. [Custom removal rules →](#custom-removal-rules---config)
 
 ## What it does
 
@@ -63,7 +66,7 @@ On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)
 | 🚨 **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, missing index files, oversized output, undefined citations, problematic filenames — [full list](#pre-flight-checks) |
 | 🗺️ **Guides you through upload** | `--guide` extracts title, authors, abstract, page/figure/table counts and writes a step-by-step arXiv upload walkthrough |
 
-Also: BibTeX normalization, `\pdfoutput=1` injection, image resizing (Pillow), `--dry-run` preview, `--demo` for first-run, `--flatten` for single-file output, `--json` for CI/tooling integration.
+Also: `--flatten` (single-file output, [docs](docs/flatten.md)), `--json` (CI integration, [schema](docs/json-schema.md)), `--resize` (image downscaling), `--dry-run` (preview without writing), BibTeX normalization, `\pdfoutput=1` injection.
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, and `\bibliography`. Commented-out commands are ignored.
 
@@ -143,7 +146,7 @@ brew tap YuZh98/latex2arxiv
 brew install latex2arxiv
 ```
 
-> **Note:** The first `brew install` may appear to hang for 3–5 minutes while compiling Pillow's C extensions. This is normal — Homebrew builds Python packages from source and suppresses progress output. Use `brew install --verbose latex2arxiv` to see detailed build output.
+> First `brew install` builds Pillow from source — silent for 3–5 min. Add `--verbose` to see progress.
 
 Or, if you get an `externally-managed-environment` error from `pip`, use [`pipx`](https://pipx.pypa.io/):
 
@@ -246,26 +249,44 @@ The brace-balanced matcher correctly handles nested commands like `\deleted{see 
 
 ## `latex2arxiv` vs. `arxiv_latex_cleaner`
 
-[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the incumbent — Google-backed, mature, and cleans well. The key difference: it won't tell you that `\usepackage{minted}` will fail on arXiv, won't produce the `.zip` you upload, and has no exit code for CI gating.
+[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the incumbent — Google-backed, mature, cleans well. Here's how the two compare on the things that change your workflow.
+
+### What only `latex2arxiv` does
 
 | | `latex2arxiv` | `arxiv_latex_cleaner` |
 |---|---|---|
-| Output format | Any input → `.zip` | Cleaned directory |
-| Pre-flight `[error]` / `[warn]` ([details](#pre-flight-checks)) | ✅ | ❌ |
-| Upload walkthrough (`--guide`) | ✅ | ❌ |
-| Non-zero exit on errors | ✅ | ❌ |
+| **Pre-flight `[error]` / `[warn]`** ([details](#pre-flight-checks)) | ✅ | ❌ |
+| **Upload walkthrough** (`--guide`) | ✅ | ❌ |
+| **Non-zero exit on errors** (CI-gateable) | ✅ | ❌ |
+| **Outputs the `.zip` you upload** | ✅ | ❌ |
+| **MCP server** (Claude / Cursor / Copilot) | ✅ | ❌ |
+| **GitHub Action + `pre-commit` hook** | ✅ | ❌ |
+| **VS Code extension** | ✅ | ❌ |
+| **Multiple input forms** (`.zip` / directory / git URL) | ✅ | ❌ |
 | `--compile` preview | ✅ | ❌ |
+| `--dry-run` | ✅ | ❌ |
+| `--demo` | ✅ | ❌ |
 | Auto-detect main `.tex` | ✅ | ❌ |
 | Brace-balanced config | ✅ | ❌ |
-| BibTeX normalization | ✅ | ✅ |
-| `--dry-run` | ✅ | ❌ |
-| Built-in `--demo` | ✅ | ❌ |
-| Image resizing (Pillow) | ✅ | ✅ |
-| MCP server (AI agent integration) | ✅ | ❌ |
-| GitHub Action + `pre-commit` hook | ✅ | ❌ |
+
+### What only `arxiv_latex_cleaner` does
+
+| | `latex2arxiv` | `arxiv_latex_cleaner` |
+|---|---|---|
 | PDF compression (Ghostscript) | ❌ | ✅ |
 | PNG → JPG conversion | ❌ | ✅ |
-| Maturity | 9 regression fixtures, live `pdflatex`+`biber` end-to-end CI | ~5k★, years |
+
+If you need image transcoding for size, run `arxiv_latex_cleaner` first, or use `latex2arxiv --resize PX`.
+
+### Both do
+
+BibTeX normalization · image resizing (Pillow).
+
+### Maturity
+
+| | `latex2arxiv` | `arxiv_latex_cleaner` |
+|---|---|---|
+|  | v1.0 production-stable · 380 tests · Python 3.10–3.13 matrix · live `pdflatex`+`biber` end-to-end CI · 10 regression fixtures | ~5k★, years in production |
 
 ## Integrations
 
@@ -285,3 +306,32 @@ The brace-balanced matcher correctly handles nested commands like `\deleted{see 
 **`\subfile` vs `\input` path resolution** — `\input`/`\include` paths resolve relative to the project root; `\subfile` paths resolve relative to the subfile's own directory. Unusual nested setups may cause images to be incorrectly pruned; use `--compile` to verify.
 
 **`--compile` is a local sanity check** — a successful local compile doesn't guarantee arXiv will compile it. arXiv pins specific TeX Live versions. Always check the [arXiv submission preview](https://arxiv.org/submit) after uploading.
+
+## FAQ
+
+**arXiv rejected my submission even though latex2arxiv said it was clean.**
+Pre-flight catches the documented submission-blocking patterns. arXiv pins specific TeX Live versions and occasionally surfaces new edge cases — always run the [arXiv submission preview](https://arxiv.org/submit) after upload. If you hit a reproducible miss, [file an issue](https://github.com/YuZh98/latex2arxiv/issues) with your project zip.
+
+**What's the difference between `[error]` and `[warn]`?**
+Errors block submission and exit the tool non-zero — use them to gate CI. Warnings are advisory: the build will likely succeed on arXiv but a human should look. Example: missing `.bbl` is a warn (arXiv will run BibTeX); `\usepackage{minted}` is an error (shell-escape isn't allowed).
+
+**My main `.tex` isn't being auto-detected correctly.**
+Auto-detection ranks files containing `\documentclass` by `\input` reference count. For ambiguous projects (response letters next to the paper, multiple `\documentclass` files), pass `--main paper.tex` explicitly.
+
+**Will this modify my original files?**
+No. All output goes to a new `_arxiv.zip` (or whatever path you pass). The source project is read-only.
+
+**My CI step keeps failing on what I thought were just warnings.**
+Warnings don't fail CI. If your build is failing, it's an `[error]` — read the message. Use `--json` for a machine-readable summary.
+
+**Why does `brew install` hang for 3–5 minutes?**
+Homebrew compiles Pillow's C extensions from source and suppresses progress output. Add `--verbose` to see what's happening.
+
+---
+
+⭐ **Found this useful?** [Star on GitHub](https://github.com/YuZh98/latex2arxiv) — it helps others find the tool.
+🐛 **Issues or feature requests:** [github.com/YuZh98/latex2arxiv/issues](https://github.com/YuZh98/latex2arxiv/issues)
+📦 **Install:** `pip install latex2arxiv` · `brew install latex2arxiv` (after `brew tap YuZh98/latex2arxiv`)
+🎬 **Try the demo:** `latex2arxiv --demo --compile --guide`
+
+Made by [Yu Zheng](https://github.com/YuZh98) · MIT License
