@@ -5,6 +5,7 @@ The demo is a self-documenting paper. Sections are ordered by user value,
 not by pipeline order: pruning headline → arXiv compatibility → tex cleanup
 → revision markup → BibTeX → CLI tools.
 """
+
 import struct
 import zlib
 import zipfile
@@ -12,7 +13,7 @@ import zipfile
 files = {}
 
 # ── Main tex file ──────────────────────────────────────────────────────────────
-files['main.tex'] = r"""\documentclass[12pt]{article}
+files["main.tex"] = r"""\documentclass[12pt]{article}
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{booktabs}
@@ -59,7 +60,7 @@ checks for arXiv compatibility, then progressively narrower features.
 """
 
 # ── §1: What gets removed ─────────────────────────────────────────────────────
-files['sections/pruning.tex'] = r"""
+files["sections/pruning.tex"] = r"""
 \section{What Gets Removed}
 
 The converter keeps only files that are provably needed to compile the paper.
@@ -103,7 +104,7 @@ The used figure (Figure~\ref{fig:example}) is kept because it is referenced.
 # \verb|...| so that the literal trigger patterns (\documentclass,
 # \usepackage{minted}, \usepackage{biblatex}) do not appear in the source —
 # otherwise find_main_tex and the pre-flight regexes would fire on them.
-files['sections/compatibility.tex'] = r"""
+files["sections/compatibility.tex"] = r"""
 \section{arXiv Compatibility}
 
 The converter runs pre-flight checks and auto-fixes against arXiv's submission
@@ -161,7 +162,7 @@ The demo intentionally does not trigger any pre-flight errors.
 """
 
 # ── §3: Cleanup of your .tex (comments + draft annotations) ────────────────────
-files['sections/tex_cleanup.tex'] = r"""
+files["sections/tex_cleanup.tex"] = r"""
 \section{Cleanup of Your \texttt{.tex}}
 
 \subsection*{Comment stripping}
@@ -211,7 +212,7 @@ removed using a brace-balanced matcher, not a simple regex.
 """
 
 # ── §4: Revision markup with --config (actually exercises the config) ────────
-files['sections/revision_markup.tex'] = r"""
+files["sections/revision_markup.tex"] = r"""
 \section{Revision Markup with \texttt{-{}-config}}
 
 For project-specific revision markup, ship a YAML config file.
@@ -253,7 +254,7 @@ not a submission file).
 """
 
 # ── §5: BibTeX cleanup ─────────────────────────────────────────────────────────
-files['sections/bibtex.tex'] = r"""
+files["sections/bibtex.tex"] = r"""
 \section{BibTeX Cleanup}
 
 The \texttt{refs.bib} file in this demo contains:
@@ -275,7 +276,7 @@ Without it, the \texttt{.bib} file is passed through unchanged.
 """
 
 # ── §6: Upload Guide (--guide) ─────────────────────────────────────────────────
-files['sections/guide.tex'] = r"""
+files["sections/guide.tex"] = r"""
 \section{Upload Guide (\texttt{-{}-guide})}
 
 Pass \texttt{-{}-guide} and the tool writes a plain-text file alongside your
@@ -325,7 +326,7 @@ to demonstrate the pre-flight warning: the converter detects that
 """
 
 # ── §7: CLI tools & summary line ──────────────────────────────────────────────
-files['sections/cli_tools.tex'] = r"""
+files["sections/cli_tools.tex"] = r"""
 \section{CLI Tools}
 
 \subsection*{Summary line}
@@ -385,14 +386,14 @@ are reading right now.
 """
 
 # ── Unused tex file (should be removed) ───────────────────────────────────────
-files['sections/old_draft.tex'] = r"""
+files["sections/old_draft.tex"] = r"""
 \section{Old Draft}
 This section is not reachable from main.tex and will be deleted.
 """
 
 # ── Bundled config ─────────────────────────────────────────────────────────────
 # Auto-loaded by the --demo path; exercises the brace-balanced config code path.
-files['arxiv_config.yaml'] = r"""# Demo config — auto-applied when running `latex2arxiv --demo`.
+files["arxiv_config.yaml"] = r"""# Demo config — auto-applied when running `latex2arxiv --demo`.
 commands_to_delete:
   - deleted
 
@@ -402,7 +403,7 @@ commands_to_unwrap:
 """
 
 # ── BibTeX ─────────────────────────────────────────────────────────────────────
-files['refs.bib'] = r"""@misc{arxiv_submission,
+files["refs.bib"] = r"""@misc{arxiv_submission,
   author   = {{arXiv}},
   title    = {Submission Guidelines for TeX/LaTeX},
   year     = {2024},
@@ -419,38 +420,42 @@ files['refs.bib'] = r"""@misc{arxiv_submission,
 }
 """
 
+
 # ── Images ─────────────────────────────────────────────────────────────────────
 def _make_png(width=200, height=150) -> bytes:
     """Create a simple gray gradient PNG."""
+
     def chunk(name, data):
-        c = struct.pack('>I', len(data)) + name + data
-        return c + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
-    raw = b''
+        c = struct.pack(">I", len(data)) + name + data
+        return c + struct.pack(">I", zlib.crc32(name + data) & 0xFFFFFFFF)
+
+    raw = b""
     for y in range(height):
-        raw += b'\x00'
+        raw += b"\x00"
         for x in range(width):
             v = int(80 + 120 * x / width)
             raw += bytes([v, v, v])
-    sig = b'\x89PNG\r\n\x1a\n'
-    ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
-    idat = chunk(b'IDAT', zlib.compress(raw))
-    iend = chunk(b'IEND', b'')
+    sig = b"\x89PNG\r\n\x1a\n"
+    ihdr = chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+    idat = chunk(b"IDAT", zlib.compress(raw))
+    iend = chunk(b"IEND", b"")
     return sig + ihdr + idat + iend
 
-files['figures/example.png'] = _make_png()       # used — kept
-files['figures/unused_plot.png'] = _make_png()   # unused — removed
+
+files["figures/example.png"] = _make_png()  # used — kept
+files["figures/unused_plot.png"] = _make_png()  # unused — removed
 
 # ── Junk files (should be removed) ────────────────────────────────────────────
-files['main.aux'] = 'aux content'
-files['main.log'] = 'log content'
-files['.DS_Store'] = 'mac junk'
-files['cover_letter.md'] = 'Dear Editor...'
+files["main.aux"] = "aux content"
+files["main.log"] = "log content"
+files[".DS_Store"] = "mac junk"
+files["cover_letter.md"] = "Dear Editor..."
 
 # ── Write zip ──────────────────────────────────────────────────────────────────
-with zipfile.ZipFile('demo_project.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
+with zipfile.ZipFile("demo_project.zip", "w", zipfile.ZIP_DEFLATED) as zf:
     for name, content in files.items():
         if isinstance(content, str):
-            content = content.encode('utf-8')
+            content = content.encode("utf-8")
         zf.writestr(name, content)
 
 print("Created demo_project.zip")

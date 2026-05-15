@@ -42,7 +42,7 @@ def _extract_authors(tex: str) -> str | None:
 
         # Standard \author{...} — try multiple \author commands first
         all_authors = []
-        for m in re.finditer(r'\\author\s*(?:\[[^\]]*\])?\s*\{', tex):
+        for m in re.finditer(r"\\author\s*(?:\[[^\]]*\])?\s*\{", tex):
             content = _extract_braced(tex, m.end() - 1)
             if content:
                 all_authors.append(content)
@@ -52,46 +52,46 @@ def _extract_authors(tex: str) -> str | None:
             if len(all_authors) > 1:
                 names = []
                 for a in all_authors:
-                    a = re.sub(r'\\[a-zA-Z]+\{[^}]*\}', '', a)
-                    a = re.sub(r'\\[a-zA-Z]+', '', a)
-                    a = re.sub(r'[{}]', '', a)
-                    a = re.sub(r'\s+', ' ', a).strip()
+                    a = re.sub(r"\\[a-zA-Z]+\{[^}]*\}", "", a)
+                    a = re.sub(r"\\[a-zA-Z]+", "", a)
+                    a = re.sub(r"[{}]", "", a)
+                    a = re.sub(r"\s+", " ", a).strip()
                     if a:
                         names.append(a)
-                return ', '.join(names) or None
+                return ", ".join(names) or None
 
             # Single \author{} — parse the content
             content = all_authors[0]
             # Strip \thanks{...} (may contain nested braces)
-            while r'\thanks' in content:
-                tm = re.search(r'\\thanks\s*\{', content)
+            while r"\thanks" in content:
+                tm = re.search(r"\\thanks\s*\{", content)
                 if not tm:
                     break
                 inner = _extract_braced(content, tm.end() - 1)
                 if inner is None:
                     break
-                content = content[:tm.start()] + content[tm.end() + len(inner):]
+                content = content[: tm.start()] + content[tm.end() + len(inner) :]
             # Split by \and
-            content = re.sub(r'\\and\b', '\n@@SEP@@\n', content)
+            content = re.sub(r"\\and\b", "\n@@SEP@@\n", content)
             # Split by \\ ... and ... \\ pattern (affiliation blocks)
-            content = re.sub(r'\\\\\s*and\s*\\\\', '\n@@SEP@@\n', content)
-            content = re.sub(r'(?:^|\\\\)\s*and\s*(?:\\\\|$)', '\n@@SEP@@\n', content)
+            content = re.sub(r"\\\\\s*and\s*\\\\", "\n@@SEP@@\n", content)
+            content = re.sub(r"(?:^|\\\\)\s*and\s*(?:\\\\|$)", "\n@@SEP@@\n", content)
 
-            parts = content.split('@@SEP@@')
+            parts = content.split("@@SEP@@")
             names = []
             for part in parts:
                 # Split by \\ and take the first line (name), skip affiliations
-                lines = [line.strip() for line in re.split(r'\\\\', part)]
+                lines = [line.strip() for line in re.split(r"\\\\", part)]
                 # Filter out affiliation lines
                 candidate_lines = []
                 for line in lines:
-                    line_clean = re.sub(r'\\[a-zA-Z]+\{[^}]*\}', '', line)
-                    line_clean = re.sub(r'\\[a-zA-Z]+', '', line_clean)
-                    line_clean = re.sub(r'[{}]', '', line_clean).strip()
+                    line_clean = re.sub(r"\\[a-zA-Z]+\{[^}]*\}", "", line)
+                    line_clean = re.sub(r"\\[a-zA-Z]+", "", line_clean)
+                    line_clean = re.sub(r"[{}]", "", line_clean).strip()
                     if not line_clean:
                         continue
                     # Skip lines that look like affiliations
-                    if re.search(r'(?i)(department|university|institute|school|college|laboratory|@)', line_clean):
+                    if re.search(r"(?i)(department|university|institute|school|college|laboratory|@)", line_clean):
                         continue
                     candidate_lines.append(line_clean)
                 if candidate_lines:
@@ -99,8 +99,8 @@ def _extract_authors(tex: str) -> str | None:
 
             if names:
                 # Final cleanup
-                result = ', '.join(n for n in names if n)
-                result = re.sub(r'\s+', ' ', result).strip()
+                result = ", ".join(n for n in names if n)
+                result = re.sub(r"\s+", " ", result).strip()
                 return result or None
     except Exception:
         pass
@@ -109,9 +109,7 @@ def _extract_authors(tex: str) -> str | None:
 
 def _extract_abstract(tex: str) -> str | None:
     try:
-        m = re.search(
-            r"\\begin\{abstract\}(.*?)\\end\{abstract\}", tex, re.DOTALL
-        )
+        m = re.search(r"\\begin\{abstract\}(.*?)\\end\{abstract\}", tex, re.DOTALL)
         if m:
             abstract = m.group(1).strip()
             return abstract or None
@@ -145,9 +143,7 @@ def _extract_braced(tex: str, start: int) -> str | None:
 def count_stats(tex_content: str, pdf_path: str | None = None) -> dict:
     """Count figures, tables, and pages."""
     # Strip commented lines
-    lines = [
-        re.sub(r"(?<!\\)%.*", "", line) for line in tex_content.splitlines()
-    ]
+    lines = [re.sub(r"(?<!\\)%.*", "", line) for line in tex_content.splitlines()]
     text = "\n".join(lines)
     figures = len(re.findall(r"\\begin\{figure\*?\}", text))
     tables = len(re.findall(r"\\begin\{table\*?\}", text))
@@ -161,7 +157,9 @@ def _count_pages(pdf_path: str) -> int | None:
     try:
         out = subprocess.run(
             ["pdfinfo", pdf_path],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         for line in out.stdout.splitlines():
             if line.startswith("Pages:"):
@@ -179,9 +177,7 @@ def _count_pages(pdf_path: str) -> int | None:
         return None
 
 
-def format_summary(
-    metadata: dict, stats: dict, output_path: str, output_size_mb: float
-) -> str:
+def format_summary(metadata: dict, stats: dict, output_path: str, output_size_mb: float) -> str:
     """Format short summary block for stdout."""
     title = metadata.get("title") or _FALLBACK
     if title != _FALLBACK and len(title) > 70:

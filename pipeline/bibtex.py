@@ -4,23 +4,37 @@ try:
     import bibtexparser
     from bibtexparser.bwriter import BibTexWriter
     from bibtexparser.bparser import BibTexParser
+
     HAS_BIBTEXPARSER = True
 except ImportError:
     HAS_BIBTEXPARSER = False
 
 # Canonical field order per entry type
 _FIELD_ORDER = [
-    'author', 'title', 'journal', 'booktitle', 'year', 'volume',
-    'number', 'pages', 'publisher', 'address', 'editor',
-    'series', 'edition', 'month', 'doi', 'url', 'note',
+    "author",
+    "title",
+    "journal",
+    "booktitle",
+    "year",
+    "volume",
+    "number",
+    "pages",
+    "publisher",
+    "address",
+    "editor",
+    "series",
+    "edition",
+    "month",
+    "doi",
+    "url",
+    "note",
 ]
 
 # Fields to strip before submission
-_PRIVATE_FIELDS = {'abstract', 'file', 'keywords', 'mendeley-tags', 'annote'}
+_PRIVATE_FIELDS = {"abstract", "file", "keywords", "mendeley-tags", "annote"}
 
 
-def normalize_bibtex(source: str, cited_keys: set | None = None,
-                     warn_fn: Callable[[str], None] | None = None) -> str:
+def normalize_bibtex(source: str, cited_keys: set | None = None, warn_fn: Callable[[str], None] | None = None) -> str:
     _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}", file=__import__("sys").stderr))
     if not HAS_BIBTEXPARSER:
         _warn("bibtexparser not installed; skipping BibTeX normalization")
@@ -34,7 +48,7 @@ def normalize_bibtex(source: str, cited_keys: set | None = None,
     groups: dict[str, list] = {}
     no_key = []
     for entry in db.entries:
-        dedup = (entry.get('doi') or entry.get('title', '')).lower().strip()
+        dedup = (entry.get("doi") or entry.get("title", "")).lower().strip()
         if dedup:
             groups.setdefault(dedup, []).append(entry)
         else:
@@ -47,11 +61,11 @@ def normalize_bibtex(source: str, cited_keys: set | None = None,
         else:
             # Prefer the entry whose ID is actually cited in the tex source
             if cited_keys:
-                cited = [e for e in entries if e['ID'] in cited_keys]
+                cited = [e for e in entries if e["ID"] in cited_keys]
                 chosen = cited[0] if cited else entries[0]
             else:
                 chosen = entries[0]
-            skipped = [e['ID'] for e in entries if e is not chosen]
+            skipped = [e["ID"] for e in entries if e is not chosen]
             for s in skipped:
                 _warn(f"duplicate entry skipped: {s}")
 
@@ -60,7 +74,7 @@ def normalize_bibtex(source: str, cited_keys: set | None = None,
             chosen.pop(f, None)
 
         # Reorder fields
-        ordered = {k: chosen[k] for k in ['ENTRYTYPE', 'ID']}
+        ordered = {k: chosen[k] for k in ["ENTRYTYPE", "ID"]}
         for f in _FIELD_ORDER:
             if f in chosen:
                 ordered[f] = chosen[f]
@@ -72,6 +86,6 @@ def normalize_bibtex(source: str, cited_keys: set | None = None,
     unique_entries.extend(no_key)
     db.entries = unique_entries
     writer = BibTexWriter()
-    writer.indent = '  '
+    writer.indent = "  "
     writer.comma_first = False
     return bibtexparser.dumps(db, writer)

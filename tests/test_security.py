@@ -1,4 +1,5 @@
 """Security regression tests: zip-slip (S3), subprocess timeout (S4), zip-bomb (S8)."""
+
 import subprocess
 import sys
 import zipfile
@@ -14,6 +15,7 @@ from converter import ConverterError, _compile
 
 
 # ── S3: zip-slip guard on second extractall() in _compile ────────────────────
+
 
 class TestS3CompileZipSlip:
     def _make_zip(self, tmp_path: Path, member_name: str, content: bytes = b"evil") -> Path:
@@ -46,6 +48,7 @@ class TestS3CompileZipSlip:
 
 # ── S4: subprocess timeout in _compile ───────────────────────────────────────
 
+
 class TestS4SubprocessTimeout:
     def _make_valid_zip(self, tmp_path: Path) -> Path:
         zp = tmp_path / "proj.zip"
@@ -69,8 +72,7 @@ class TestS4SubprocessTimeout:
         """biber/bibtex timeout must be caught and reported, not propagate."""
         zp = tmp_path / "proj.zip"
         with zipfile.ZipFile(zp, "w") as zf:
-            zf.writestr("main.tex",
-                        r"\documentclass{article}\begin{document}hi\end{document}")
+            zf.writestr("main.tex", r"\documentclass{article}\begin{document}hi\end{document}")
             zf.writestr("refs.bib", "@article{a,title={T},author={A},year={2020}}")
 
         call_count = [0]
@@ -79,9 +81,7 @@ class TestS4SubprocessTimeout:
             call_count[0] += 1
             # First call is pdflatex — let it appear to succeed.
             if cmd[0] == "pdflatex":
-                mock = type("R", (), {"returncode": 0,
-                                      "stdout": b"Output written",
-                                      "stderr": b""})()
+                mock = type("R", (), {"returncode": 0, "stdout": b"Output written", "stderr": b""})()
                 return mock
             # bibtex/biber call — timeout.
             raise subprocess.TimeoutExpired(cmd, 300)
@@ -94,6 +94,7 @@ class TestS4SubprocessTimeout:
 
 
 # ── S8: decompression size cap (zip-bomb guard) ───────────────────────────────
+
 
 class TestS8ZipBombGuard:
     def _make_small_zip(self, tmp_path: Path) -> Path:

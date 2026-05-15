@@ -1,4 +1,5 @@
 """Tests for ReDoS protection in apply_config replacements."""
+
 import time
 import sys
 from pathlib import Path
@@ -28,9 +29,7 @@ class TestReDoSProtection:
         result = apply_config(evil_input, config)
         elapsed = time.monotonic() - start
 
-        assert elapsed < deadline, (
-            f"apply_config took {elapsed:.1f}s — ReDoS guard did not fire in time"
-        )
+        assert elapsed < deadline, f"apply_config took {elapsed:.1f}s — ReDoS guard did not fire in time"
         # Source is returned unchanged when the rule times out.
         assert result == evil_input
 
