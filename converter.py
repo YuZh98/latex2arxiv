@@ -367,6 +367,8 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         # 1. Extract — validate member paths first (zip-slip protection).
         # Aborts before any disk write if a member would escape the temp root
         # via .. or absolute-style paths.
+        if not Path(input_zip).exists():
+            raise ConverterError(f"{input_zip} not found")
         with zipfile.ZipFile(input_zip) as zf:
             total_size = sum(m.file_size for m in zf.infolist())
             if total_size > _MAX_UNCOMPRESSED_BYTES:
