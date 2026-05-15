@@ -1,0 +1,19 @@
+\documentclass{article}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\title{Multi-file \texttt{graphicspath} fixture}
+\author{Test Author}
+\date{2026-05-14}
+
+\begin{document}
+\maketitle
+
+\input{sections/intro}
+
+\section{Main Content}
+This fixture verifies that \texttt{latex2arxiv} correctly resolves
+\verb|\graphicspath| when images are in a subdirectory.
+
+\includegraphics{fig1}
+
+\end{document}

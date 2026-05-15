@@ -107,3 +107,19 @@ class TestOverleafZipHandling:
             names = zf.namelist()
         assert any('main.tex' in n for n in names)
         assert not any('__MACOSX' in n for n in names)
+
+
+class TestMultifileGraphicspathFixture:
+    def test_fixture_10_graphicspath_input_and_pruning(self, tmp_path):
+        """
+        Fixture 10 verifies three behaviors in one shot:
+        - \\input from a subdirectory (sections/intro.tex kept)
+        - \\graphicspath resolution (figures/fig1.pdf kept)
+        - unreferenced file pruning (figures/unused_diagram.pdf and spare_notes.tex removed)
+        """
+        names = _run(_zip_fixture('10-multifile-graphicspath'), tmp_path)
+        assert 'main.tex' in names
+        assert 'sections/intro.tex' in names
+        assert 'figures/fig1.pdf' in names
+        assert 'figures/unused_diagram.pdf' not in names
+        assert 'spare_notes.tex' not in names
