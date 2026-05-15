@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Added
+- VS Code extension package icon (`vscode-extension/icon.{svg,png}`) wired into the Marketplace listing via `package.json` `"icon"` field (#128)
+- `vscode-extension/LICENSE` so `vsce package` no longer warns and the Marketplace listing shows the licence (#128)
+- Design spec for the icon at `docs/superpowers/specs/2026-05-15-vscode-icon-design.md` (#128)
+
 ## [0.11.0] - 2026-05-15
 
 API stability, CI hardening, and test coverage ahead of v1.0. MCP error envelope is now a list (`"errors"` instead of singular `"error"`), which is a breaking change for MCP clients.
