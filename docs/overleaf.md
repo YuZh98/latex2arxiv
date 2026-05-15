@@ -56,22 +56,22 @@ Always check the [arXiv submission preview](https://arxiv.org/submit) PDF before
 
 ## Common Overleaf-specific situations
 
-**Project uses a journal template (`elsarticle.cls`, `IEEEtran.cls`, etc.)**  
+**Project uses a journal template (`elsarticle.cls`, `IEEEtran.cls`, etc.)**
 Most are already in TeX Live, so arXiv has them. `latex2arxiv` warns if you ship a custom `.cls` to make you double-check.
 
-**Project uses `\subfile` for chapters or supplements**  
+**Project uses `\subfile` for chapters or supplements**
 Supported. Dependency tracker handles `\subfile`. Watch for `\subfile`'d files containing `\bibliographystyle` — `latex2arxiv` warns about that case (it's a common cause of duplicate bibliography commands on arXiv).
 
-**Project uses custom revision-tracking macros (`\added`, `\deleted`, `\textcolor{red}{...}`)**  
+**Project uses custom revision-tracking macros (`\added`, `\deleted`, `\textcolor{red}{...}`)**
 Use a YAML config to strip them on the way out. See [Custom removal rules](../README.md#custom-removal-rules---config) and the [`arxiv_config.yaml`](../arxiv_config.yaml) template.
 
-**Project uses biblatex + biber**  
+**Project uses biblatex + biber**
 Supported. `latex2arxiv --compile` detects `\usepackage{biblatex}` or `\addbibresource` and runs `biber` instead of `bibtex`. arXiv compiles biblatex projects too as long as you ship a `.bbl` (or your project still resolves the `.bib`).
 
-**Overleaf project has `__MACOSX/` and `.DS_Store` files**  
+**Overleaf project has `__MACOSX/` and `.DS_Store` files**
 If you ever round-trip through macOS Finder, those folders end up in the zip. `latex2arxiv` ignores them.
 
-**Project is linked to a git remote (GitHub, GitLab, etc.)**  
+**Project is linked to a git remote (GitHub, GitLab, etc.)**
 If your Overleaf project syncs to a git repo, you can skip the zip download entirely:
 
 ```bash

@@ -26,3 +26,4 @@ docs/vscode-extension-handoff.md
 .coverage
 .superpowers/
 docs/superpowers/plans/
+vscode-extension/.vscode/

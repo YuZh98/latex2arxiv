@@ -4,7 +4,7 @@ from pathlib import Path
 
 def _strip_comments(source: str) -> str:
     """Remove LaTeX line comments (% ...) while preserving \\%."""
-    return re.sub(r'(?<!\\)%[^\n]*', '', source)
+    return re.sub(r"(?<!\\)%[^\n]*", "", source)
 
 
 def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
@@ -12,8 +12,8 @@ def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
     Comments are stripped first so commented-out includes are not followed.
     """
     found = set()
-    for cmd in re.findall(r'\\(?:input|include|subfile)\{([^}]+)\}', _strip_comments(source)):
-        p = Path(cmd) if cmd.endswith('.tex') else Path(cmd + '.tex')
+    for cmd in re.findall(r"\\(?:input|include|subfile)\{([^}]+)\}", _strip_comments(source)):
+        p = Path(cmd) if cmd.endswith(".tex") else Path(cmd + ".tex")
         # subfile paths are relative to the including file's directory
         full = (base / p).resolve()
         try:
@@ -25,7 +25,7 @@ def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
         visited.add(full)
         found.add(full)
         if full.exists():
-            child_source = full.read_text(encoding='utf-8', errors='replace')
+            child_source = full.read_text(encoding="utf-8", errors="replace")
             found |= find_included_tex(child_source, full.parent, root, visited)
     return found
 
@@ -40,15 +40,15 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
     Also respects \\graphicspath{{dir1/}{dir2/}} declarations.
     """
     _IMAGE_RE = re.compile(
-        r'\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}'
-        r'|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}'
+        r"\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}"
+        r"|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}"
     )
 
     # Extract all \graphicspath directories from all sources
     graphic_dirs: list[Path] = []
     for src in tex_sources:
-        for m in re.finditer(r'\\graphicspath\{((?:\{[^}]*\})+)\}', _strip_comments(src)):
-            for d in re.findall(r'\{([^}]+)\}', m.group(1)):
+        for m in re.finditer(r"\\graphicspath\{((?:\{[^}]*\})+)\}", _strip_comments(src)):
+            for d in re.findall(r"\{([^}]+)\}", m.group(1)):
                 for base in [root_dir] + tex_dirs:
                     full = (base / d).resolve()
                     try:
@@ -64,7 +64,7 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
         for m in _IMAGE_RE.finditer(_strip_comments(src)):
             ref = (m.group(1) or m.group(2)).strip()
             used_refs.add(ref)
-            candidates = [Path(ref)] + [Path(ref + ext) for ext in ('.pdf', '.png', '.jpg', '.jpeg', '.eps')]
+            candidates = [Path(ref)] + [Path(ref + ext) for ext in (".pdf", ".png", ".jpg", ".jpeg", ".eps")]
             # Try root dir first, then graphicspath dirs, then tex_dir (for \subfile)
             search_dirs = [root_dir] + graphic_dirs
             if tex_dir != root_dir:
@@ -92,15 +92,15 @@ def find_used_style_files(tex_sources: list[str]) -> set:
     used = set()
     for src in tex_sources:
         src = _strip_comments(src)
-        for m in re.finditer(r'\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}', src):
-            for name in m.group(1).split(','):
+        for m in re.finditer(r"\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}", src):
+            for name in m.group(1).split(","):
                 name = name.strip()
-                used.add(name + '.sty')
-                used.add(name + '.cls')
-        for m in re.finditer(r'\\documentclass(?:\[[^\]]*\])?\{([^}]+)\}', src):
+                used.add(name + ".sty")
+                used.add(name + ".cls")
+        for m in re.finditer(r"\\documentclass(?:\[[^\]]*\])?\{([^}]+)\}", src):
             name = m.group(1).strip()
-            used.add(name + '.cls')
-            used.add(name + '.sty')
+            used.add(name + ".cls")
+            used.add(name + ".sty")
     return used
 
 
@@ -109,8 +109,8 @@ def find_cited_keys(tex_sources: list[str]) -> set:
     keys = set()
     for src in tex_sources:
         src = _strip_comments(src)
-        for m in re.finditer(r'\\cite[a-z]*\*?\{([^}]+)\}', src):
-            for key in m.group(1).split(','):
+        for m in re.finditer(r"\\cite[a-z]*\*?\{([^}]+)\}", src):
+            for key in m.group(1).split(","):
                 keys.add(key.strip())
     return keys
 
@@ -124,11 +124,11 @@ def find_used_bib_files(tex_sources: list[str]) -> set:
     used = set()
     for src in tex_sources:
         src = _strip_comments(src)
-        for m in re.finditer(r'\\bibliography\{([^}]+)\}', src):
-            for name in m.group(1).split(','):
+        for m in re.finditer(r"\\bibliography\{([^}]+)\}", src):
+            for name in m.group(1).split(","):
                 name = Path(name.strip()).name
-                used.add(name if name.endswith('.bib') else name + '.bib')
-        for m in re.finditer(r'\\addbibresource\{([^}]+)\}', src):
+                used.add(name if name.endswith(".bib") else name + ".bib")
+        for m in re.finditer(r"\\addbibresource\{([^}]+)\}", src):
             name = Path(m.group(1).strip()).name
-            used.add(name if name.endswith('.bib') else name + '.bib')
+            used.add(name if name.endswith(".bib") else name + ".bib")
     return used

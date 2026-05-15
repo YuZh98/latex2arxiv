@@ -7,8 +7,12 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pipeline.guide import (
-    extract_metadata, count_stats, format_summary, format_guide,
-    _extract_braced, _count_pages,
+    extract_metadata,
+    count_stats,
+    format_summary,
+    format_guide,
+    _extract_braced,
+    _count_pages,
 )
 
 

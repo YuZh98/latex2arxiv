@@ -17,17 +17,18 @@ from mcp.server.fastmcp import FastMCP
 
 from converter import convert, ConverterError
 
-mcp = FastMCP("latex2arxiv", instructions=(
-    "Validates LaTeX projects against arXiv submission requirements. "
-    "Use validate_submission for a dry-run pre-flight check, or "
-    "clean_submission to produce an arXiv-ready zip."
-))
+mcp = FastMCP(
+    "latex2arxiv",
+    instructions=(
+        "Validates LaTeX projects against arXiv submission requirements. "
+        "Use validate_submission for a dry-run pre-flight check, or "
+        "clean_submission to produce an arXiv-ready zip."
+    ),
+)
 
 
-def _error_envelope(errors: list[str], log: str = "",
-                    warnings: list[str] | None = None) -> dict:
-    return {"success": False, "errors": errors,
-            "warnings": warnings or [], "log": log}
+def _error_envelope(errors: list[str], log: str = "", warnings: list[str] | None = None) -> dict:
+    return {"success": False, "errors": errors, "warnings": warnings or [], "log": log}
 
 
 def _safe_root() -> Path:
@@ -53,8 +54,7 @@ def _validate_path(raw: str) -> tuple[Path | None, dict | None]:
     return resolved, None
 
 
-def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
-                 config_path: str | None = None) -> dict:
+def _run_convert(path: str, dry_run: bool, main_hint: str | None = None, config_path: str | None = None) -> dict:
     """Run the converter and capture structured results."""
     inp, err = _validate_path(path)
     if err or inp is None:
@@ -75,33 +75,30 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
     extra_warnings: list[str] = []
     tmp_input_path: Path | None = None
 
-    fd, _tmp = tempfile.mkstemp(suffix='_arxiv.zip')
+    fd, _tmp = tempfile.mkstemp(suffix="_arxiv.zip")
     os.close(fd)
     out = Path(_tmp)
     out_claimed = False  # True when caller receives output_zip and owns cleanup
 
     try:
         if inp.is_dir():
-            tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+            tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
             tmp.close()
             tmp_input_path = Path(tmp.name)
-            with zipfile.ZipFile(tmp_input_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                for file in sorted(inp.rglob('*')):
+            with zipfile.ZipFile(tmp_input_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for file in sorted(inp.rglob("*")):
                     if not file.is_file():
                         continue
                     # Resolve symlinks; skip and warn if they escape the project root.
                     try:
                         file.resolve().relative_to(inp.resolve())
                     except ValueError:
-                        extra_warnings.append(
-                            f"symlink escapes project root and was excluded: "
-                            f"{file.relative_to(inp)}"
-                        )
+                        extra_warnings.append(f"symlink escapes project root and was excluded: {file.relative_to(inp)}")
                         continue
                     parts = file.relative_to(inp).parts
-                    if any(p in {'.git', '__pycache__'} for p in parts):
+                    if any(p in {".git", "__pycache__"} for p in parts):
                         continue
-                    if file.suffix in {'.pyc', '.pyo'}:
+                    if file.suffix in {".pyc", ".pyo"}:
                         continue
                     zf.write(file, file.relative_to(inp))
             inp = tmp_input_path
@@ -109,8 +106,7 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
         buf = StringIO()
         try:
             with redirect_stdout(buf):
-                issues = convert(inp, out, main_hint=main_hint,
-                                 config_path=cfg, dry_run=dry_run)
+                issues = convert(inp, out, main_hint=main_hint, config_path=cfg, dry_run=dry_run)
         except ConverterError as e:
             return _error_envelope([str(e)], buf.getvalue(), extra_warnings)
         except SystemExit:
@@ -118,9 +114,7 @@ def _run_convert(path: str, dry_run: bool, main_hint: str | None = None,
             return _error_envelope([output.strip()], output, extra_warnings)
         except Exception as e:
             output = buf.getvalue()
-            return _error_envelope(
-                [f"unexpected error: {type(e).__name__}: {e}"], output, extra_warnings
-            )
+            return _error_envelope([f"unexpected error: {type(e).__name__}: {e}"], output, extra_warnings)
 
         result: dict = {
             "success": len(issues.errors) == 0,

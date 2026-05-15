@@ -1,5 +1,6 @@
 try:
     from PIL import Image
+
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
@@ -12,7 +13,7 @@ def resize_image(path, max_px: int = DEFAULT_MAX_PX) -> bool:
     """Resize image in-place if its longest side exceeds max_px. Returns True if resized."""
     if not HAS_PIL:
         return False
-    if path.suffix.lower() not in {'.png', '.jpg', '.jpeg'}:
+    if path.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
         return False
     try:
         with Image.open(path) as img:

@@ -1,4 +1,5 @@
 """Tests for pipeline/images.py — resize_image and DEFAULT_MAX_PX."""
+
 import sys
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from pipeline.images import resize_image, DEFAULT_MAX_PX
 
 try:
     from PIL import Image
+
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
@@ -71,6 +73,7 @@ class TestResizeImageNoPIL:
     def test_returns_false_when_no_pil(self, monkeypatch, tmp_path):
         """resize_image returns False when Pillow is unavailable."""
         import pipeline.images as img_mod
+
         monkeypatch.setattr(img_mod, "HAS_PIL", False)
         p = tmp_path / "img.png"
         p.write_bytes(b"fake")

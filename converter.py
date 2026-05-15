@@ -19,9 +19,21 @@ from pathlib import Path
 from importlib import resources
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
-from pipeline.tex import strip_comments, remove_draft_annotations, remove_draft_packages, remove_comment_environments, ensure_pdfoutput
+from pipeline.tex import (
+    strip_comments,
+    remove_draft_annotations,
+    remove_draft_packages,
+    remove_comment_environments,
+    ensure_pdfoutput,
+)
 from pipeline.bibtex import normalize_bibtex
-from pipeline.deps import find_included_tex, find_used_images, find_used_bib_files, find_used_style_files, find_cited_keys
+from pipeline.deps import (
+    find_included_tex,
+    find_used_images,
+    find_used_bib_files,
+    find_used_style_files,
+    find_cited_keys,
+)
 from pipeline.config import load_config, apply_config
 from pipeline.images import resize_image, DEFAULT_MAX_PX
 from pipeline.flatten import flatten_tex
@@ -37,7 +49,7 @@ def _get_version() -> str:
         return "0.0.0+unknown"
 
 
-IMAGE_EXTS = {'.pdf', '.png', '.jpg', '.jpeg', '.eps', '.svg', '.tikz'}
+IMAGE_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".eps", ".svg", ".tikz"}
 
 # Output zip size threshold for advisory warning (MB).
 SIZE_WARN_MB = 50
@@ -48,7 +60,7 @@ _MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024  # 500 MB
 # Packages that require shell-escape; arXiv compiles without it, so these fail.
 # Matched by exact name against comma-split \usepackage arguments, not as a regex
 # substring — otherwise 'pst-pdf' would falsely match inside 'auto-pst-pdf'.
-_SHELL_ESCAPE_PKGS = frozenset({'minted', 'pythontex', 'shellesc', 'auto-pst-pdf', 'pst-pdf'})
+_SHELL_ESCAPE_PKGS = frozenset({"minted", "pythontex", "shellesc", "auto-pst-pdf", "pst-pdf"})
 
 
 class ConverterError(Exception):
@@ -97,12 +109,11 @@ def find_main_tex(root: Path) -> Path | None:
     the main document (contains 'main' or 'arxiv') over response letters,
     supplements, or backups. Warns if the choice is ambiguous.
     """
-    candidates = [p for p in root.rglob('*.tex')
-                  if not any(part.startswith('__MACOSX') for part in p.parts)]
+    candidates = [p for p in root.rglob("*.tex") if not any(part.startswith("__MACOSX") for part in p.parts)]
     with_docclass = []
     for p in candidates:
         try:
-            if r'\documentclass' in p.read_text(encoding='utf-8', errors='replace'):
+            if r"\documentclass" in p.read_text(encoding="utf-8", errors="replace"):
                 with_docclass.append(p)
         except Exception:
             continue
@@ -113,9 +124,9 @@ def find_main_tex(root: Path) -> Path | None:
         return with_docclass[0]
 
     # Multiple candidates: rank by name preference
-    _ARXIV = re.compile(r'arxiv', re.IGNORECASE)
-    _MAIN = re.compile(r'(^|[_\-])main([_\-]|\.tex$)', re.IGNORECASE)
-    _DEPRIORITIZED = re.compile(r'(response|reply|cover|supplement|backup|bak|old|svm)', re.IGNORECASE)
+    _ARXIV = re.compile(r"arxiv", re.IGNORECASE)
+    _MAIN = re.compile(r"(^|[_\-])main([_\-]|\.tex$)", re.IGNORECASE)
+    _DEPRIORITIZED = re.compile(r"(response|reply|cover|supplement|backup|bak|old|svm)", re.IGNORECASE)
 
     def rank(p: Path) -> tuple:
         name = p.name
@@ -137,142 +148,168 @@ def find_main_tex(root: Path) -> Path | None:
     return chosen
 
 
-def _check_compliance(main_tex: Path, all_sources: list[str], root: Path,
-                      tex_files: list[Path] | None,
-                      main_stem: str,
-                      issues: Issues) -> None:
+def _check_compliance(
+    main_tex: Path, all_sources: list[str], root: Path, tex_files: list[Path] | None, main_stem: str, issues: Issues
+) -> None:
     """Compliance checks against arXiv requirements. Records [warn] and [error]."""
-    combined = '\n'.join(all_sources)
+    combined = "\n".join(all_sources)
     # Comment-stripped source for package detection (don't flag commented-out usepackage lines).
-    combined_nc = re.sub(r'(?<!\\)%[^\n]*', '', combined)
+    combined_nc = re.sub(r"(?<!\\)%[^\n]*", "", combined)
 
     # Double-spacing / referee mode. ('doubleblind' is an anonymization flag in
     # classes like acmart, not a spacing flag — do not match it here.)
-    if re.search(r'\\documentclass\[[^\]]*\b(referee|doublespace)\b', combined):
-        issues.warn("'referee' or 'doublespace' option detected in \\documentclass — "
-                    "arXiv requires single-spaced submissions")
-    if re.search(r'\\(doublespacing|setstretch\s*\{[2-9])', combined):
+    if re.search(r"\\documentclass\[[^\]]*\b(referee|doublespace)\b", combined):
+        issues.warn(
+            "'referee' or 'doublespace' option detected in \\documentclass — arXiv requires single-spaced submissions"
+        )
+    if re.search(r"\\(doublespacing|setstretch\s*\{[2-9])", combined):
         issues.warn("double-spacing command detected — arXiv requires single-spaced submissions")
 
     # \today in \date
-    if re.search(r'\\date\s*\{[^}]*\\today', combined):
+    if re.search(r"\\date\s*\{[^}]*\\today", combined):
         issues.warn("\\today used in \\date — arXiv may rebuild the PDF and the date will change")
 
     # .eps images (not supported by pdflatex)
-    for path in root.rglob('*.eps'):
-        issues.warn(f".eps image found: {path.relative_to(root)} — "
-                    "pdflatex does not support .eps; convert to .pdf or .png")
+    for path in root.rglob("*.eps"):
+        issues.warn(
+            f".eps image found: {path.relative_to(root)} — pdflatex does not support .eps; convert to .pdf or .png"
+        )
 
     # \subfile'd documents that contain \bibliographystyle (likely standalone supplements)
     if tex_files:
-        main_src = main_tex.read_text(encoding='utf-8', errors='replace')
-        subfiles = re.findall(r'\\subfile\{([^}]+)\}', re.sub(r'(?<!\\)%[^\n]*', '', main_src))
+        main_src = main_tex.read_text(encoding="utf-8", errors="replace")
+        subfiles = re.findall(r"\\subfile\{([^}]+)\}", re.sub(r"(?<!\\)%[^\n]*", "", main_src))
         for sf in subfiles:
-            sf_path = (main_tex.parent / (sf if sf.endswith('.tex') else sf + '.tex')).resolve()
+            sf_path = (main_tex.parent / (sf if sf.endswith(".tex") else sf + ".tex")).resolve()
             for tf in tex_files:
                 if tf.resolve() == sf_path:
-                    sf_src = tf.read_text(encoding='utf-8', errors='replace')
-                    if re.search(r'\\bibliographystyle\{', sf_src):
-                        issues.warn(f"{tf.relative_to(root.resolve())} (via \\subfile) contains \\bibliographystyle — "
-                                    "if this is a standalone supplement, remove the \\subfile line before arXiv submission "
-                                    "to avoid duplicate bibliography commands")
+                    sf_src = tf.read_text(encoding="utf-8", errors="replace")
+                    if re.search(r"\\bibliographystyle\{", sf_src):
+                        issues.warn(
+                            f"{tf.relative_to(root.resolve())} (via \\subfile) contains \\bibliographystyle — "
+                            "if this is a standalone supplement, remove the \\subfile line before arXiv submission "
+                            "to avoid duplicate bibliography commands"
+                        )
 
     # Shell-escape packages (arXiv compiles without --shell-escape, so these fail).
     # Iterate the comma-separated \usepackage argument so 'pst-pdf' isn't matched
     # as a substring of 'auto-pst-pdf'.
     flagged_shell: set[str] = set()
-    for m in re.finditer(r'\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}', combined_nc):
-        for raw in m.group(1).split(','):
+    for m in re.finditer(r"\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}", combined_nc):
+        for raw in m.group(1).split(","):
             name = raw.strip()
             if name in _SHELL_ESCAPE_PKGS and name not in flagged_shell:
                 flagged_shell.add(name)
-                issues.error(f"\\usepackage{{{name}}} requires shell-escape — arXiv "
-                             "compiles without it; this submission will fail to build")
+                issues.error(
+                    f"\\usepackage{{{name}}} requires shell-escape — arXiv "
+                    "compiles without it; this submission will fail to build"
+                )
 
     # svg package shells out to Inkscape, which arXiv does not provide.
-    if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bsvg\b[^}]*\}', combined_nc):
-        issues.error("\\usepackage{svg} requires Inkscape via shell-escape — arXiv does not "
-                     "provide it; convert .svg figures to .pdf or .png and use "
-                     "\\includegraphics from graphicx")
+    if re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bsvg\b[^}]*\}", combined_nc):
+        issues.error(
+            "\\usepackage{svg} requires Inkscape via shell-escape — arXiv does not "
+            "provide it; convert .svg figures to .pdf or .png and use "
+            "\\includegraphics from graphicx"
+        )
 
     # psfig is no longer supported by arXiv.
-    if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bpsfig\b[^}]*\}', combined_nc):
-        issues.error("\\usepackage{psfig} — arXiv no longer supports the psfig package; "
-                     "convert figure inclusions to \\includegraphics from graphicx")
+    if re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bpsfig\b[^}]*\}", combined_nc):
+        issues.error(
+            "\\usepackage{psfig} — arXiv no longer supports the psfig package; "
+            "convert figure inclusions to \\includegraphics from graphicx"
+        )
 
     # fontspec / unicode-math require XeLaTeX or LuaLaTeX; arXiv defaults to pdfLaTeX.
     # XeLaTeX is available via a 00README.XXX directive (``nohypertex,xelatex``);
     # without that directive the build will fail.
-    for pkg in ('fontspec', 'unicode-math'):
-        if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b' + pkg + r'\b[^}]*\}', combined_nc):
-            issues.error(f"\\usepackage{{{pkg}}} requires XeLaTeX or LuaLaTeX — "
-                         "arXiv defaults to pdfLaTeX; ship a 00README.XXX with "
-                         "'nohypertex,xelatex' to opt into XeLaTeX, otherwise "
-                         "this submission will fail to build")
+    for pkg in ("fontspec", "unicode-math"):
+        if re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\b" + pkg + r"\b[^}]*\}", combined_nc):
+            issues.error(
+                f"\\usepackage{{{pkg}}} requires XeLaTeX or LuaLaTeX — "
+                "arXiv defaults to pdfLaTeX; ship a 00README.XXX with "
+                "'nohypertex,xelatex' to opt into XeLaTeX, otherwise "
+                "this submission will fail to build"
+            )
 
     # xr / xr-hyper break because file paths/locations differ on arXiv's servers.
     # Longer alternative listed first so the captured group prefers xr-hyper over xr.
-    m = re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\b(xr-hyper|xr)\b[^}]*\}', combined_nc)
+    m = re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\b(xr-hyper|xr)\b[^}]*\}", combined_nc)
     if m:
-        issues.warn(f"\\usepackage{{{m.group(1)}}} detected — file paths/locations differ "
-                    "on arXiv and external-document references will likely break; "
-                    "see https://info.arxiv.org/help/submit_tex.html for the recommended workaround")
+        issues.warn(
+            f"\\usepackage{{{m.group(1)}}} detected — file paths/locations differ "
+            "on arXiv and external-document references will likely break; "
+            "see https://info.arxiv.org/help/submit_tex.html for the recommended workaround"
+        )
 
     # arXiv compiles from the submission root; main.tex in a subdirectory will not be found.
     if main_tex.parent != root:
         rel = main_tex.relative_to(root)
-        issues.warn(f"main tex '{rel}' is not at the submission root — "
-                    "arXiv compiles from root and will not find it; move it up "
-                    "or repackage from inside the directory that contains it")
+        issues.warn(
+            f"main tex '{rel}' is not at the submission root — "
+            "arXiv compiles from root and will not find it; move it up "
+            "or repackage from inside the directory that contains it"
+        )
 
     # arXiv does not run makeindex / glossary processors — pre-built files must ship.
     # Without them, the printed section silently disappears.
-    if re.search(r'\\printindex\b', combined_nc) and not any(root.glob('*.ind')):
-        issues.warn("\\printindex used but no .ind file at root — arXiv does not run "
-                    "makeindex; build locally and re-run latex2arxiv (the .ind will be "
-                    "included automatically)")
-    if re.search(r'\\printglossar(?:y|ies)\b', combined_nc) and not any(root.glob('*.gls')):
-        issues.warn("\\printglossary used but no .gls file at root — arXiv does not run "
-                    "the glossaries processor; build locally and re-run latex2arxiv (the "
-                    ".gls will be included automatically)")
-    if re.search(r'\\printnomenclature\b', combined_nc) and not any(root.glob('*.nls')):
-        issues.warn("\\printnomenclature used but no .nls file at root — arXiv does not "
-                    "run makeindex for nomencl; build locally and re-run latex2arxiv (the "
-                    ".nls will be included automatically)")
+    if re.search(r"\\printindex\b", combined_nc) and not any(root.glob("*.ind")):
+        issues.warn(
+            "\\printindex used but no .ind file at root — arXiv does not run "
+            "makeindex; build locally and re-run latex2arxiv (the .ind will be "
+            "included automatically)"
+        )
+    if re.search(r"\\printglossar(?:y|ies)\b", combined_nc) and not any(root.glob("*.gls")):
+        issues.warn(
+            "\\printglossary used but no .gls file at root — arXiv does not run "
+            "the glossaries processor; build locally and re-run latex2arxiv (the "
+            ".gls will be included automatically)"
+        )
+    if re.search(r"\\printnomenclature\b", combined_nc) and not any(root.glob("*.nls")):
+        issues.warn(
+            "\\printnomenclature used but no .nls file at root — arXiv does not "
+            "run makeindex for nomencl; build locally and re-run latex2arxiv (the "
+            ".nls will be included automatically)"
+        )
 
     # biblatex detected: recommend shipping .bbl as a defensive measure.
     # arXiv runs Biber, but Biber/biblatex version mismatches between your
     # local TeX Live and arXiv's can break the bibliography; the .bbl is the
     # robust fallback.
-    if re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}', combined_nc) \
-            or re.search(r'\\addbibresource\{', combined_nc):
+    if re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}", combined_nc) or re.search(
+        r"\\addbibresource\{", combined_nc
+    ):
         bbl = root / f"{main_stem}.bbl"
         if not bbl.exists():
-            issues.warn(f"biblatex detected but no {main_stem}.bbl shipped — "
-                        "arXiv runs Biber, but biblatex/Biber version mismatches can "
-                        "break the bibliography; ship the .bbl as a fallback")
+            issues.warn(
+                f"biblatex detected but no {main_stem}.bbl shipped — "
+                "arXiv runs Biber, but biblatex/Biber version mismatches can "
+                "break the bibliography; ship the .bbl as a fallback"
+            )
 
     # TikZ externalization needs shell-escape to (re)build figures; arXiv won't run it.
     # If the project ships pre-built ``*-figure*.pdf`` files at any depth, the
     # externalization driver will reuse them and the build succeeds.
-    if re.search(r'\\tikzexternalize\b', combined_nc):
-        prebuilt = list(root.rglob('*-figure*.pdf'))
+    if re.search(r"\\tikzexternalize\b", combined_nc):
+        prebuilt = list(root.rglob("*-figure*.pdf"))
         if not prebuilt:
-            issues.error("\\tikzexternalize used but no pre-externalized '*-figure*.pdf' "
-                         "files shipped — arXiv compiles without shell-escape and cannot "
-                         "rebuild externalized figures; build locally and re-run latex2arxiv "
-                         "(or disable externalization for the arXiv submission)")
+            issues.error(
+                "\\tikzexternalize used but no pre-externalized '*-figure*.pdf' "
+                "files shipped — arXiv compiles without shell-escape and cannot "
+                "rebuild externalized figures; build locally and re-run latex2arxiv "
+                "(or disable externalization for the arXiv submission)"
+            )
 
     # Absolute paths in \input / \include / \includegraphics will not resolve on
     # arXiv's build servers. Detect Unix (``/``) and Windows-drive (``C:\`` or ``C:/``) forms.
-    for m in re.finditer(
-        r'\\(?:input|include|includegraphics)(?:\[[^\]]*\])?\s*\{([^}]+)\}', combined_nc
-    ):
+    for m in re.finditer(r"\\(?:input|include|includegraphics)(?:\[[^\]]*\])?\s*\{([^}]+)\}", combined_nc):
         arg = m.group(1).strip()
-        if arg.startswith('/') or re.match(r'^[A-Za-z]:[\\/]', arg):
-            issues.warn(f"absolute path in \\input/\\includegraphics: {arg!r} — arXiv's "
-                        "build servers will not resolve it; use a path relative to the "
-                        "submission root")
+        if arg.startswith("/") or re.match(r"^[A-Za-z]:[\\/]", arg):
+            issues.warn(
+                f"absolute path in \\input/\\includegraphics: {arg!r} — arXiv's "
+                "build servers will not resolve it; use a path relative to the "
+                "submission root"
+            )
 
 
 def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
@@ -289,41 +326,47 @@ def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
         # Walk directory components: rel.parents includes Path('.') as the last
         # element, which we skip.
         for parent in rel.parents:
-            if parent == Path('.'):
+            if parent == Path("."):
                 continue
             dirname = parent.name
-            if ' ' in dirname and parent not in flagged_dir_spaces:
+            if " " in dirname and parent not in flagged_dir_spaces:
                 flagged_dir_spaces.add(parent)
-                issues.warn(f"directory name contains spaces: {parent}/ — "
-                            "rename to avoid \\input/\\includegraphics issues")
+                issues.warn(
+                    f"directory name contains spaces: {parent}/ — rename to avoid \\input/\\includegraphics issues"
+                )
             try:
-                dirname.encode('ascii')
+                dirname.encode("ascii")
             except UnicodeEncodeError:
                 if parent not in flagged_dir_ascii:
                     flagged_dir_ascii.add(parent)
-                    issues.warn(f"directory name contains non-ASCII characters: {parent}/ — "
-                                "rename using ASCII to avoid portability issues")
+                    issues.warn(
+                        f"directory name contains non-ASCII characters: {parent}/ — "
+                        "rename using ASCII to avoid portability issues"
+                    )
 
         name = path.name
 
         # Spaces in filenames cause problems with \input{} resolution.
-        if ' ' in name:
+        if " " in name:
             issues.warn(f"filename contains spaces: {rel} — rename to avoid \\input/\\includegraphics issues")
 
         # Non-ASCII filenames are best avoided in TeX submissions.
         try:
-            name.encode('ascii')
+            name.encode("ascii")
         except UnicodeEncodeError:
-            issues.warn(f"filename contains non-ASCII characters: {rel} — "
-                        "rename using ASCII to avoid portability issues")
+            issues.warn(
+                f"filename contains non-ASCII characters: {rel} — rename using ASCII to avoid portability issues"
+            )
 
 
 def _check_output_size(output_zip: Path, issues: Issues) -> None:
     """Warn if the output zip exceeds the advisory size threshold."""
     size_mb = output_zip.stat().st_size / (1024 * 1024)
     if size_mb > SIZE_WARN_MB:
-        issues.warn(f"output is {size_mb:.1f} MB (> {SIZE_WARN_MB} MB) — "
-                    "consider --resize to shrink images, or split supplementary materials")
+        issues.warn(
+            f"output is {size_mb:.1f} MB (> {SIZE_WARN_MB} MB) — "
+            "consider --resize to shrink images, or split supplementary materials"
+        )
 
 
 def _check_uncompressed_size(kept_files: set[Path], issues: Issues) -> None:
@@ -335,16 +378,17 @@ def _check_uncompressed_size(kept_files: set[Path], issues: Issues) -> None:
     total = sum(p.stat().st_size for p in kept_files if p.is_file())
     size_mb = total / (1024 * 1024)
     if size_mb > SIZE_WARN_MB:
-        issues.warn(f"uncompressed project size is {size_mb:.1f} MB (> {SIZE_WARN_MB} MB) — "
-                    "arXiv soft limit; consider --resize or splitting supplementary materials")
+        issues.warn(
+            f"uncompressed project size is {size_mb:.1f} MB (> {SIZE_WARN_MB} MB) — "
+            "arXiv soft limit; consider --resize or splitting supplementary materials"
+        )
 
 
 def _plural(n: int, word: str) -> str:
     return f"{n} {word}{'' if n == 1 else 's'}"
 
 
-def _print_summary(removed: int, kept: int, issues: Issues,
-                   input_zip: Path, output_zip: Path | None) -> None:
+def _print_summary(removed: int, kept: int, issues: Issues, input_zip: Path, output_zip: Path | None) -> None:
     """One-line conversion summary. Skips size segment in dry-run (no output_zip)."""
     parts = [f"Summary: {removed} removed, {kept} kept"]
     if output_zip is not None:
@@ -352,13 +396,20 @@ def _print_summary(removed: int, kept: int, issues: Issues,
         out_mb = output_zip.stat().st_size / (1024 * 1024)
         parts.append(f"{in_mb:.1f} MB → {out_mb:.1f} MB")
     parts.append(f"{_plural(len(issues.errors), 'error')}, {_plural(len(issues.warnings), 'warning')}")
-    print(' | '.join(parts))
+    print(" | ".join(parts))
 
 
-def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
-            compile_pdf: bool = False, resize: int | None = None,
-            config_path: Path | None = None, dry_run: bool = False,
-            flatten: bool = False, guide: bool = False) -> Issues:
+def convert(
+    input_zip: Path,
+    output_zip: Path,
+    main_hint: str | None = None,
+    compile_pdf: bool = False,
+    resize: int | None = None,
+    config_path: Path | None = None,
+    dry_run: bool = False,
+    flatten: bool = False,
+    guide: bool = False,
+) -> Issues:
     issues = Issues()
     issues.flatten = flatten
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -384,22 +435,20 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                     target.relative_to(root_abs)
                 except ValueError:
                     raise ConverterError(
-                        f"refusing to extract — zip contains a path that "
-                        f"escapes the extraction root: {name!r}"
+                        f"refusing to extract — zip contains a path that escapes the extraction root: {name!r}"
                     )
             zf.extractall(root)
 
         # Unwrap single top-level directory if present.
         # Ignore macOS zip noise (__MACOSX/ metadata sibling, .DS_Store file)
         # so a zip created via the macOS Finder still unwraps cleanly.
-        entries = [p for p in root.iterdir()
-                   if p.name != '__MACOSX' and p.name != '.DS_Store']
+        entries = [p for p in root.iterdir() if p.name != "__MACOSX" and p.name != ".DS_Store"]
         if len(entries) == 1 and entries[0].is_dir():
             root = entries[0]
 
         # 2. Find main .tex and all included .tex files
         if main_hint:
-            main_tex = next((p for p in root.rglob('*.tex') if p.name == main_hint), None)
+            main_tex = next((p for p in root.rglob("*.tex") if p.name == main_hint), None)
             if main_tex is None:
                 raise ConverterError(f"--main '{main_hint}' not found in archive")
         else:
@@ -410,7 +459,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         issues.main_tex = str(main_tex.relative_to(root))
 
         all_tex_files = {main_tex}
-        main_source = main_tex.read_text(encoding='utf-8', errors='replace')
+        main_source = main_tex.read_text(encoding="utf-8", errors="replace")
         all_tex_files |= find_included_tex(main_source, main_tex.parent, root, {main_tex})
 
         # 2b. Optional flatten: inline every \input/\include/\subfile into
@@ -418,11 +467,9 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         # the output zip contains a single .tex.
         if flatten:
             flattened, inlined_paths = flatten_tex(main_tex, root, issues)
-            main_tex.write_text(flattened, encoding='utf-8')
+            main_tex.write_text(flattened, encoding="utf-8")
             _root_resolved = root.resolve()
-            issues.inlined_files = sorted(
-                str(p.relative_to(_root_resolved)) for p in inlined_paths if p.exists()
-            )
+            issues.inlined_files = sorted(str(p.relative_to(_root_resolved)) for p in inlined_paths if p.exists())
             # After flatten, the only .tex left in the dependency set is the
             # main file; the fragments will be pruned from the output zip.
             all_tex_files = {main_tex}
@@ -430,7 +477,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
 
         # Collect sources + their directories for image resolution
         tex_files_list = [p for p in all_tex_files if p.exists()]
-        all_sources = [p.read_text(encoding='utf-8', errors='replace') for p in tex_files_list]
+        all_sources = [p.read_text(encoding="utf-8", errors="replace") for p in tex_files_list]
         tex_dirs = [p.parent for p in tex_files_list]
 
         # Encoding warn: re-read bytes and try strict UTF-8 decoding so we surface
@@ -440,11 +487,13 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         _root_abs = root.resolve()
         for tf in tex_files_list:
             try:
-                tf.read_bytes().decode('utf-8')
+                tf.read_bytes().decode("utf-8")
             except UnicodeDecodeError:
-                issues.warn(f"{tf.resolve().relative_to(_root_abs)} is not valid UTF-8 — "
-                            "re-save as UTF-8 to avoid corrupted accented/special "
-                            "characters in the output")
+                issues.warn(
+                    f"{tf.resolve().relative_to(_root_abs)} is not valid UTF-8 — "
+                    "re-save as UTF-8 to avoid corrupted accented/special "
+                    "characters in the output"
+                )
 
         used_image_paths, used_image_refs = find_used_images(all_sources, tex_dirs, root)
         used_bib_files = find_used_bib_files(all_sources)
@@ -464,20 +513,20 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             whitelist.add(best.resolve())
         # Add used support files (.cls, .sty) and always-keep types (.bst, .ind, .gls, .nls, .bbl)
         main_stem = main_tex.stem
-        for path in root.rglob('*'):
+        for path in root.rglob("*"):
             if not path.is_file():
                 continue
             ext = path.suffix.lower()
             at_root = path.parent == root
-            if ext in {'.cls', '.sty'} and path.name in used_style_files and at_root:
+            if ext in {".cls", ".sty"} and path.name in used_style_files and at_root:
                 whitelist.add(path.resolve())
-            elif ext == '.bst' and at_root:
+            elif ext == ".bst" and at_root:
                 whitelist.add(path.resolve())
-            elif ext == '.bbl' and path.stem == main_stem and at_root:
+            elif ext == ".bbl" and path.stem == main_stem and at_root:
                 whitelist.add(path.resolve())
-            elif ext in {'.ind', '.gls', '.nls'} and at_root:
+            elif ext in {".ind", ".gls", ".nls"} and at_root:
                 whitelist.add(path.resolve())
-            elif at_root and (path.name == '00README' or path.name.startswith('00README.')):
+            elif at_root and (path.name == "00README" or path.name.startswith("00README.")):
                 # arXiv reads 00README / 00README.XXX at root for processor hints,
                 # encoding declarations, and aux file lists.
                 whitelist.add(path.resolve())
@@ -487,7 +536,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         removed_names: list[str] = []
 
         # 3. Process each file
-        for path in list(root.rglob('*')):
+        for path in list(root.rglob("*")):
             if not path.is_file():
                 continue
             rel = path.relative_to(root)
@@ -523,11 +572,11 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                     print(f"  resized: {rel}")
 
             # Process .tex files
-            if path.suffix == '.tex' and path.resolve() in {p.resolve() for p in all_tex_files}:
+            if path.suffix == ".tex" and path.resolve() in {p.resolve() for p in all_tex_files}:
                 if dry_run:
                     print(f"  would process (tex): {rel}")
                 else:
-                    src = path.read_text(encoding='utf-8', errors='replace')
+                    src = path.read_text(encoding="utf-8", errors="replace")
                     src = strip_comments(src)
                     src = remove_comment_environments(src)
                     src = remove_draft_annotations(src)
@@ -536,47 +585,46 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                         src = apply_config(src, user_config, warn_fn=issues.warn)
                     if path == main_tex:
                         src = ensure_pdfoutput(src)
-                    path.write_text(src, encoding='utf-8')
+                    path.write_text(src, encoding="utf-8")
 
             # Process .bib files
-            if path.suffix == '.bib' and path.name in used_bib_files:
+            if path.suffix == ".bib" and path.name in used_bib_files:
                 if dry_run:
                     print(f"  would process (bib): {rel}")
                 else:
-                    src = path.read_text(encoding='utf-8', errors='replace')
+                    src = path.read_text(encoding="utf-8", errors="replace")
                     src = normalize_bibtex(src, cited_keys=cited_keys, warn_fn=issues.warn)
-                    path.write_text(src, encoding='utf-8')
+                    path.write_text(src, encoding="utf-8")
 
         # 3b. Compliance + pre-flight checks
-        _check_compliance(main_tex, all_sources, root,
-                          tex_files=tex_files_list, main_stem=main_stem, issues=issues)
+        _check_compliance(main_tex, all_sources, root, tex_files=tex_files_list, main_stem=main_stem, issues=issues)
         _check_files(root, kept_files, issues)
         _check_uncompressed_size(kept_files, issues)
 
         # Check for undefined citations in cleaned output
         cleaned_sources = []
         for path in kept_files:
-            if path.suffix == '.tex':
+            if path.suffix == ".tex":
                 try:
-                    cleaned_sources.append(path.read_text(encoding='utf-8', errors='replace'))
+                    cleaned_sources.append(path.read_text(encoding="utf-8", errors="replace"))
                 except Exception:
                     pass
         if cleaned_sources:
             final_cited = find_cited_keys(cleaned_sources)
             defined_keys = set()
             for path in kept_files:
-                if path.suffix == '.bib':
+                if path.suffix == ".bib":
                     try:
-                        bib_content = path.read_text(encoding='utf-8', errors='replace')
-                        for m in re.finditer(r'@\w+\{\s*([^,\s]+)', bib_content):
+                        bib_content = path.read_text(encoding="utf-8", errors="replace")
+                        for m in re.finditer(r"@\w+\{\s*([^,\s]+)", bib_content):
                             defined_keys.add(m.group(1).strip())
                     except Exception:
                         pass
             for path in kept_files:
-                if path.suffix == '.bbl':
+                if path.suffix == ".bbl":
                     try:
-                        bbl_content = path.read_text(encoding='utf-8', errors='replace')
-                        for m in re.finditer(r'\\bibitem(?:\[[^\]]*\])?\{([^}]+)\}', bbl_content):
+                        bbl_content = path.read_text(encoding="utf-8", errors="replace")
+                        for m in re.finditer(r"\\bibitem(?:\[[^\]]*\])?\{([^}]+)\}", bbl_content):
                             defined_keys.add(m.group(1).strip())
                     except Exception:
                         pass
@@ -585,15 +633,19 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
                 if undefined:
                     sample = sorted(undefined)[:5]
                     more = f" (and {len(undefined) - 5} more)" if len(undefined) > 5 else ""
-                    issues.warn(f"{len(undefined)} undefined citation(s): {', '.join(sample)}{more} — "
-                                "ensure all cited references exist in your .bib or .bbl file")
+                    issues.warn(
+                        f"{len(undefined)} undefined citation(s): {', '.join(sample)}{more} — "
+                        "ensure all cited references exist in your .bib or .bbl file"
+                    )
 
         # Advisory: custom style/class files
         for path in kept_files:
-            if path.suffix.lower() in {'.cls', '.sty'}:
-                issues.warn(f"custom style file kept: {path.relative_to(root)} — "
-                            "arXiv may suggest removing this; ignore that warning, "
-                            "the file is required for compilation")
+            if path.suffix.lower() in {".cls", ".sty"}:
+                issues.warn(
+                    f"custom style file kept: {path.relative_to(root)} — "
+                    "arXiv may suggest removing this; ignore that warning, "
+                    "the file is required for compilation"
+                )
 
         # Populate JSON-payload fields on the Issues object so --json mode has
         # everything it needs without re-scanning the (possibly cleaned-up)
@@ -606,9 +658,7 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             issues.sizes_input = input_zip.stat().st_size if input_zip.is_file() else None
         except OSError:
             issues.sizes_input = None
-        issues.sizes_uncompressed = sum(
-            p.stat().st_size for p in kept_files if p.is_file()
-        )
+        issues.sizes_uncompressed = sum(p.stat().st_size for p in kept_files if p.is_file())
 
         # 4. Repack
         if dry_run:
@@ -618,8 +668,8 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             issues.sizes_output = None
             return issues
 
-        with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for path in sorted(root.rglob('*')):
+        with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+            for path in sorted(root.rglob("*")):
                 if path.is_file():
                     zf.write(path, path.relative_to(root))
 
@@ -634,11 +684,10 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
         # Read cleaned main tex for metadata extraction
         try:
             with zipfile.ZipFile(output_zip) as zf:
-                main_tex_content = zf.read(issues.main_tex).decode('utf-8', errors='replace')
+                main_tex_content = zf.read(issues.main_tex).decode("utf-8", errors="replace")
                 # Count figures/tables across ALL tex files in the zip
-                all_tex_content = '\n'.join(
-                    zf.read(n).decode('utf-8', errors='replace')
-                    for n in zf.namelist() if n.endswith('.tex')
+                all_tex_content = "\n".join(
+                    zf.read(n).decode("utf-8", errors="replace") for n in zf.namelist() if n.endswith(".tex")
                 )
 
             metadata = extract_metadata(main_tex_content)
@@ -650,10 +699,11 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
             print(format_summary(metadata, stats, str(output_zip), out_size_mb))
 
             if guide:
-                guide_path = output_zip.with_name(output_zip.stem + '_UPLOAD_GUIDE.txt')
-                guide_text = format_guide(metadata, stats, str(output_zip), out_size_mb,
-                                          issues.kept_files, issues.main_tex or '')
-                guide_path.write_text(guide_text, encoding='utf-8')
+                guide_path = output_zip.with_name(output_zip.stem + "_UPLOAD_GUIDE.txt")
+                guide_text = format_guide(
+                    metadata, stats, str(output_zip), out_size_mb, issues.kept_files, issues.main_tex or ""
+                )
+                guide_path.write_text(guide_text, encoding="utf-8")
                 print(f"  Upload guide → {guide_path}")
 
             # Store metadata on issues for JSON output
@@ -664,33 +714,34 @@ def convert(input_zip: Path, output_zip: Path, main_hint: str | None = None,
     if compile_pdf:
         _compile(output_zip, main_hint)
         # Update guide with page count from compiled PDF
-        compiled_pdf = output_zip.with_suffix('.pdf')
-        if compiled_pdf.exists() and hasattr(issues, 'metadata') and issues.metadata:
+        compiled_pdf = output_zip.with_suffix(".pdf")
+        if compiled_pdf.exists() and hasattr(issues, "metadata") and issues.metadata:
             pages = _count_pages(str(compiled_pdf))
             if pages:
-                stats = issues.metadata.get('stats', {})
-                stats['pages'] = pages
-                issues.metadata['stats'] = stats
+                stats = issues.metadata.get("stats", {})
+                stats["pages"] = pages
+                issues.metadata["stats"] = stats
                 print(f"  Pages: {pages}")
                 if guide:
-                    guide_path = output_zip.with_name(output_zip.stem + '_UPLOAD_GUIDE.txt')
+                    guide_path = output_zip.with_name(output_zip.stem + "_UPLOAD_GUIDE.txt")
                     if guide_path.exists():
                         out_size_mb = output_zip.stat().st_size / (1024 * 1024)
-                        meta = {k: v for k, v in issues.metadata.items() if k != 'stats'}
-                        guide_text = format_guide(meta, stats, str(output_zip), out_size_mb,
-                                                  issues.kept_files, issues.main_tex or '')
-                        guide_path.write_text(guide_text, encoding='utf-8')
+                        meta = {k: v for k, v in issues.metadata.items() if k != "stats"}
+                        guide_text = format_guide(
+                            meta, stats, str(output_zip), out_size_mb, issues.kept_files, issues.main_tex or ""
+                        )
+                        guide_path.write_text(guide_text, encoding="utf-8")
     return issues
 
 
 def _open_file(path: Path) -> None:
     """Open a file with the OS default viewer, cross-platform."""
-    if sys.platform == 'win32':
-        subprocess.run(['start', str(path)], shell=True)
-    elif sys.platform == 'darwin':
-        subprocess.run(['open', str(path)])
+    if sys.platform == "win32":
+        subprocess.run(["start", str(path)], shell=True)
+    elif sys.platform == "darwin":
+        subprocess.run(["open", str(path)])
     else:
-        subprocess.run(['xdg-open', str(path)])
+        subprocess.run(["xdg-open", str(path)])
 
 
 def _format_pdflatex_errors(stdout: str, max_errors: int = 5) -> str:
@@ -706,21 +757,21 @@ def _format_pdflatex_errors(stdout: str, max_errors: int = 5) -> str:
     lines = stdout.splitlines()
     blocks: list[str] = []
     for i, line in enumerate(lines):
-        if not line.startswith('!'):
+        if not line.startswith("!"):
             continue
         block = [line]
         for j in range(i + 1, min(i + 7, len(lines))):
-            if lines[j].startswith('!'):
+            if lines[j].startswith("!"):
                 break
-            if lines[j].startswith('l.'):
+            if lines[j].startswith("l."):
                 block.append(lines[j])
                 if j + 1 < len(lines):
                     block.append(lines[j + 1])
                 break
-        blocks.append('\n'.join(block))
+        blocks.append("\n".join(block))
         if len(blocks) >= max_errors:
             break
-    return '\n\n'.join(blocks)
+    return "\n\n".join(blocks)
 
 
 def _compile(output_zip: Path, main_hint: str | None):
@@ -734,20 +785,20 @@ def _compile(output_zip: Path, main_hint: str | None):
                 try:
                     target.relative_to(compile_dir_abs)
                 except ValueError:
-                    raise ConverterError(
-                        f"output zip contains a path-traversal member — "
-                        f"refusing to compile: {name!r}"
-                    )
+                    raise ConverterError(f"output zip contains a path-traversal member — refusing to compile: {name!r}")
             zf.extractall(compile_dir)
 
         # Find main tex
         if main_hint:
-            main_tex = next((p for p in compile_dir.rglob('*.tex') if p.name == main_hint), None)
+            main_tex = next((p for p in compile_dir.rglob("*.tex") if p.name == main_hint), None)
         else:
             main_tex = next(
-                (p for p in compile_dir.rglob('*.tex')
-                 if r'\documentclass' in p.read_text(encoding='utf-8', errors='replace')),
-                None
+                (
+                    p
+                    for p in compile_dir.rglob("*.tex")
+                    if r"\documentclass" in p.read_text(encoding="utf-8", errors="replace")
+                ),
+                None,
             )
         if main_tex is None:
             print("  [compile] ERROR: could not find main .tex in output zip")
@@ -761,18 +812,19 @@ def _compile(output_zip: Path, main_hint: str | None):
         def run_pdflatex(final=False):
             try:
                 result = subprocess.run(
-                    ['pdflatex', '-interaction=nonstopmode', tex_name],
-                    cwd=run_dir, capture_output=True, timeout=300
+                    ["pdflatex", "-interaction=nonstopmode", tex_name], cwd=run_dir, capture_output=True, timeout=300
                 )
             except FileNotFoundError:
-                print("  [compile] pdflatex not found — install TeX Live "
-                      "(https://tug.org/texlive/) or MacTeX to use --compile.")
+                print(
+                    "  [compile] pdflatex not found — install TeX Live "
+                    "(https://tug.org/texlive/) or MacTeX to use --compile."
+                )
                 return False
             except subprocess.TimeoutExpired:
                 print("  [compile] pdflatex timed out after 5 minutes")
                 return False
-            stdout = result.stdout.decode('utf-8', errors='replace')
-            if final and ('! Fatal error' in stdout or ('! ' in stdout and 'Output written' not in stdout)):
+            stdout = result.stdout.decode("utf-8", errors="replace")
+            if final and ("! Fatal error" in stdout or ("! " in stdout and "Output written" not in stdout)):
                 print("  [compile] pdflatex errors:")
                 print(_format_pdflatex_errors(stdout))
                 return False
@@ -784,34 +836,34 @@ def _compile(output_zip: Path, main_hint: str | None):
             return
 
         # Run biber for biblatex projects, else bibtex.
-        bib_files = list(run_dir.rglob('*.bib'))
+        bib_files = list(run_dir.rglob("*.bib"))
         if bib_files:
-            main_nc = re.sub(r'(?<!\\)%[^\n]*', '',
-                             main_tex.read_text(encoding='utf-8', errors='replace'))
+            main_nc = re.sub(r"(?<!\\)%[^\n]*", "", main_tex.read_text(encoding="utf-8", errors="replace"))
             uses_biblatex = bool(
-                re.search(r'\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}', main_nc)
-                or re.search(r'\\addbibresource\{', main_nc)
+                re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}", main_nc)
+                or re.search(r"\\addbibresource\{", main_nc)
             )
-            cmd = 'biber' if uses_biblatex else 'bibtex'
+            cmd = "biber" if uses_biblatex else "bibtex"
             print(f"  Running {cmd} ...")
             try:
-                result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True,
-                                        timeout=300)
+                result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True, timeout=300)
             except FileNotFoundError:
-                print(f"  [compile] {cmd} not found — install it (part of TeX Live) "
-                      f"or pre-compile your .bbl and ship it. Continuing without "
-                      f"bibliography processing; citations will be unresolved.")
+                print(
+                    f"  [compile] {cmd} not found — install it (part of TeX Live) "
+                    f"or pre-compile your .bbl and ship it. Continuing without "
+                    f"bibliography processing; citations will be unresolved."
+                )
                 result = None
             except subprocess.TimeoutExpired:
                 print(f"  [compile] {cmd} timed out after 5 minutes")
                 result = None
             if result is not None and result.returncode != 0:
                 # biber emits to stderr; bibtex emits to stdout — pick whichever has content.
-                err = result.stderr.decode('utf-8', errors='replace').strip()
-                out = result.stdout.decode('utf-8', errors='replace').strip()
+                err = result.stderr.decode("utf-8", errors="replace").strip()
+                out = result.stdout.decode("utf-8", errors="replace").strip()
                 msg = err or out
                 if msg:
-                    tail = '\n'.join(msg.splitlines()[-10:])
+                    tail = "\n".join(msg.splitlines()[-10:])
                     print(f"  [compile] {cmd} failed (exit {result.returncode}):")
                     print(tail)
 
@@ -820,9 +872,9 @@ def _compile(output_zip: Path, main_hint: str | None):
         if not run_pdflatex(final=True):
             return
 
-        pdf = main_tex.with_suffix('.pdf')
+        pdf = main_tex.with_suffix(".pdf")
         if pdf.exists():
-            out_pdf = output_zip.with_suffix('.pdf')
+            out_pdf = output_zip.with_suffix(".pdf")
             shutil.copy(pdf, out_pdf)
             print(f"  PDF → {out_pdf}")
             _open_file(out_pdf)
@@ -832,23 +884,23 @@ def _compile(output_zip: Path, main_hint: str | None):
 
 def _is_git_url(s: str) -> bool:
     """Return True if s looks like a git remote URL."""
-    return s.startswith(('https://', 'http://', 'git://', 'git@', 'ssh://'))
+    return s.startswith(("https://", "http://", "git://", "git@", "ssh://"))
 
 
 # Directories and files to exclude when zipping a directory input.
-_ZIP_EXCLUDE_DIRS = {'.git', '__pycache__', '__MACOSX', '.DS_Store'}
-_ZIP_EXCLUDE_SUFFIXES = {'.pyc', '.pyo'}
-_ZIP_EXCLUDE_NAMES = {'.DS_Store', 'Thumbs.db'}
+_ZIP_EXCLUDE_DIRS = {".git", "__pycache__", "__MACOSX", ".DS_Store"}
+_ZIP_EXCLUDE_SUFFIXES = {".pyc", ".pyo"}
+_ZIP_EXCLUDE_NAMES = {".DS_Store", "Thumbs.db"}
 
 
 def _zip_directory(directory: Path, tmp_list: list[str]) -> Path:
     """Zip a directory into a temp file and return the zip Path."""
     tmp = tempfile.mkdtemp()
     tmp_list.append(tmp)
-    zip_path = Path(tmp) / (directory.name + '.zip')
+    zip_path = Path(tmp) / (directory.name + ".zip")
     root_resolved = directory.resolve()
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for file in sorted(directory.rglob('*')):
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for file in sorted(directory.rglob("*")):
             if not file.is_file():
                 continue
             # Skip symlinks that point outside the project
@@ -876,18 +928,17 @@ def _resolve_input(inp_raw: str, tmp_list: list[str]) -> Path:
         tmp_list.append(clone_dir)
         try:
             subprocess.run(
-                ['git', 'clone', '--depth', '1', inp_raw, clone_dir],
-                check=True, capture_output=True, timeout=300,
+                ["git", "clone", "--depth", "1", inp_raw, clone_dir],
+                check=True,
+                capture_output=True,
+                timeout=300,
             )
         except FileNotFoundError:
             raise ConverterError("git not found — install git to use URL input")
         except subprocess.TimeoutExpired:
             raise ConverterError("git clone timed out after 5 minutes")
         except subprocess.CalledProcessError as e:
-            raise ConverterError(
-                "git clone failed:\n"
-                + e.stderr.decode('utf-8', errors='replace').strip()
-            )
+            raise ConverterError("git clone failed:\n" + e.stderr.decode("utf-8", errors="replace").strip())
         return _zip_directory(Path(clone_dir), tmp_list)
 
     inp = Path(inp_raw)
@@ -939,71 +990,93 @@ def _do_convert(args: argparse.Namespace, cleanup_tmp: list[str]) -> Issues:
     if args.demo:
         try:
             import pipeline as _pipeline_mod
-            ref = resources.files(_pipeline_mod).joinpath('demo_project.zip')
+
+            ref = resources.files(_pipeline_mod).joinpath("demo_project.zip")
             demo_zip = Path(str(ref))
         except Exception:
-            demo_zip = Path(__file__).parent / 'demo_project.zip'
+            demo_zip = Path(__file__).parent / "demo_project.zip"
         if not demo_zip.exists():
             raise ConverterError("demo_project.zip not found in package")
-        out = Path('demo_project_arxiv.zip')
+        out = Path("demo_project_arxiv.zip")
         print(f"Running demo: {demo_zip} → {out}\n")
         with tempfile.TemporaryDirectory() as cfg_tmp:
             demo_config: Path | None = None
             with zipfile.ZipFile(demo_zip) as zf:
                 cfg_name = next(
-                    (n for n in zf.namelist() if Path(n).name == 'arxiv_config.yaml'),
+                    (n for n in zf.namelist() if Path(n).name == "arxiv_config.yaml"),
                     None,
                 )
                 if cfg_name is not None:
-                    demo_config = Path(cfg_tmp) / 'arxiv_config.yaml'
+                    demo_config = Path(cfg_tmp) / "arxiv_config.yaml"
                     demo_config.write_bytes(zf.read(cfg_name))
-            return convert(demo_zip, out, compile_pdf=args.compile,
-                           config_path=demo_config, dry_run=args.dry_run,
-                           flatten=args.flatten, guide=args.guide)
+            return convert(
+                demo_zip,
+                out,
+                compile_pdf=args.compile,
+                config_path=demo_config,
+                dry_run=args.dry_run,
+                flatten=args.flatten,
+                guide=args.guide,
+            )
 
     inp_raw = args.input
     inp = _resolve_input(inp_raw, cleanup_tmp)
     if args.output:
         out = Path(args.output)
     elif _is_git_url(inp_raw):
-        name_part = inp_raw.rstrip('/').rsplit('/', 1)[-1]
-        if ':' in name_part:
-            name_part = name_part.rsplit(':', 1)[-1].rsplit('/', 1)[-1]
-        repo_name = name_part.removesuffix('.git')
+        name_part = inp_raw.rstrip("/").rsplit("/", 1)[-1]
+        if ":" in name_part:
+            name_part = name_part.rsplit(":", 1)[-1].rsplit("/", 1)[-1]
+        repo_name = name_part.removesuffix(".git")
         out = Path(f"{repo_name}_arxiv.zip")
     elif Path(inp_raw).is_dir():
         out = Path(f"{Path(inp_raw).name}_arxiv.zip")
     else:
-        out = inp.with_stem(inp.stem + '_arxiv')
+        out = inp.with_stem(inp.stem + "_arxiv")
     config_path = Path(args.config) if args.config else None
     print(f"Converting {inp_raw} → {out}\n")
-    return convert(inp, out, main_hint=args.main, compile_pdf=args.compile,
-                   resize=args.resize, config_path=config_path, dry_run=args.dry_run,
-                   flatten=args.flatten, guide=args.guide)
+    return convert(
+        inp,
+        out,
+        main_hint=args.main,
+        compile_pdf=args.compile,
+        resize=args.resize,
+        config_path=config_path,
+        dry_run=args.dry_run,
+        flatten=args.flatten,
+        guide=args.guide,
+    )
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Convert LaTeX zip to arXiv-ready zip')
-    parser.add_argument('--version', action='version', version=f'latex2arxiv {_get_version()}')
-    parser.add_argument('input', nargs='?', help='Input .zip file, directory, or git URL')
-    parser.add_argument('output', nargs='?', help='Output .zip file (default: input_arxiv.zip)')
-    parser.add_argument('--main', help='Filename of the main .tex file (e.g. JASA_main.tex)')
-    parser.add_argument('--compile', action='store_true', help='Compile output with pdflatex and open PDF')
-    parser.add_argument('--resize', nargs='?', const=DEFAULT_MAX_PX, type=int, metavar='PX',
-                        help=f'Resize images so longest side <= PX pixels '
-                             f'(default: {DEFAULT_MAX_PX} if given without a value)')
-    parser.add_argument('--config', metavar='FILE',
-                        help='YAML config for custom removal rules (see arxiv_config.yaml)')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='Preview what would be removed/processed without writing any output')
-    parser.add_argument('--demo', action='store_true',
-                        help='Run the built-in demo project (no input file needed)')
-    parser.add_argument('--json', action='store_true',
-                        help='Emit a machine-readable JSON summary on stdout; route progress to stderr')
-    parser.add_argument('--flatten', action='store_true',
-                        help='Inline every \\input / \\include / \\subfile into the main .tex')
-    parser.add_argument('--guide', action='store_true',
-                        help='Write a detailed arXiv upload guide to a text file alongside the output')
+    parser = argparse.ArgumentParser(description="Convert LaTeX zip to arXiv-ready zip")
+    parser.add_argument("--version", action="version", version=f"latex2arxiv {_get_version()}")
+    parser.add_argument("input", nargs="?", help="Input .zip file, directory, or git URL")
+    parser.add_argument("output", nargs="?", help="Output .zip file (default: input_arxiv.zip)")
+    parser.add_argument("--main", help="Filename of the main .tex file (e.g. JASA_main.tex)")
+    parser.add_argument("--compile", action="store_true", help="Compile output with pdflatex and open PDF")
+    parser.add_argument(
+        "--resize",
+        nargs="?",
+        const=DEFAULT_MAX_PX,
+        type=int,
+        metavar="PX",
+        help=f"Resize images so longest side <= PX pixels (default: {DEFAULT_MAX_PX} if given without a value)",
+    )
+    parser.add_argument("--config", metavar="FILE", help="YAML config for custom removal rules (see arxiv_config.yaml)")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview what would be removed/processed without writing any output"
+    )
+    parser.add_argument("--demo", action="store_true", help="Run the built-in demo project (no input file needed)")
+    parser.add_argument(
+        "--json", action="store_true", help="Emit a machine-readable JSON summary on stdout; route progress to stderr"
+    )
+    parser.add_argument(
+        "--flatten", action="store_true", help="Inline every \\input / \\include / \\subfile into the main .tex"
+    )
+    parser.add_argument(
+        "--guide", action="store_true", help="Write a detailed arXiv upload guide to a text file alongside the output"
+    )
     args = parser.parse_args()
 
     # argparse-level validation. Fail fast before setting up stdout capture —
@@ -1057,5 +1130,5 @@ def main():
     sys.exit(exit_code)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

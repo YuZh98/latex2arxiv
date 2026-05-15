@@ -1,4 +1,5 @@
 """Tests for path-traversal boundary checks in flatten.py and deps.py."""
+
 import sys
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from pipeline.deps import find_included_tex, find_used_images
 
 
 # ── flatten.py boundary checks ────────────────────────────────────────────────
+
 
 class TestFlattenTraversal:
     def _make_project(self, tmp_path: Path, files: dict[str, str]) -> Path:
@@ -26,12 +28,15 @@ class TestFlattenTraversal:
         outside = tmp_path / "secret.tex"
         outside.write_text("TOP SECRET CONTENT", encoding="utf-8")
 
-        proj = self._make_project(tmp_path, {
-            "main.tex": r"""\documentclass{article}
+        proj = self._make_project(
+            tmp_path,
+            {
+                "main.tex": r"""\documentclass{article}
 \begin{document}
 \input{../secret}
 \end{document}""",
-        })
+            },
+        )
 
         issues = Issues()
         src, inlined = flatten_tex(proj / "main.tex", proj, issues)
@@ -42,13 +47,16 @@ class TestFlattenTraversal:
 
     def test_legitimate_input_is_inlined(self, tmp_path):
         """A well-formed \\input within the project root must be inlined."""
-        proj = self._make_project(tmp_path, {
-            "main.tex": r"""\documentclass{article}
+        proj = self._make_project(
+            tmp_path,
+            {
+                "main.tex": r"""\documentclass{article}
 \begin{document}
 \input{sections/intro}
 \end{document}""",
-            "sections/intro.tex": "Introduction text.",
-        })
+                "sections/intro.tex": "Introduction text.",
+            },
+        )
 
         issues = Issues()
         src, inlined = flatten_tex(proj / "main.tex", proj, issues)
@@ -68,12 +76,15 @@ OUTSIDE SUBFILE
             encoding="utf-8",
         )
 
-        proj = self._make_project(tmp_path, {
-            "main.tex": r"""\documentclass{article}
+        proj = self._make_project(
+            tmp_path,
+            {
+                "main.tex": r"""\documentclass{article}
 \begin{document}
 \subfile{../secret}
 \end{document}""",
-        })
+            },
+        )
 
         issues = Issues()
         src, inlined = flatten_tex(proj / "main.tex", proj, issues)
@@ -83,6 +94,7 @@ OUTSIDE SUBFILE
 
 
 # ── deps.py boundary checks ───────────────────────────────────────────────────
+
 
 class TestFindIncludedTexTraversal:
     def test_traversal_tex_include_is_excluded(self, tmp_path):

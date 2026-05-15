@@ -2,24 +2,17 @@ import re
 
 
 # Environments where % is not a comment
-_VERBATIM_ENVS = re.compile(
-    r'\\begin\{(verbatim|lstlisting|minted|Verbatim)\}.*?\\end\{\1\}',
-    re.DOTALL
-)
+_VERBATIM_ENVS = re.compile(r"\\begin\{(verbatim|lstlisting|minted|Verbatim)\}.*?\\end\{\1\}", re.DOTALL)
 
 # Inline \verb|...|, \verb*|...|, \lstinline|...|, \mintinline{lang}|...| (any delimiter)
 _VERB_INLINE = re.compile(
-    r'\\(?:verb\*?|lstinline\*?(?:\[[^\]]*\])?|mintinline\*?(?:\[[^\]]*\])?\{[^}]*\})'
-    r'([^a-zA-Z\s]).*?\1'
+    r"\\(?:verb\*?|lstinline\*?(?:\[[^\]]*\])?|mintinline\*?(?:\[[^\]]*\])?\{[^}]*\})"
+    r"([^a-zA-Z\s]).*?\1"
 )
 
 # Brace-delimited forms: \lstinline{...} and \mintinline{lang}{...}
-_LSTINLINE_BRACE = re.compile(
-    r'\\lstinline\*?(?:\[[^\]]*\])?\{'
-)
-_MINTINLINE_BRACE = re.compile(
-    r'\\mintinline\*?(?:\[[^\]]*\])?\{[^}]*\}\{'
-)
+_LSTINLINE_BRACE = re.compile(r"\\lstinline\*?(?:\[[^\]]*\])?\{")
+_MINTINLINE_BRACE = re.compile(r"\\mintinline\*?(?:\[[^\]]*\])?\{[^}]*\}\{")
 
 
 def _protect_verbatim(source: str):
@@ -50,8 +43,8 @@ def _protect_verbatim(source: str):
             if end == -1:
                 break
             key = f"\x00VERBATIM{len(placeholders)}\x00"
-            placeholders[key] = source[m.start():end]
-            source = source[:m.start()] + key + source[end:]
+            placeholders[key] = source[m.start() : end]
+            source = source[: m.start()] + key + source[end:]
 
     return source, placeholders
 
@@ -70,14 +63,14 @@ def strip_comments(source: str) -> str:
     result_lines = []
     for line in protected.splitlines(keepends=True):
         # Find first unescaped %
-        stripped = re.sub(r'(?<!\\)%.*', '', line)
+        stripped = re.sub(r"(?<!\\)%.*", "", line)
         # If the line was entirely a comment (only whitespace remains), drop it
         # to avoid introducing spurious paragraph breaks
-        if stripped.strip() == '' and '%' in line and not line.strip().startswith('\x00'):
+        if stripped.strip() == "" and "%" in line and not line.strip().startswith("\x00"):
             continue
         result_lines.append(stripped)
 
-    stripped = ''.join(result_lines)
+    stripped = "".join(result_lines)
     return _restore_verbatim(stripped, placeholders)
 
 
@@ -88,9 +81,9 @@ def find_balanced(s: str, start: int) -> int:
     depth = 0
     i = start
     while i < len(s):
-        if s[i] == '{':
+        if s[i] == "{":
             depth += 1
-        elif s[i] == '}':
+        elif s[i] == "}":
             depth -= 1
             if depth == 0:
                 return i + 1
@@ -104,12 +97,12 @@ def find_balanced(s: str, start: int) -> int:
 # \NewDocumentCommand is intentionally not listed (rare; users should use
 # package-defined commands when possible).
 _DEF_PREFIX_RE = re.compile(
-    r'(?:'
-    r'\\(?:new|renew|provide)command\*?\s*\{'    # \newcommand{\foo}, \renewcommand{\foo}, \providecommand{\foo}
-    r'|\\DeclareRobustCommand\*?\s*'             # \DeclareRobustCommand\foo or \DeclareRobustCommand{\foo}
-    r'|(?:\\protected\s*)?\\(?:e|x|g)?def\s*'    # \def\foo, \edef\foo, \xdef\foo, \gdef\foo, \protected\def\foo
-    r'|\\let\s*'                                 # \let\foo\bar
-    r')$'
+    r"(?:"
+    r"\\(?:new|renew|provide)command\*?\s*\{"  # \newcommand{\foo}, \renewcommand{\foo}, \providecommand{\foo}
+    r"|\\DeclareRobustCommand\*?\s*"  # \DeclareRobustCommand\foo or \DeclareRobustCommand{\foo}
+    r"|(?:\\protected\s*)?\\(?:e|x|g)?def\s*"  # \def\foo, \edef\foo, \xdef\foo, \gdef\foo, \protected\def\foo
+    r"|\\let\s*"  # \let\foo\bar
+    r")$"
 )
 
 
@@ -121,7 +114,7 @@ def _in_definition_context(source: str, match_start: int) -> bool:
     earlier text rarely produces false positives. Comments are stripped
     before this runs, so commented-out '\\newcommand' lines do not bite.
     """
-    look = source[max(0, match_start - 40):match_start]
+    look = source[max(0, match_start - 40) : match_start]
     return _DEF_PREFIX_RE.search(look) is not None
 
 
@@ -137,12 +130,12 @@ def remove_cmd(source: str, pattern: re.Pattern) -> str:
     result = []
     pos = 0
     for m in pattern.finditer(source):
-        result.append(source[pos:m.start()])
+        result.append(source[pos : m.start()])
         if _in_definition_context(source, m.start()):
             result.append(m.group(0))
             pos = m.end()
             continue
-        brace_start = source.find('{', m.end())
+        brace_start = source.find("{", m.end())
         if brace_start == -1 or brace_start > m.end() + 1:
             result.append(m.group(0))
             pos = m.end()
@@ -150,7 +143,7 @@ def remove_cmd(source: str, pattern: re.Pattern) -> str:
         end = find_balanced(source, brace_start)
         pos = end if end != -1 else m.end()
     result.append(source[pos:])
-    return ''.join(result)
+    return "".join(result)
 
 
 def remove_bare_cmd(source: str, pattern: re.Pattern) -> str:
@@ -160,10 +153,12 @@ def remove_bare_cmd(source: str, pattern: re.Pattern) -> str:
     \\cmd text that wasn't followed by a {...}. Like ``remove_cmd``, leaves
     matches inside a definition context untouched.
     """
+
     def _replace(m):
         if _in_definition_context(source, m.start()):
             return m.group(0)
-        return ''
+        return ""
+
     return pattern.sub(_replace, source)
 
 
@@ -179,12 +174,12 @@ def unwrap_cmd(source: str, pattern: re.Pattern) -> str:
     result = []
     pos = 0
     for m in pattern.finditer(source):
-        result.append(source[pos:m.start()])
+        result.append(source[pos : m.start()])
         if _in_definition_context(source, m.start()):
             result.append(m.group(0))
             pos = m.end()
             continue
-        brace_start = source.find('{', m.end())
+        brace_start = source.find("{", m.end())
         if brace_start == -1 or brace_start > m.end() + 1:
             # No following arg group: treat as switch, remove the match.
             pos = m.end()
@@ -194,10 +189,10 @@ def unwrap_cmd(source: str, pattern: re.Pattern) -> str:
             result.append(m.group(0))
             pos = m.end()
             continue
-        result.append(source[brace_start + 1:end - 1])
+        result.append(source[brace_start + 1 : end - 1])
         pos = end
     result.append(source[pos:])
-    return ''.join(result)
+    return "".join(result)
 
 
 def remove_draft_annotations(source: str) -> str:
@@ -206,31 +201,31 @@ def remove_draft_annotations(source: str) -> str:
     Protects \\verb|...| content from being mangled.
     """
     source, placeholders = _protect_verbatim(source)
-    source = remove_cmd(source, re.compile(r'\\todo(?:\[[^\]]*\])?(?=\{)'))
-    for cmd in ('hl', 'note', 'fixme'):
-        source = remove_cmd(source, re.compile(r'\\' + cmd + r'(?=\{)'))
+    source = remove_cmd(source, re.compile(r"\\todo(?:\[[^\]]*\])?(?=\{)"))
+    for cmd in ("hl", "note", "fixme"):
+        source = remove_cmd(source, re.compile(r"\\" + cmd + r"(?=\{)"))
     return _restore_verbatim(source, placeholders)
 
 
 def remove_draft_packages(source: str) -> str:
     """Remove usepackage lines for draft-only packages."""
-    draft_pkgs = {'todonotes', 'changes', 'trackchanges', 'easy-todo', 'comment'}
+    draft_pkgs = {"todonotes", "changes", "trackchanges", "easy-todo", "comment"}
     lines = source.splitlines(keepends=True)
     result = []
     for line in lines:
         stripped = line.strip()
-        if stripped.startswith(r'\usepackage'):
-            pkg = re.search(r'\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}', stripped)
+        if stripped.startswith(r"\usepackage"):
+            pkg = re.search(r"\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}", stripped)
             if pkg and pkg.group(1).strip() in draft_pkgs:
                 continue
         result.append(line)
-    return ''.join(result)
+    return "".join(result)
 
 
 def remove_comment_environments(source: str) -> str:
     """Remove \\begin{comment}...\\end{comment} blocks and \\iffalse...\\fi blocks."""
-    source = re.sub(r'\\begin\{comment\}.*?\\end\{comment\}', '', source, flags=re.DOTALL)
-    source = re.sub(r'\\iffalse\b.*?\\fi\b', '', source, flags=re.DOTALL)
+    source = re.sub(r"\\begin\{comment\}.*?\\end\{comment\}", "", source, flags=re.DOTALL)
+    source = re.sub(r"\\iffalse\b.*?\\fi\b", "", source, flags=re.DOTALL)
     return source
 
 
@@ -241,5 +236,5 @@ def ensure_pdfoutput(source: str) -> str:
     forces DVI mode and contradicts the PDFLaTeX submission path, so we
     strip any existing \\pdfoutput=N and prepend \\pdfoutput=1.
     """
-    stripped = re.sub(r'\\pdfoutput\s*=\s*\d+\s*\n?', '', source)
-    return r'\pdfoutput=1' + '\n' + stripped
+    stripped = re.sub(r"\\pdfoutput\s*=\s*\d+\s*\n?", "", source)
+    return r"\pdfoutput=1" + "\n" + stripped
