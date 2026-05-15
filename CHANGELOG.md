@@ -6,7 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
-API stability work and CI hardening ahead of v1.0. MCP error envelope is now a list (`"errors"` instead of singular `"error"`), which is a breaking change for MCP clients.
+## [0.11.0] - 2026-05-15
+
+API stability, CI hardening, and test coverage ahead of v1.0. MCP error envelope is now a list (`"errors"` instead of singular `"error"`), which is a breaking change for MCP clients.
 
 ### Added
 - `__all__` in `converter.py` exports the stable public API: `Issues`, `ConverterError`, `convert`
@@ -15,8 +17,14 @@ API stability work and CI hardening ahead of v1.0. MCP error envelope is now a l
 - Coverage gate at 85% in CI; `mcp_server.py` excluded (requires optional `[mcp]` extra)
 - Pre-commit config (ruff, ruff-format, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml)
 - CI Python matrix expanded to 3.10–3.13; `pyyaml`, `mcp`, `fastmcp` added to test deps
+- 55 behavioral audit tests covering all documented features before v1.0 (#122)
+- Fixture manifest assertions: output zip contents verified, not just error/warning counts (#124)
+- Overleaf-style zip tests: `__MACOSX/`, `.DS_Store`, wrapper-directory handling (#124)
+- New fixture `10-multifile-graphicspath`: `\graphicspath` + `\input` from subdirectory + pruning (#124)
+- End-to-end `--guide` tests with complex `\author{}` blocks (#124)
 
 ### Fixed
+- `convert()` raised `FileNotFoundError` on missing input instead of `ConverterError` (#122)
 - `--resize` without a value now uses the default 1600 px instead of exiting with error code 2
 - MCP directory zip excluded `__pycache__`, `.pyc` files, and symlinks escaping the project root
 - Config and BibTeX warnings now routed through `issues.warn` (visible in `--json` and MCP output)
@@ -275,4 +283,5 @@ Initial release. One command converts a LaTeX zip to an arXiv-ready submission.
 
 ---
 
-[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/YuZh98/latex2arxiv/compare/v0.10.0...v0.11.0
