@@ -2,7 +2,7 @@
   "name": "latex2arxiv",
   "displayName": "latex2arxiv",
   "description": "arXiv pre-flight validation for LaTeX projects",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "YuZh98",
   "license": "MIT",
   "icon": "icon.png",
