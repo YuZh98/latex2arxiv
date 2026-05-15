@@ -69,7 +69,7 @@ def test_default_max_px_constant():
 
 class TestResizeImageNoPIL:
     def test_returns_false_when_no_pil(self, monkeypatch, tmp_path):
-        """resize_image returns False immediately when HAS_PIL is False — covers line 14."""
+        """resize_image returns False when Pillow is unavailable."""
         import pipeline.images as img_mod
         monkeypatch.setattr(img_mod, "HAS_PIL", False)
         p = tmp_path / "img.png"
@@ -78,7 +78,7 @@ class TestResizeImageNoPIL:
         assert result is False
 
     def test_exception_in_open_returns_false(self, tmp_path):
-        """Corrupt file raises inside try block — covers lines 27-28."""
+        """Corrupt image file returns False without raising."""
         p = tmp_path / "corrupt.png"
         p.write_bytes(b"this is not a valid PNG")
         result = resize_image(p)
