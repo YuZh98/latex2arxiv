@@ -50,7 +50,7 @@ On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)
 
 **You've never submitted to arXiv before.** Your project compiles locally. arXiv might still reject it for reasons nobody warned you about. `latex2arxiv paper.zip --compile --guide` flags the rejection-causing issues and writes you a copy-paste-ready upload walkthrough.
 
-**You wrote it in Overleaf.** Overleaf gave you 800 files. arXiv wants ~30. [Overleaf → arXiv quickstart →](docs/overleaf.md)
+**You wrote it in Overleaf.** Overleaf gave you hundreds of files and messy tex files. You need to tidy up everything safely.  [Overleaf → arXiv quickstart →](docs/overleaf.md)
 
 **You're CI-gating a paper repo.** `latex2arxiv paper.zip --dry-run` exits non-zero on rejection-causing errors. Drop it into your build matrix.
 
@@ -139,6 +139,13 @@ pip install "latex2arxiv[mcp]"
 pip install latex2arxiv
 ```
 
+> If you get an `externally-managed-environment` error from `pip`, use [`pipx`](https://pipx.pypa.io/):
+
+```bash
+brew install pipx
+pipx install latex2arxiv
+```
+
 On macOS, install via Homebrew (no Python toolchain required):
 
 ```bash
@@ -146,14 +153,7 @@ brew tap YuZh98/latex2arxiv
 brew install latex2arxiv
 ```
 
-> First `brew install` builds Pillow from source — silent for 3–5 min. Add `--verbose` to see progress.
-
-Or, if you get an `externally-managed-environment` error from `pip`, use [`pipx`](https://pipx.pypa.io/):
-
-```bash
-brew install pipx
-pipx install latex2arxiv
-```
+> First `brew install` builds Pillow from source. To avoid 5+ min silence, add `--verbose` to monitor installation progress.
 
 Or from source:
 
@@ -309,29 +309,32 @@ BibTeX normalization · image resizing (Pillow).
 
 ## FAQ
 
-**arXiv rejected my submission even though latex2arxiv said it was clean.**
+**1. arXiv rejected my submission even though latex2arxiv said it was clean.**
 Pre-flight catches the documented submission-blocking patterns. arXiv pins specific TeX Live versions and occasionally surfaces new edge cases — always run the [arXiv submission preview](https://arxiv.org/submit) after upload. If you hit a reproducible miss, [file an issue](https://github.com/YuZh98/latex2arxiv/issues) with your project zip.
 
-**What's the difference between `[error]` and `[warn]`?**
+**2. What's the difference between `[error]` and `[warn]`?**
 Errors block submission and exit the tool non-zero — use them to gate CI. Warnings are advisory: the build will likely succeed on arXiv but a human should look. Example: missing `.bbl` is a warn (arXiv will run BibTeX); `\usepackage{minted}` is an error (shell-escape isn't allowed).
 
-**My main `.tex` isn't being auto-detected correctly.**
+**3. My main `.tex` isn't being auto-detected correctly.**
 Auto-detection ranks files containing `\documentclass` by `\input` reference count. For ambiguous projects (response letters next to the paper, multiple `\documentclass` files), pass `--main paper.tex` explicitly.
 
-**Will this modify my original files?**
+**4. Will this modify my original files?**
 No. All output goes to a new `_arxiv.zip` (or whatever path you pass). The source project is read-only.
 
-**My CI step keeps failing on what I thought were just warnings.**
+**5. My CI step keeps failing on what I thought were just warnings.**
 Warnings don't fail CI. If your build is failing, it's an `[error]` — read the message. Use `--json` for a machine-readable summary.
 
-**Why does `brew install` hang for 3–5 minutes?**
+**6. Why does `brew install` hang for 5+ minutes?**
 Homebrew compiles Pillow's C extensions from source and suppresses progress output. Add `--verbose` to see what's happening.
 
 ---
 
 ⭐ **Found this useful?** [Star on GitHub](https://github.com/YuZh98/latex2arxiv) — it helps others find the tool.
+
 🐛 **Issues or feature requests:** [github.com/YuZh98/latex2arxiv/issues](https://github.com/YuZh98/latex2arxiv/issues)
+
 📦 **Install:** `pip install latex2arxiv` · `brew install latex2arxiv` (after `brew tap YuZh98/latex2arxiv`)
+
 🎬 **Try the demo:** `latex2arxiv --demo --compile --guide`
 
-Made by [Yu Zheng](https://github.com/YuZh98) · MIT License
+Made by [Hugh Zheng](https://github.com/YuZh98) · MIT License
