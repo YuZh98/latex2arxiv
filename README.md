@@ -275,7 +275,7 @@ The brace-balanced matcher correctly handles nested commands like `\deleted{see 
 | GitHub Action | ✅ | [`action.yml`](docs/ci.md) |
 | `pre-commit` hook | ✅ | [`latex2arxiv-dryrun`](docs/ci.md) |
 | MCP server (AI agents) | ✅ | `pip install "latex2arxiv[mcp]"` — [setup](docs/mcp.md) |
-| VS Code extension | 🔜 | Planned |
+| VS Code extension | ✅ | [Manual install](vscode-extension/) — marketplace listing coming soon |
 | Homebrew formula | ✅ | `brew tap YuZh98/latex2arxiv && brew install latex2arxiv` |
 
 ## Known limitations
