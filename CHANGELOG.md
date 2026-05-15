@@ -12,7 +12,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - Design spec for the icon at `docs/superpowers/specs/2026-05-15-vscode-icon-design.md` (#128)
 
 ### Changed
-- PyPI classifier upgraded from `Development Status :: 4 - Beta` to `5 - Production/Stable` ahead of v1.0.0 tag
+- PyPI classifier upgraded from `Development Status :: 4 - Beta` to `5 - Production/Stable` ahead of v1.0.0 tag (#129)
+- VS Code extension Marketplace listing rewritten — badges, hero pitch, features list, quick start, troubleshooting; bumped to v0.1.1
 
 ## [0.11.0] - 2026-05-15
 
