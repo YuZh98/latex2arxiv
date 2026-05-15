@@ -13,7 +13,6 @@ v1.0 stability commitment. Promotes the project from Beta to Production/Stable. 
 ### Added
 - VS Code extension package icon (`vscode-extension/icon.{svg,png}`) wired into the Marketplace listing via `package.json` `"icon"` field (#128)
 - `vscode-extension/LICENSE` so `vsce package` no longer warns and the Marketplace listing shows the licence (#128)
-- Design spec for the icon at `docs/superpowers/specs/2026-05-15-vscode-icon-design.md` (#128)
 - CI `ruff format --check .` step alongside the existing `ruff check .` lint step, with `ruff` pinned to `0.11.*` to match the pre-commit hook so the two enforcement points cannot diverge (#131)
 
 ### Changed

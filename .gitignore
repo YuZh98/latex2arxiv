@@ -25,5 +25,5 @@ demo.cast
 docs/vscode-extension-handoff.md
 .coverage
 .superpowers/
-docs/superpowers/plans/
+docs/superpowers/
 vscode-extension/.vscode/
