@@ -28,10 +28,8 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from converter import Issues
+from pipeline.types import Issues
 
 
 _CMD_RE = re.compile(r"\\(input|include|subfile)\{([^}]+)\}")
@@ -61,7 +59,7 @@ def _strip_subfile_wrapper(raw: str) -> str:
 
 
 def _inline(
-    tex_file: Path, root: Path, in_progress: set[Path], inlined: list[Path], issues: "Issues", *, is_subfile: bool
+    tex_file: Path, root: Path, in_progress: set[Path], inlined: list[Path], issues: Issues, *, is_subfile: bool
 ) -> str:
     """Recursively inline includes in `tex_file`. `in_progress` is the
     current recursion stack — used purely for cycle detection. A file
@@ -97,7 +95,7 @@ def _inline(
 
 
 def _process_line(
-    line: str, tex_file: Path, root: Path, in_progress: set[Path], inlined: list[Path], issues: "Issues"
+    line: str, tex_file: Path, root: Path, in_progress: set[Path], inlined: list[Path], issues: Issues
 ) -> str:
     """Process every \\input / \\include / \\subfile match on a single
     line (in reverse order so character offsets stay valid). Returns
@@ -168,7 +166,7 @@ def _process_line(
     return out
 
 
-def flatten_tex(main_tex: Path, root: Path, issues: "Issues") -> tuple[str, list[Path]]:
+def flatten_tex(main_tex: Path, root: Path, issues: Issues) -> tuple[str, list[Path]]:
     """Inline every \\input / \\include / \\subfile reference reachable
     from `main_tex`. Returns (flattened_source, list_of_inlined_files).
 

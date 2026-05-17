@@ -9,6 +9,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 ### Added
 - Refactor safety net: per-fixture baselines (`tests/baselines/`) for Python-level `Issues`, CLI `--json` dry-run output, and zip member-content hashes; plus `tests/test_refactor_baseline.py` (Python-level detector) gated on Python 3.12 in CI. Internal scaffolding for the upcoming `converter.py` extraction; no user-visible behavior change.
 
+### Changed
+- Refactor: extract `Issues` and `ConverterError` from `converter.py` to `pipeline/types.py`; eliminates the `TYPE_CHECKING` import cycle in `pipeline/flatten.py`. Public API (`from converter import Issues, ConverterError, convert`) preserved via re-export. No behavior change.
+
 ## [1.0.0] - 2026-05-15
 
 v1.0 stability commitment. Promotes the project from Beta to Production/Stable. No new runtime behaviour vs v0.11.0; all substantive changes since are metadata (PyPI classifier), VS Code Marketplace assets (icon, LICENSE, listing rewrite), and CI/format hardening.
