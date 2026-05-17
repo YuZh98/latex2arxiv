@@ -12,6 +12,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 ### Changed
 - Refactor: extract `Issues` and `ConverterError` from `converter.py` to `pipeline/types.py`; eliminates the `TYPE_CHECKING` import cycle in `pipeline/flatten.py`. Public API (`from converter import Issues, ConverterError, convert`) preserved via re-export. No behavior change.
 - Refactor: pre-flight checks (`_check_compliance`, `_check_files`, `_check_output_size`, `_check_uncompressed_size`, `_SHELL_ESCAPE_PKGS`) moved from `converter.py` to `pipeline/preflight.py`. Internal change; no public API or behavior impact.
+- Refactor: input resolution (`find_main_tex`, `_is_git_url`, `_zip_directory`, `_resolve_input`, `_ZIP_EXCLUDE_*` constants) moved from `converter.py` to `pipeline/resolve.py`. Test imports redirected. `find_main_tex` remains importable from `converter` via re-export (NOT yet in `__all__`).
 
 ## [1.0.0] - 2026-05-15
 
