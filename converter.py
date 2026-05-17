@@ -46,6 +46,7 @@ from pipeline.preflight import (
     _check_output_size,
     _check_uncompressed_size,
 )
+from pipeline.build import _compile
 
 __all__ = ["Issues", "ConverterError", "convert"]
 
