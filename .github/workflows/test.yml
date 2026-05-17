@@ -18,6 +18,9 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest tests/ -v
+      - name: Refactor baseline tests (3.12 only)
+        if: matrix.python-version == '3.12'
+        run: pytest tests/test_refactor_baseline.py -v
       - name: Coverage report
         if: matrix.python-version == '3.12'
         run: |

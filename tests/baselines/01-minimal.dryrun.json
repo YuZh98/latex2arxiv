@@ -1,0 +1,29 @@
+{
+  "compile": null,
+  "counts": {
+    "errors": 0,
+    "kept": 1,
+    "removed": 0,
+    "warnings": 0
+  },
+  "dry_run": true,
+  "errors": [],
+  "flatten": false,
+  "inlined_files": [],
+  "input": null,
+  "kept_files": [
+    "main.tex"
+  ],
+  "main_tex": "main.tex",
+  "metadata": null,
+  "output": null,
+  "removed_files": [],
+  "schema_version": 1,
+  "sizes": {
+    "input_bytes": null,
+    "output_bytes": null,
+    "uncompressed_bytes": 681
+  },
+  "version": null,
+  "warnings": []
+}
