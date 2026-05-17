@@ -24,12 +24,15 @@ from pathlib import Path
 import pytest
 
 # Ensure the worktree converter.py wins over any site-packages installation.
-sys.path.insert(0, str(Path(__file__).parent.parent))
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
 
 from converter import Issues, convert  # noqa: E402
 
-FIXTURES = sorted(Path("tests/fixtures").glob("[0-9][0-9]-*"))
-BASELINE_DIR = Path("tests/baselines")
+FIXTURES = sorted((REPO_ROOT / "tests" / "fixtures").glob("[0-9][0-9]-*"))
+BASELINE_DIR = REPO_ROOT / "tests" / "baselines"
+
+assert FIXTURES, f"no fixtures discovered under {REPO_ROOT / 'tests' / 'fixtures'}"
 
 
 def _zip_fixture(fixture_dir: Path, out_zip: Path) -> None:
