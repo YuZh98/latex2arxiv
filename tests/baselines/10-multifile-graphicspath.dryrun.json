@@ -1,0 +1,34 @@
+{
+  "compile": null,
+  "counts": {
+    "errors": 0,
+    "kept": 3,
+    "removed": 2,
+    "warnings": 0
+  },
+  "dry_run": true,
+  "errors": [],
+  "flatten": false,
+  "inlined_files": [],
+  "input": null,
+  "kept_files": [
+    "figures/fig1.pdf",
+    "main.tex",
+    "sections/intro.tex"
+  ],
+  "main_tex": "main.tex",
+  "metadata": null,
+  "output": null,
+  "removed_files": [
+    "spare_notes.tex",
+    "figures/unused_diagram.pdf"
+  ],
+  "schema_version": 1,
+  "sizes": {
+    "input_bytes": null,
+    "output_bytes": null,
+    "uncompressed_bytes": 510
+  },
+  "version": null,
+  "warnings": []
+}

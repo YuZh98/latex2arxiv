@@ -1,0 +1,6 @@
+{
+  "errors": [],
+  "warnings": [
+    "biblatex detected but no main.bbl shipped \u2014 arXiv runs Biber, but biblatex/Biber version mismatches can break the bibliography; ship the .bbl as a fallback"
+  ]
+}

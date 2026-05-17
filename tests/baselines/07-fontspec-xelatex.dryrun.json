@@ -1,0 +1,32 @@
+{
+  "compile": null,
+  "counts": {
+    "errors": 2,
+    "kept": 1,
+    "removed": 0,
+    "warnings": 0
+  },
+  "dry_run": true,
+  "errors": [
+    "\\usepackage{fontspec} requires XeLaTeX or LuaLaTeX \u2014 arXiv defaults to pdfLaTeX; ship a 00README.XXX with 'nohypertex,xelatex' to opt into XeLaTeX, otherwise this submission will fail to build",
+    "\\usepackage{unicode-math} requires XeLaTeX or LuaLaTeX \u2014 arXiv defaults to pdfLaTeX; ship a 00README.XXX with 'nohypertex,xelatex' to opt into XeLaTeX, otherwise this submission will fail to build"
+  ],
+  "flatten": false,
+  "inlined_files": [],
+  "input": null,
+  "kept_files": [
+    "main.tex"
+  ],
+  "main_tex": "main.tex",
+  "metadata": null,
+  "output": null,
+  "removed_files": [],
+  "schema_version": 1,
+  "sizes": {
+    "input_bytes": null,
+    "output_bytes": null,
+    "uncompressed_bytes": 197
+  },
+  "version": null,
+  "warnings": []
+}
