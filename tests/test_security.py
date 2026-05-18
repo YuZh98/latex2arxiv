@@ -11,7 +11,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import converter
-from converter import ConverterError, _compile
+from converter import ConverterError
+from pipeline.build import _compile
 
 
 # ── S3: zip-slip guard on second extractall() in _compile ────────────────────
