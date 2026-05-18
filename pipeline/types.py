@@ -4,6 +4,24 @@ Re-exported from `converter` to preserve the public API:
 `from converter import Issues, ConverterError`.
 """
 
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+@dataclass
+class ConvertContext:
+    """Locals built up by `convert()` before per-file processing begins, bundled
+    so they cross function boundaries cleanly. Fields are the union of what the
+    extracted pipeline helpers (currently `pipeline.process._process_files`)
+    actually read; add new fields only when a helper needs them."""
+
+    root: Path
+    main_tex: Path
+    all_tex_files: set[Path]
+    whitelist: set[Path]
+    user_config: dict[str, Any]
+
 
 class ConverterError(Exception):
     """Fatal converter failure. Raised from within convert() / _resolve_input()

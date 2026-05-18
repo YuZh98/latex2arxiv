@@ -18,15 +18,7 @@ from pathlib import Path
 from importlib import resources
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
-from pipeline.types import Issues, ConverterError
-from pipeline.tex import (
-    strip_comments,
-    remove_draft_annotations,
-    remove_draft_packages,
-    remove_comment_environments,
-    ensure_pdfoutput,
-)
-from pipeline.bibtex import normalize_bibtex
+from pipeline.types import ConvertContext, Issues, ConverterError
 from pipeline.deps import (
     find_included_tex,
     find_used_images,
@@ -34,8 +26,8 @@ from pipeline.deps import (
     find_used_style_files,
     find_cited_keys,
 )
-from pipeline.config import load_config, apply_config
-from pipeline.images import resize_image, DEFAULT_MAX_PX
+from pipeline.config import load_config
+from pipeline.images import DEFAULT_MAX_PX
 from pipeline.flatten import flatten_tex
 from pipeline.guide import extract_metadata, count_stats, format_summary, format_guide, _count_pages
 
@@ -46,6 +38,7 @@ from pipeline.preflight import (
     _check_output_size,
     _check_uncompressed_size,
 )
+from pipeline.process import _process_files
 from pipeline.build import _compile
 
 from pipeline.resolve import (
@@ -63,8 +56,6 @@ def _get_version() -> str:
     except PackageNotFoundError:
         return "0.0.0+unknown"
 
-
-IMAGE_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".eps", ".svg", ".tikz"}
 
 # Maximum total uncompressed size accepted from the input zip (zip-bomb guard).
 _MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024  # 500 MB
@@ -218,69 +209,25 @@ def convert(
                 whitelist.add(path.resolve())
 
         user_config = load_config(config_path, warn_fn=issues.warn) if config_path else {}
-        kept_files: set[Path] = set()
-        removed_names: list[str] = []
 
         # 3. Process each file
-        for path in list(root.rglob("*")):
-            if not path.is_file():
-                continue
-            rel = path.relative_to(root)
-            resolved = path.resolve()
-
-            # Keep only whitelisted files; delete everything else
-            if resolved not in whitelist:
-                # Second chance for images: match by stem/name in case path resolution failed
-                if path.suffix.lower() in IMAGE_EXTS:
-                    name, stem = path.name, path.stem
-                    if name in used_image_refs or stem in used_image_refs:
-                        pass  # keep it
-                    else:
-                        print(f"  remove: {rel}")
-                        removed_names.append(str(rel))
-                        if not dry_run:
-                            path.unlink()
-                        continue
-                else:
-                    print(f"  remove: {rel}")
-                    removed_names.append(str(rel))
-                    if not dry_run:
-                        path.unlink()
-                    continue
-
-            kept_files.add(path)
-
-            # Resize images if requested
-            if resize and path.suffix.lower() in IMAGE_EXTS:
-                if dry_run:
-                    print(f"  would resize: {rel}")
-                elif resize_image(path, max_px=resize):
-                    print(f"  resized: {rel}")
-
-            # Process .tex files
-            if path.suffix == ".tex" and path.resolve() in {p.resolve() for p in all_tex_files}:
-                if dry_run:
-                    print(f"  would process (tex): {rel}")
-                else:
-                    src = path.read_text(encoding="utf-8", errors="replace")
-                    src = strip_comments(src)
-                    src = remove_comment_environments(src)
-                    src = remove_draft_annotations(src)
-                    src = remove_draft_packages(src)
-                    if user_config:
-                        src = apply_config(src, user_config, warn_fn=issues.warn)
-                    if path == main_tex:
-                        src = ensure_pdfoutput(src)
-                    path.write_text(src, encoding="utf-8")
-
-            # Process .bib files
-            if path.suffix == ".bib" and path.name in used_bib_files:
-                if dry_run:
-                    print(f"  would process (bib): {rel}")
-                else:
-                    src = path.read_text(encoding="utf-8", errors="replace")
-                    src = normalize_bibtex(src, cited_keys=cited_keys, warn_fn=issues.warn)
-                    path.write_text(src, encoding="utf-8")
+        ctx = ConvertContext(
+            root=root,
+            main_tex=main_tex,
+            all_tex_files=all_tex_files,
+            whitelist=whitelist,
+            user_config=user_config,
+        )
+        kept_files, removed_names = _process_files(
+            ctx,
+            used_image_refs=used_image_refs,
+            used_bib_files=used_bib_files,
+            cited_keys=cited_keys,
+            resize=resize,
+            dry_run=dry_run,
+            issues=issues,
+            log=print,
+        )
 
         # 3b. Compliance + pre-flight checks
         _check_compliance(main_tex, all_sources, root, tex_files=tex_files_list, main_stem=main_stem, issues=issues)

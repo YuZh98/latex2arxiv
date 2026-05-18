@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ### Changed
 - `SIZE_WARN_MB` now lives in `pipeline/preflight.py`; `converter.SIZE_WARN_MB` is preserved as a backward-compat re-export. Code that monkeypatches the threshold must target `pipeline.preflight.SIZE_WARN_MB` — re-binding `converter.SIZE_WARN_MB` is now ineffective. (#142)
+- Extract per-file processing pass from `convert()` into `pipeline/process.py`; add `pipeline.types.ConvertContext` to carry shared state. `converter.py` drops to 552 LOC. No behavior change.
 
 ## [1.0.1] - 2026-05-17
 
