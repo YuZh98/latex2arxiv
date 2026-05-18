@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Changed
+- `SIZE_WARN_MB` now lives in `pipeline/preflight.py`; `converter.SIZE_WARN_MB` is preserved as a backward-compat re-export. Code that monkeypatches the threshold must target `pipeline.preflight.SIZE_WARN_MB` — re-binding `converter.SIZE_WARN_MB` is now ineffective. (#142)
+
 ## [1.0.1] - 2026-05-17
 
 Internal refactor. No user-visible behavior change vs v1.0.0. Verified on real arXiv-style projects: issues JSON byte-identical, output-zip member-content sha256 byte-identical.

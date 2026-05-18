@@ -40,6 +40,7 @@ from pipeline.flatten import flatten_tex
 from pipeline.guide import extract_metadata, count_stats, format_summary, format_guide, _count_pages
 
 from pipeline.preflight import (
+    SIZE_WARN_MB,  # noqa: F401  re-exported so `converter.SIZE_WARN_MB` keeps working
     _check_compliance,
     _check_files,
     _check_output_size,
@@ -64,9 +65,6 @@ def _get_version() -> str:
 
 
 IMAGE_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".eps", ".svg", ".tikz"}
-
-# Output zip size threshold for advisory warning (MB).
-SIZE_WARN_MB = 50
 
 # Maximum total uncompressed size accepted from the input zip (zip-bomb guard).
 _MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024  # 500 MB

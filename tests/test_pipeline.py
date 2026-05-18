@@ -1236,9 +1236,12 @@ class TestPreflightChecks:
     # ── Uncompressed total-size warning ───────────────────────────────────────
 
     def test_uncompressed_size_warns(self, monkeypatch):
-        import converter
+        # SIZE_WARN_MB lives in pipeline.preflight (the only consumer); the
+        # re-export at `converter.SIZE_WARN_MB` is a backward-compat shim and
+        # is not the live attribute the threshold check reads.
+        import pipeline.preflight
 
-        monkeypatch.setattr(converter, "SIZE_WARN_MB", 0)
+        monkeypatch.setattr(pipeline.preflight, "SIZE_WARN_MB", 0)
         files = {
             "main.tex": r"\documentclass{article}\begin{document}hi\end{document}",
         }
