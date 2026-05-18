@@ -1441,7 +1441,7 @@ class TestFormatPdflatexErrors:
     containment, so the contract is locked in."""
 
     def test_single_error_yields_exact_three_line_block(self):
-        from converter import _format_pdflatex_errors
+        from pipeline.build import _format_pdflatex_errors
 
         stdout = (
             "This is pdfTeX, Version 3.141592653 ...\n"
@@ -1455,7 +1455,7 @@ class TestFormatPdflatexErrors:
         assert _format_pdflatex_errors(stdout) == expected
 
     def test_multiple_errors_separated_by_blank_line(self):
-        from converter import _format_pdflatex_errors
+        from pipeline.build import _format_pdflatex_errors
 
         stdout = (
             "! Undefined control sequence.\n"
@@ -1478,19 +1478,19 @@ class TestFormatPdflatexErrors:
         assert _format_pdflatex_errors(stdout) == expected
 
     def test_error_without_line_marker_yields_just_bang_line(self):
-        from converter import _format_pdflatex_errors
+        from pipeline.build import _format_pdflatex_errors
 
         stdout = "! Fatal error occurred, no output PDF file produced!\n"
         assert _format_pdflatex_errors(stdout) == "! Fatal error occurred, no output PDF file produced!"
 
     def test_no_errors_returns_empty_string(self):
-        from converter import _format_pdflatex_errors
+        from pipeline.build import _format_pdflatex_errors
 
         assert _format_pdflatex_errors("") == ""
         assert _format_pdflatex_errors("This is pdfTeX...\nOutput written.\n") == ""
 
     def test_caps_at_max_errors(self):
-        from converter import _format_pdflatex_errors
+        from pipeline.build import _format_pdflatex_errors
 
         stdout = "\n".join(f"! error number {i}" for i in range(10))
         result = _format_pdflatex_errors(stdout, max_errors=3)
@@ -1500,7 +1500,7 @@ class TestFormatPdflatexErrors:
 
     def test_cascading_bang_before_line_marker_isolates_each(self):
         # The lookahead must stop at the next '!', not borrow the later l.NN.
-        from converter import _format_pdflatex_errors
+        from pipeline.build import _format_pdflatex_errors
 
         stdout = "! First error.\n! Second error.\nl.42 something\n                ctx\n"
         expected = "! First error.\n\n! Second error.\nl.42 something\n                ctx"
@@ -1508,7 +1508,7 @@ class TestFormatPdflatexErrors:
 
     def test_lookahead_window_bounded_at_six_lines(self):
         # If l.NN is >6 lines after '!', it's outside the window — yield only the '!' line.
-        from converter import _format_pdflatex_errors
+        from pipeline.build import _format_pdflatex_errors
 
         stdout = (
             "! Boundary test.\n"
@@ -1544,9 +1544,7 @@ class TestCompileMissingTools:
 
         monkeypatch.setattr(subprocess, "run", raise_fnfe)
         # Block the PDF auto-open in case execution somehow gets that far.
-        import converter as _conv
-
-        monkeypatch.setattr(_conv, "_open_file", lambda p: None)
+        monkeypatch.setattr("pipeline.build._open_file", lambda p: None)
 
         from converter import convert
 
