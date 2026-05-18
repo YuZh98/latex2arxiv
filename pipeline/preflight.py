@@ -14,6 +14,10 @@ from pipeline.types import Issues
 # substring — otherwise 'pst-pdf' would falsely match inside 'auto-pst-pdf'.
 _SHELL_ESCAPE_PKGS = frozenset({"minted", "pythontex", "shellesc", "auto-pst-pdf", "pst-pdf"})
 
+# Output zip size advisory threshold (MB). Re-exported by converter.py for
+# backward-compatible reads; tests monkeypatch this attribute directly.
+SIZE_WARN_MB = 50
+
 
 def _check_compliance(
     main_tex: Path, all_sources: list[str], root: Path, tex_files: list[Path] | None, main_stem: str, issues: Issues
@@ -228,8 +232,6 @@ def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
 
 def _check_output_size(output_zip: Path, issues: Issues) -> None:
     """Warn if the output zip exceeds the advisory size threshold."""
-    from converter import SIZE_WARN_MB
-
     size_mb = output_zip.stat().st_size / (1024 * 1024)
     if size_mb > SIZE_WARN_MB:
         issues.warn(
@@ -244,8 +246,6 @@ def _check_uncompressed_size(kept_files: set[Path], issues: Issues) -> None:
     Compressed output may slip under the threshold thanks to DEFLATE on text and
     PDFs; the uncompressed total is what arXiv displays in the submission UI.
     """
-    from converter import SIZE_WARN_MB
-
     total = sum(p.stat().st_size for p in kept_files if p.is_file())
     size_mb = total / (1024 * 1024)
     if size_mb > SIZE_WARN_MB:
