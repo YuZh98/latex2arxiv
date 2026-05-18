@@ -6,14 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
-### Added
-- Refactor safety net: per-fixture baselines (`tests/baselines/`) for Python-level `Issues`, CLI `--json` dry-run output, and zip member-content hashes; plus `tests/test_refactor_baseline.py` (Python-level detector) gated on Python 3.12 in CI. Internal scaffolding for the upcoming `converter.py` extraction; no user-visible behavior change.
+## [1.0.1] - 2026-05-17
+
+Internal refactor. No user-visible behavior change vs v1.0.0. Verified on real arXiv-style projects: issues JSON byte-identical, output-zip member-content sha256 byte-identical.
 
 ### Changed
-- Refactor: extract `Issues` and `ConverterError` from `converter.py` to `pipeline/types.py`; eliminates the `TYPE_CHECKING` import cycle in `pipeline/flatten.py`. Public API (`from converter import Issues, ConverterError, convert`) preserved via re-export. No behavior change.
+- Restructure `converter.py` (1,134 → 606 LOC, 46% reduction) by extracting four responsibility groups into focused `pipeline/` modules. Public API (`from converter import convert, Issues, ConverterError`) preserved via re-export — no caller-side change required.
+  - `pipeline/types.py` — `Issues`, `ConverterError` (#138)
+  - `pipeline/preflight.py` — `_check_compliance`, `_check_files`, `_check_output_size`, `_check_uncompressed_size`, `_SHELL_ESCAPE_PKGS` (#139)
+  - `pipeline/build.py` — `_open_file`, `_format_pdflatex_errors`, `_compile` (#140)
+  - `pipeline/resolve.py` — `find_main_tex`, `_is_git_url`, `_zip_directory`, `_resolve_input`, `_ZIP_EXCLUDE_*` (#141)
 
-- Refactor: pre-flight checks (`_check_compliance`, `_check_files`, `_check_output_size`, `_check_uncompressed_size`, `_SHELL_ESCAPE_PKGS`) moved from `converter.py` to `pipeline/preflight.py`. Internal change; no public API or behavior impact.
-- Refactor: input resolution (`find_main_tex`, `_is_git_url`, `_zip_directory`, `_resolve_input`, `_ZIP_EXCLUDE_*` constants) moved from `converter.py` to `pipeline/resolve.py`. Test imports redirected. `find_main_tex` remains importable from `converter` via re-export (NOT yet in `__all__`).
+### Added
+- Refactor safety net: per-fixture baselines (`tests/baselines/`) for Python-level `Issues`, CLI `--json` dry-run output, and zip member-content hashes; plus `tests/test_refactor_baseline.py` (Python-level detector) gated on Python 3.12 in CI. Pre-extract AST anchor archived under `docs/adr/`. (#137)
 
 ## [1.0.0] - 2026-05-15
 
