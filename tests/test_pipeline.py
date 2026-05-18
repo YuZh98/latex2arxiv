@@ -1600,23 +1600,23 @@ class TestInputResolution:
     """Tests for _is_git_url, _zip_directory, and _resolve_input."""
 
     def test_is_git_url_https(self):
-        from converter import _is_git_url
+        from pipeline.resolve import _is_git_url
 
         assert _is_git_url("https://github.com/user/repo.git")
         assert _is_git_url("https://github.com/user/repo")
 
     def test_is_git_url_ssh(self):
-        from converter import _is_git_url
+        from pipeline.resolve import _is_git_url
 
         assert _is_git_url("git@github.com:user/repo.git")
 
     def test_is_git_url_git_protocol(self):
-        from converter import _is_git_url
+        from pipeline.resolve import _is_git_url
 
         assert _is_git_url("git://github.com/user/repo.git")
 
     def test_is_git_url_plain_path(self):
-        from converter import _is_git_url
+        from pipeline.resolve import _is_git_url
 
         assert not _is_git_url("paper.zip")
         assert not _is_git_url("/home/user/paper/")
@@ -1641,7 +1641,7 @@ class TestInputResolution:
         assert repo_name == "my-paper"
 
     def test_zip_directory(self, tmp_path):
-        from converter import _zip_directory
+        from pipeline.resolve import _zip_directory
 
         # Create a small directory with a .tex file
         (tmp_path / "main.tex").write_text(r"\documentclass{article}\begin{document}hi\end{document}")
@@ -1665,7 +1665,7 @@ class TestInputResolution:
             shutil.rmtree(d, ignore_errors=True)
 
     def test_zip_directory_excludes_external_symlinks(self, tmp_path):
-        from converter import _zip_directory
+        from pipeline.resolve import _zip_directory
 
         (tmp_path / "main.tex").write_text(r"\documentclass{article}\begin{document}hi\end{document}")
         # External symlink — should be excluded
@@ -1687,7 +1687,7 @@ class TestInputResolution:
             shutil.rmtree(d, ignore_errors=True)
 
     def test_zip_directory_excludes_junk(self, tmp_path):
-        from converter import _zip_directory
+        from pipeline.resolve import _zip_directory
 
         (tmp_path / "main.tex").write_text(r"\documentclass{article}\begin{document}hi\end{document}")
         (tmp_path / "__pycache__").mkdir()
@@ -1711,7 +1711,7 @@ class TestInputResolution:
             shutil.rmtree(d, ignore_errors=True)
 
     def test_resolve_input_directory(self, tmp_path):
-        from converter import _resolve_input
+        from pipeline.resolve import _resolve_input
 
         (tmp_path / "main.tex").write_text(r"\documentclass{article}\begin{document}hi\end{document}")
         cleanup = []
@@ -1724,7 +1724,7 @@ class TestInputResolution:
             shutil.rmtree(d, ignore_errors=True)
 
     def test_resolve_input_zip(self, tmp_path):
-        from converter import _resolve_input
+        from pipeline.resolve import _resolve_input
 
         zip_path = tmp_path / "paper.zip"
         with zipfile.ZipFile(zip_path, "w") as zf:
@@ -1736,7 +1736,8 @@ class TestInputResolution:
 
     def test_directory_input_full_pipeline(self, tmp_path):
         """End-to-end: convert() works on a zip produced from a directory."""
-        from converter import convert, _zip_directory
+        from converter import convert
+        from pipeline.resolve import _zip_directory
 
         # Set up a directory
         src = tmp_path / "project"
@@ -2684,7 +2685,7 @@ class TestConverterInternalFunctions:
 
     def test_resolve_input_with_directory_zips_and_excludes_pycache(self, tmp_path):
         """Directory input is zipped; __pycache__ and .pyc files are excluded."""
-        from converter import _resolve_input
+        from pipeline.resolve import _resolve_input
 
         proj = tmp_path / "proj"
         proj.mkdir()
