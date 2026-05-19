@@ -176,10 +176,14 @@ class TestDirectoryZip:
         pycache = proj / "__pycache__"
         pycache.mkdir()
         (pycache / "module.cpython-312.pyc").write_bytes(b"fake")
-        result = validate_submission(str(proj))
-        # __pycache__ file must not enter the zip at all — if it did,
-        # the converter would log "remove: __pycache__/..." before dropping it.
-        assert "__pycache__" not in result.get("log", "")
+        out_path = str(tmp_path / "out.zip")
+        result = clean_submission(str(proj), output_path=out_path)
+        assert result["success"] is True
+        # __pycache__ must not enter the output zip at all.
+        with zipfile.ZipFile(out_path) as zf:
+            names = zf.namelist()
+        assert not any("__pycache__" in n for n in names)
+        Path(out_path).unlink(missing_ok=True)
 
     def test_pyc_file_at_root_excluded_from_directory_input(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
@@ -190,8 +194,14 @@ class TestDirectoryZip:
             encoding="utf-8",
         )
         (proj / "helper.pyc").write_bytes(b"fake")
-        result = validate_submission(str(proj))
-        assert "helper.pyc" not in result.get("log", "")
+        out_path = str(tmp_path / "out.zip")
+        result = clean_submission(str(proj), output_path=out_path)
+        assert result["success"] is True
+        # .pyc file must not enter the output zip at all.
+        with zipfile.ZipFile(out_path) as zf:
+            names = zf.namelist()
+        assert "helper.pyc" not in names
+        Path(out_path).unlink(missing_ok=True)
 
     def test_symlink_escaping_root_excluded(self, tmp_path, monkeypatch):
         monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
@@ -206,8 +216,43 @@ class TestDirectoryZip:
         outside.write_text("secret content", encoding="utf-8")
         (proj / "evil_link.tex").symlink_to(outside)
         result = validate_submission(str(proj))
-        # The outside file must not appear in the converter log at all
-        assert "evil_link" not in result.get("log", "")
+        # The escaping symlink must be reported as a warning, not silently included.
+        assert any("evil_link" in w for w in result.get("warnings", []))
+
+    def test_symlinked_directory_excluded_with_warning(self, tmp_path, monkeypatch):
+        """os.walk(followlinks=False) skips symlinked dirs; we must warn instead of dropping silently."""
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        (proj / "main.tex").write_text(
+            r"\documentclass{article}\begin{document}Hi\end{document}",
+            encoding="utf-8",
+        )
+        # Create a directory outside the project and symlink to it from inside.
+        outside_dir = tmp_path / "outside_dir"
+        outside_dir.mkdir()
+        (outside_dir / "leak.tex").write_text("secret", encoding="utf-8")
+        (proj / "linked_dir").symlink_to(outside_dir, target_is_directory=True)
+        result = validate_submission(str(proj))
+        # Symlinked dir must be reported as a warning, not silently skipped.
+        assert any("linked_dir" in w for w in result.get("warnings", [])), (
+            f"expected warning mentioning linked_dir, got: {result.get('warnings')}"
+        )
+
+    def test_caller_owned_output_preserved_on_failure(self, tmp_path, monkeypatch):
+        """When output_path is provided, the file must NOT be unlinked on convert failure."""
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        # No .tex file in the project → convert will fail with an error envelope.
+        (proj / "garbage.txt").write_text("not a latex project", encoding="utf-8")
+        out_path = tmp_path / "caller_owned.zip"
+        out_path.write_bytes(b"pre-existing caller content")
+        result = clean_submission(str(proj), output_path=str(out_path))
+        # Convert is expected to fail (no main.tex).
+        assert result["success"] is False
+        # Caller-supplied path must still exist — we never delete files we didn't create.
+        assert out_path.exists(), "caller-owned output_path was deleted on failure"
 
 
 class TestErrorEnvelope:
