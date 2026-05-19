@@ -5,7 +5,7 @@
   ],
   "warnings": [
     "'referee' or 'doublespace' option detected in \\documentclass \u2014 arXiv requires single-spaced submissions",
-    ".eps image found: photo.eps \u2014 pdflatex does not support .eps; convert to .pdf or .png",
+    ".eps image found: photo.eps \u2014 pdflatex does not support .eps; convert to .pdf or .png, or use latex+dvips via 00README",
     "\\printglossary used but no .gls file at root \u2014 arXiv does not run the glossaries processor; build locally and re-run latex2arxiv (the .gls will be included automatically)",
     "\\printindex used but no .ind file at root \u2014 arXiv does not run makeindex; build locally and re-run latex2arxiv (the .ind will be included automatically)",
     "\\today used in \\date \u2014 arXiv may rebuild the PDF and the date will change",

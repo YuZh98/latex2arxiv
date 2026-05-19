@@ -36,6 +36,7 @@ from pipeline.preflight import (
     _check_compliance,
     _check_files,
     _check_output_size,
+    _check_oversized_images,
     _check_uncompressed_size,
 )
 from pipeline.process import _process_files
@@ -208,6 +209,14 @@ def convert(
                 # encoding declarations, and aux file lists.
                 whitelist.add(path.resolve())
 
+        # Auto-detect config at project root if none was explicitly provided.
+        _AUTO_CONFIG_NAME = "arxiv_config.yaml"
+        if config_path is None:
+            auto_cfg = root / _AUTO_CONFIG_NAME
+            if auto_cfg.is_file():
+                config_path = auto_cfg
+                print(f"  config: {_AUTO_CONFIG_NAME} (auto-detected)")
+
         user_config = load_config(config_path, warn_fn=issues.warn) if config_path else {}
 
         # 3. Process each file
@@ -230,8 +239,18 @@ def convert(
         )
 
         # 3b. Compliance + pre-flight checks
-        _check_compliance(main_tex, all_sources, root, tex_files=tex_files_list, main_stem=main_stem, issues=issues)
+        _check_compliance(
+            main_tex,
+            all_sources,
+            root,
+            tex_files=tex_files_list,
+            main_stem=main_stem,
+            issues=issues,
+            used_bib_files=used_bib_files,
+            kept_files=kept_files,
+        )
         _check_files(root, kept_files, issues)
+        _check_oversized_images(kept_files, issues)
         _check_uncompressed_size(kept_files, issues)
 
         # Check for undefined citations in cleaned output

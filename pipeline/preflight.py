@@ -18,9 +18,39 @@ _SHELL_ESCAPE_PKGS = frozenset({"minted", "pythontex", "shellesc", "auto-pst-pdf
 # backward-compatible reads; tests monkeypatch this attribute directly.
 SIZE_WARN_MB = 50
 
+# arXiv warns for PNG images exceeding this pixel count (since Feb 2026).
+# 34 megapixels ≈ full A4 at 600 dpi.
+_MAX_PNG_PIXELS = 34_000_000
+
+
+def _has_latex_dvips_mode(root: Path) -> bool:
+    """Return True if a 00README file at root specifies latex (dvips) or tex compiler."""
+    for name in ("00README", "00README.XXX", "00README.json", "00README.yaml", "00README.yml"):
+        readme = root / name
+        if not readme.exists():
+            continue
+        try:
+            content = readme.read_text(encoding="utf-8", errors="replace").lower()
+        except OSError:
+            continue
+        # JSON/YAML: "compiler": "latex" or compiler: latex
+        if re.search(r'"?compiler"?\s*[:=]\s*"?(latex|tex|latex\+dvips)', content):
+            return True
+        # Legacy XXX format: nohypertex line or latex directive
+        if name == "00README.XXX" and "latex" in content:
+            return True
+    return False
+
 
 def _check_compliance(
-    main_tex: Path, all_sources: list[str], root: Path, tex_files: list[Path] | None, main_stem: str, issues: Issues
+    main_tex: Path,
+    all_sources: list[str],
+    root: Path,
+    tex_files: list[Path] | None,
+    main_stem: str,
+    issues: Issues,
+    used_bib_files: set[str] | None = None,
+    kept_files: set[Path] | None = None,
 ) -> None:
     """Compliance checks against arXiv requirements. Records [warn] and [error]."""
     combined = "\n".join(all_sources)
@@ -40,11 +70,20 @@ def _check_compliance(
     if re.search(r"\\date\s*\{[^}]*\\today", combined):
         issues.warn("\\today used in \\date — arXiv may rebuild the PDF and the date will change")
 
-    # .eps images (not supported by pdflatex)
-    for path in root.rglob("*.eps"):
+    # \includeonly restricts which chapters are compiled — almost always a mistake in submissions.
+    if re.search(r"\\includeonly\s*\{", combined_nc):
         issues.warn(
-            f".eps image found: {path.relative_to(root)} — pdflatex does not support .eps; convert to .pdf or .png"
+            "\\includeonly detected — arXiv will only compile the listed files; "
+            "remove \\includeonly so the full paper appears in the output"
         )
+
+    # .eps images — only problematic for pdflatex; valid for latex+dvips mode.
+    if not _has_latex_dvips_mode(root):
+        for path in root.rglob("*.eps"):
+            issues.warn(
+                f".eps image found: {path.relative_to(root)} — pdflatex does not support .eps; "
+                "convert to .pdf or .png, or use latex+dvips via 00README"
+            )
 
     # \subfile'd documents that contain \bibliographystyle (likely standalone supplements)
     if tex_files:
@@ -92,14 +131,15 @@ def _check_compliance(
         )
 
     # fontspec / unicode-math require XeLaTeX or LuaLaTeX; arXiv defaults to pdfLaTeX.
-    # XeLaTeX is available via a 00README.XXX directive (``nohypertex,xelatex``);
+    # XeLaTeX is available via a 00README directive (compiler: xelatex);
     # without that directive the build will fail.
     for pkg in ("fontspec", "unicode-math"):
         if re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\b" + pkg + r"\b[^}]*\}", combined_nc):
             issues.error(
                 f"\\usepackage{{{pkg}}} requires XeLaTeX or LuaLaTeX — "
-                "arXiv defaults to pdfLaTeX; ship a 00README.XXX with "
-                "'nohypertex,xelatex' to opt into XeLaTeX, otherwise "
+                "arXiv defaults to pdfLaTeX; ship a 00README with "
+                "'compiler: xelatex' (or legacy 00README.XXX with "
+                "'nohypertex,xelatex') to opt into XeLaTeX, otherwise "
                 "this submission will fail to build"
             )
 
@@ -143,10 +183,9 @@ def _check_compliance(
             ".nls will be included automatically)"
         )
 
-    # biblatex detected: recommend shipping .bbl as a defensive measure.
-    # arXiv runs Biber, but Biber/biblatex version mismatches between your
-    # local TeX Live and arXiv's can break the bibliography; the .bbl is the
-    # robust fallback.
+    # biblatex detected: arXiv can run Biber natively (since late 2025), but
+    # biblatex/Biber version mismatches between your local TeX Live and arXiv's
+    # can still break the bibliography. Shipping the .bbl avoids this.
     if re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}", combined_nc) or re.search(
         r"\\addbibresource\{", combined_nc
     ):
@@ -154,9 +193,30 @@ def _check_compliance(
         if not bbl.exists():
             issues.warn(
                 f"biblatex detected but no {main_stem}.bbl shipped — "
-                "arXiv runs Biber, but biblatex/Biber version mismatches can "
-                "break the bibliography; ship the .bbl as a fallback"
+                "arXiv can run Biber natively, but version mismatches between "
+                "your TeX Live and arXiv's (currently TL2025, bbl format 3.3) "
+                "may break the bibliography; consider shipping the .bbl as a fallback"
             )
+
+    # Non-biblatex BibTeX: if \bibliography{foo} is used but neither foo.bib nor
+    # main.bbl is shipped, arXiv will block the submission.
+    if used_bib_files is not None and kept_files is not None:
+        is_biblatex = bool(
+            re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}", combined_nc)
+            or re.search(r"\\addbibresource\{", combined_nc)
+        )
+        if not is_biblatex and used_bib_files:
+            bbl = root / f"{main_stem}.bbl"
+            has_bbl = bbl.exists()
+            if not has_bbl:
+                kept_names = {p.name for p in kept_files}
+                missing = sorted(b for b in used_bib_files if b not in kept_names)
+                if missing:
+                    issues.error(
+                        f"\\bibliography references {', '.join(missing)} but "
+                        f"{'it is' if len(missing) == 1 else 'they are'} not in the output "
+                        f"and no {main_stem}.bbl is shipped — arXiv will block this submission"
+                    )
 
     # TikZ externalization needs shell-escape to (re)build figures; arXiv won't run it.
     # If the project ships pre-built ``*-figure*.pdf`` files at any depth, the
@@ -182,9 +242,19 @@ def _check_compliance(
                 "submission root"
             )
 
+    # -eps-converted-to.pdf artifacts indicate reliance on on-the-fly eps→pdf
+    # conversion that arXiv does not perform. Check the source tree (not kept_files)
+    # because these artifacts are typically pruned but their presence signals a problem.
+    for path in root.rglob("*-eps-converted-to.pdf"):
+        issues.warn(
+            f"{path.relative_to(root)} — arXiv does not perform on-the-fly eps→pdf conversion; "
+            "convert .eps figures to .pdf yourself and update \\includegraphics paths"
+        )
+
 
 def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
-    """Filesystem checks over kept files: problematic filenames and directory names.
+    """Filesystem checks over kept files: problematic filenames, directory names,
+    hidden files, shipped psfig.sty, and -eps-converted-to.pdf artifacts.
 
     Directory components are deduped so a single bad directory containing many
     files only emits one warning per category.
@@ -193,6 +263,22 @@ def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
     flagged_dir_ascii: set[Path] = set()
     for path in sorted(kept_files):
         rel = path.relative_to(root)
+
+        # Hidden files (dot-files): arXiv deletes these upon announcement.
+        # They may work during preview but will vanish in the final version.
+        if any(part.startswith(".") for part in rel.parts):
+            issues.warn(
+                f"hidden file: {rel} — arXiv deletes files/directories starting with '.' "
+                "upon announcement; if your build depends on this file, rename it"
+            )
+            continue  # skip further checks for this file
+
+        # Shipped psfig.sty: arXiv explicitly forbids user-supplied psfig.sty.
+        if path.name == "psfig.sty":
+            issues.error(
+                f"shipped psfig.sty ({rel}) — arXiv forbids user-supplied psfig.sty "
+                "and will fail to build; remove it and migrate to \\includegraphics"
+            )
 
         # Walk directory components: rel.parents includes Path('.') as the last
         # element, which we skip.
@@ -228,6 +314,34 @@ def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
             issues.warn(
                 f"filename contains non-ASCII characters: {rel} — rename using ASCII to avoid portability issues"
             )
+
+
+def _check_oversized_images(kept_files: set[Path], issues: Issues) -> None:
+    """Warn if any PNG image exceeds arXiv's 34-megapixel threshold.
+
+    Uses Pillow to read image dimensions without loading pixel data.
+    Silently skips files that can't be read (corrupt, not actually PNG, etc.).
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return  # Pillow not available; skip this check silently
+
+    for path in sorted(kept_files):
+        if path.suffix.lower() != ".png":
+            continue
+        try:
+            with Image.open(path) as img:
+                w, h = img.size
+            pixels = w * h
+            if pixels > _MAX_PNG_PIXELS:
+                mp = pixels / 1_000_000
+                issues.warn(
+                    f"{path.name} is {mp:.0f} megapixels (>{_MAX_PNG_PIXELS // 1_000_000} MP) — "
+                    "arXiv flags oversized PNGs; consider downscaling with --resize"
+                )
+        except Exception:
+            continue
 
 
 def _check_output_size(output_zip: Path, issues: Issues) -> None:

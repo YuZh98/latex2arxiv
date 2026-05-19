@@ -6,9 +6,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Added
+- Pre-flight `[error]`: `\bibliography{foo}` with missing `foo.bib` and no `.bbl` shipped — arXiv blocks these submissions. ([ref](https://info.arxiv.org/help/submit_tex.html#include-bib-or-bbl-files-if-you-use-bibtexbiber))
+- Pre-flight `[error]`: shipped `psfig.sty` — arXiv forbids user-supplied copies. ([ref](https://info.arxiv.org/help/submit_tex.html#figure-inclusion-in-latex-submissions))
+- Pre-flight `[warn]`: `\includeonly` restricts which chapters arXiv compiles. ([ref](https://info.arxiv.org/help/faq/mistakes.html))
+- Pre-flight `[warn]`: hidden files (dot-files/directories) that survive pruning — arXiv deletes them on announcement. ([ref](https://info.arxiv.org/help/submit_tex.html#hidden-files-will-be-deleted-upon-announcement))
+- Pre-flight `[warn]`: `-eps-converted-to.pdf` artifacts indicate reliance on on-the-fly conversion arXiv doesn't perform. ([ref](https://info.arxiv.org/help/submit_tex.html#figure-inclusion-in-latex-submissions))
+- Pre-flight `[warn]`: PNG images exceeding 34 megapixels (arXiv threshold since Feb 2026). ([ref](https://info.arxiv.org/help/sizes.html))
+- Auto-detect `arxiv_config.yaml` at project root when no `--config` is passed; prints `config: arxiv_config.yaml (auto-detected)` so the user knows it was applied.
+
 ### Changed
 - `SIZE_WARN_MB` now lives in `pipeline/preflight.py`; `converter.SIZE_WARN_MB` is preserved as a backward-compat re-export. Code that monkeypatches the threshold must target `pipeline.preflight.SIZE_WARN_MB` — re-binding `converter.SIZE_WARN_MB` is now ineffective. (#142)
-- Extract per-file processing pass from `convert()` into `pipeline/process.py`; add `pipeline.types.ConvertContext` to carry shared state. `converter.py` drops to 552 LOC. No behavior change.
+- Extract per-file processing pass from `convert()` into `pipeline/process.py`; add `pipeline.types.ConvertContext` to carry shared state. `converter.py` drops to 552 LOC. No behavior change. (#146)
+- `.eps` warning now suppressed when `00README` specifies `compiler: latex` (dvips mode); message updated to mention the alternative. ([ref](https://info.arxiv.org/help/submit_tex.html#figure-inclusion-in-latex-submissions))
+- biblatex `.bbl` warning softened: acknowledges arXiv runs Biber natively since late 2025; recommends `.bbl` as a version-mismatch fallback rather than implying it's required. ([ref](https://info.arxiv.org/help/submit_tex.html#include-bib-or-bbl-files-if-you-use-bibtexbiber))
+- `fontspec`/`unicode-math` error message updated to reference both new `00README` JSON format (`compiler: xelatex`) and legacy `00README.XXX` syntax. ([ref](https://info.arxiv.org/help/00README.html#currently-supported-compiler-settings))
 
 ## [1.0.1] - 2026-05-17
 

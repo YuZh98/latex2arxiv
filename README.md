@@ -223,6 +223,8 @@ See [docs/pre-flight.md](docs/pre-flight.md) for the full list of checks and sil
 
 For revision markup and other project-specific cleanup, create a YAML config file. A template is in [`arxiv_config.yaml`](arxiv_config.yaml).
 
+> If your project root contains `arxiv_config.yaml`, it is applied automatically — no need to pass `--config`.
+
 ```yaml
 # Remove command AND its argument (text is lost)
 commands_to_delete:

@@ -34,7 +34,7 @@
   "warnings": [
     "'referee' or 'doublespace' option detected in \\documentclass \u2014 arXiv requires single-spaced submissions",
     "\\today used in \\date \u2014 arXiv may rebuild the PDF and the date will change",
-    ".eps image found: photo.eps \u2014 pdflatex does not support .eps; convert to .pdf or .png",
+    ".eps image found: photo.eps \u2014 pdflatex does not support .eps; convert to .pdf or .png, or use latex+dvips via 00README",
     "\\usepackage{xr} detected \u2014 file paths/locations differ on arXiv and external-document references will likely break; see https://info.arxiv.org/help/submit_tex.html for the recommended workaround",
     "\\printindex used but no .ind file at root \u2014 arXiv does not run makeindex; build locally and re-run latex2arxiv (the .ind will be included automatically)",
     "\\printglossary used but no .gls file at root \u2014 arXiv does not run the glossaries processor; build locally and re-run latex2arxiv (the .gls will be included automatically)"
