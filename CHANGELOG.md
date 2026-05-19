@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-19
+
+Audited pre-flight checks against arXiv's official submission guidelines; added 6 new checks, corrected 3 existing ones, and introduced auto-detection of `arxiv_config.yaml`. MCP server gains `output_path` parameter and hardened symlink/stdout handling.
+
 ### Added
 - Pre-flight `[error]`: `\bibliography{foo}` with missing `foo.bib` and no `.bbl` shipped — arXiv blocks these submissions. ([ref](https://info.arxiv.org/help/submit_tex.html#include-bib-or-bbl-files-if-you-use-bibtexbiber))
 - Pre-flight `[error]`: shipped `psfig.sty` — arXiv forbids user-supplied copies. ([ref](https://info.arxiv.org/help/submit_tex.html#figure-inclusion-in-latex-submissions))
@@ -14,6 +18,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - Pre-flight `[warn]`: `-eps-converted-to.pdf` artifacts indicate reliance on on-the-fly conversion arXiv doesn't perform. ([ref](https://info.arxiv.org/help/submit_tex.html#figure-inclusion-in-latex-submissions))
 - Pre-flight `[warn]`: PNG images exceeding 34 megapixels (arXiv threshold since Feb 2026). ([ref](https://info.arxiv.org/help/sizes.html))
 - Auto-detect `arxiv_config.yaml` at project root when no `--config` is passed; prints `config: arxiv_config.yaml (auto-detected)` so the user knows it was applied.
+- `clean_submission` MCP tool accepts `output_path` parameter — callers can direct the output zip to a known location instead of relying on a temp file. Caller-owned files are never unlinked, even on failure. (#147)
+- Document `LATEX2ARXIV_MCP_BASE_DIR` sandboxing in `docs/mcp.md` with Claude Desktop / Cursor config examples. (#147)
 
 ### Changed
 - `SIZE_WARN_MB` now lives in `pipeline/preflight.py`; `converter.SIZE_WARN_MB` is preserved as a backward-compat re-export. Code that monkeypatches the threshold must target `pipeline.preflight.SIZE_WARN_MB` — re-binding `converter.SIZE_WARN_MB` is now ineffective. (#142)
@@ -21,6 +27,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - `.eps` warning now suppressed when `00README` specifies `compiler: latex` (dvips mode); message updated to mention the alternative. ([ref](https://info.arxiv.org/help/submit_tex.html#figure-inclusion-in-latex-submissions))
 - biblatex `.bbl` warning softened: acknowledges arXiv runs Biber natively since late 2025; recommends `.bbl` as a version-mismatch fallback rather than implying it's required. ([ref](https://info.arxiv.org/help/submit_tex.html#include-bib-or-bbl-files-if-you-use-bibtexbiber))
 - `fontspec`/`unicode-math` error message updated to reference both new `00README` JSON format (`compiler: xelatex`) and legacy `00README.XXX` syntax. ([ref](https://info.arxiv.org/help/00README.html#currently-supported-compiler-settings))
+- MCP server no longer wraps `convert()` in `redirect_stdout`; pipeline progress goes to stderr, structured findings flow through `errors`/`warnings` lists. (#147)
+- Directory-input zipper uses `os.walk(followlinks=False)` instead of `Path.rglob`; symlinked directories now emit a warning instead of being silently skipped. (#147)
 
 ## [1.0.1] - 2026-05-17
 
