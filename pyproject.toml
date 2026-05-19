@@ -70,6 +70,9 @@ include = ["pipeline*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.pyright]
+pythonVersion = "3.10"
+
 [tool.ruff]
 line-length = 120
 exclude = ["tests/test_bugs.py"]
