@@ -2744,3 +2744,250 @@ class TestConverterInternalFunctions:
         captured = capsys.readouterr()
         payload = json.loads(captured.out)
         assert "schema_version" in payload
+
+
+# ─── New preflight checks (v3) ───────────────────────────────────────────────
+
+
+class TestPreflightV3:
+    """Tests for preflight checks added in the arXiv-guideline audit (v3)."""
+
+    def _run(self, files: dict, tmp_path, **kwargs):
+        from converter import convert
+
+        zp = tmp_path / "in.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            for name, content in files.items():
+                if isinstance(content, bytes):
+                    zf.writestr(name, content)
+                else:
+                    zf.writestr(name, content)
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out, dry_run=True, **kwargs)
+        return issues
+
+    # ── Hidden dot-files ──
+
+    def test_hidden_file_warns(self, tmp_path):
+        """A hidden .tex file that survives pruning (whitelisted via \\input) should warn."""
+        files = {
+            "main.tex": r"\documentclass{article}\input{.macros}\begin{document}hi\end{document}",
+            ".macros.tex": r"\newcommand{\foo}{bar}",
+        }
+        issues = self._run(files, tmp_path)
+        assert any("hidden file" in w for w in issues.warnings)
+
+    def test_hidden_dir_warns(self, tmp_path):
+        """Files inside a dot-directory that survive pruning should trigger a warning."""
+        files = {
+            "main.tex": r"\documentclass{article}\input{.config/macros}\begin{document}hi\end{document}",
+            ".config/macros.tex": r"\newcommand{\foo}{bar}",
+        }
+        issues = self._run(files, tmp_path)
+        assert any("hidden file" in w for w in issues.warnings)
+
+    def test_no_hidden_file_no_warn(self, tmp_path):
+        """Normal files should not trigger hidden-file warning."""
+        files = {
+            "main.tex": r"\documentclass{article}\begin{document}hi\end{document}",
+        }
+        issues = self._run(files, tmp_path)
+        assert not any("hidden file" in w for w in issues.warnings)
+
+    # ── \includeonly ──
+
+    def test_includeonly_warns(self, tmp_path):
+        files = {
+            "main.tex": (
+                r"\documentclass{article}"
+                r"\includeonly{chapter1}"
+                r"\begin{document}\include{chapter1}\include{chapter2}\end{document}"
+            ),
+            "chapter1.tex": r"\chapter{One}",
+            "chapter2.tex": r"\chapter{Two}",
+        }
+        issues = self._run(files, tmp_path)
+        assert any("includeonly" in w.lower() for w in issues.warnings)
+
+    def test_commented_includeonly_not_flagged(self, tmp_path):
+        files = {
+            "main.tex": ("\\documentclass{article}\n% \\includeonly{chapter1}\n\\begin{document}hi\\end{document}"),
+        }
+        issues = self._run(files, tmp_path)
+        assert not any("includeonly" in w.lower() for w in issues.warnings)
+
+    # ── Missing .bib without .bbl (non-biblatex) ──
+
+    def test_missing_bib_without_bbl_errors(self, tmp_path):
+        """If \\bibliography{refs} is used but refs.bib is missing and no .bbl shipped, error."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}"
+                r"\begin{document}\cite{foo}\bibliography{refs}\end{document}"
+            ),
+        }
+        issues = self._run(files, tmp_path)
+        assert any("refs.bib" in e and "block" in e for e in issues.errors)
+
+    def test_missing_bib_with_bbl_no_error(self, tmp_path):
+        """If .bbl is shipped, missing .bib should not error."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}"
+                r"\begin{document}\cite{foo}\bibliography{refs}\end{document}"
+            ),
+            "main.bbl": r"\begin{thebibliography}{1}\bibitem{foo}Foo\end{thebibliography}",
+        }
+        issues = self._run(files, tmp_path)
+        assert not any("refs.bib" in e for e in issues.errors)
+
+    def test_bib_present_no_error(self, tmp_path):
+        """If .bib is present, no error."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}"
+                r"\begin{document}\cite{foo}\bibliography{refs}\end{document}"
+            ),
+            "refs.bib": "@article{foo, title={Foo}}",
+        }
+        issues = self._run(files, tmp_path)
+        assert not any("refs.bib" in e for e in issues.errors)
+
+    def test_biblatex_missing_bib_not_error(self, tmp_path):
+        """biblatex projects use the biblatex-specific check, not this one."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}"
+                r"\usepackage{biblatex}"
+                r"\addbibresource{refs.bib}"
+                r"\begin{document}\cite{foo}\printbibliography\end{document}"
+            ),
+        }
+        issues = self._run(files, tmp_path)
+        # Should get the biblatex warning, not the "block" error
+        assert not any("block" in e for e in issues.errors)
+
+    # ── Shipped psfig.sty ──
+
+    def test_shipped_psfig_sty_errors(self, tmp_path):
+        """User-supplied psfig.sty that survives pruning should be an error."""
+        files = {
+            "main.tex": r"\documentclass{article}\usepackage{psfig}\begin{document}hi\end{document}",
+            "psfig.sty": "% fake psfig",
+        }
+        issues = self._run(files, tmp_path)
+        assert any("psfig.sty" in e for e in issues.errors)
+
+    def test_no_psfig_sty_no_error(self, tmp_path):
+        """Without psfig.sty, no error from this check."""
+        files = {
+            "main.tex": r"\documentclass{article}\begin{document}hi\end{document}",
+            "custom.sty": "% my style",
+        }
+        issues = self._run(files, tmp_path)
+        assert not any("psfig.sty" in e for e in issues.errors)
+
+    # ── -eps-converted-to.pdf artifacts ──
+
+    def test_eps_converted_to_pdf_warns(self, tmp_path):
+        files = {
+            "main.tex": (
+                r"\documentclass{article}\usepackage{graphicx}"
+                r"\begin{document}\includegraphics{fig1}\end{document}"
+            ),
+            "fig1-eps-converted-to.pdf": b"%PDF-1.4 fake",
+            "fig1.eps": b"%!PS-Adobe-3.0 EPSF-3.0",
+        }
+        issues = self._run(files, tmp_path)
+        assert any("eps-converted-to" in w for w in issues.warnings)
+
+    def test_no_eps_converted_artifact_no_warn(self, tmp_path):
+        files = {
+            "main.tex": (
+                r"\documentclass{article}\usepackage{graphicx}"
+                r"\begin{document}\includegraphics{fig1}\end{document}"
+            ),
+            "fig1.pdf": b"%PDF-1.4 fake",
+        }
+        issues = self._run(files, tmp_path)
+        assert not any("eps-converted-to" in w for w in issues.warnings)
+
+    # ── Oversized PNG (>34 megapixel) ──
+
+    def test_oversized_png_warns(self, tmp_path):
+        """PNG exceeding 34 megapixels should warn."""
+        from PIL import Image
+
+        # Create a minimal PNG that reports large dimensions via header
+        # We'll create a tiny 1x1 image and monkeypatch, or create a real large-header PNG.
+        # Actually, let's create a real small PNG but test the function directly.
+        from pipeline.preflight import _check_oversized_images
+        from pipeline.types import Issues
+
+        # Create a 6000x6000 = 36MP PNG (just the header; content is minimal with compression)
+        img = Image.new("L", (6000, 6000), color=128)
+        png_path = tmp_path / "big.png"
+        img.save(png_path)
+
+        issues = Issues()
+        _check_oversized_images({png_path}, issues)
+        assert any("megapixels" in w for w in issues.warnings)
+
+    def test_small_png_no_warn(self, tmp_path):
+        """PNG under 34 megapixels should not warn."""
+        from PIL import Image
+
+        from pipeline.preflight import _check_oversized_images
+        from pipeline.types import Issues
+
+        img = Image.new("L", (100, 100), color=128)
+        png_path = tmp_path / "small.png"
+        img.save(png_path)
+
+        issues = Issues()
+        _check_oversized_images({png_path}, issues)
+        assert not any("megapixels" in w for w in issues.warnings)
+
+    # ── .eps warning suppressed for latex+dvips mode ──
+
+    def test_eps_no_warn_with_00readme_latex(self, tmp_path):
+        """If 00README specifies latex compiler, .eps should not warn."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}\usepackage{graphicx}"
+                r"\begin{document}\includegraphics{fig.eps}\end{document}"
+            ),
+            "fig.eps": b"%!PS-Adobe-3.0 EPSF-3.0",
+            "00README": '{"process": {"compiler": "latex"}, "sources": [{"filename": "main.tex"}]}',
+        }
+        issues = self._run(files, tmp_path)
+        assert not any(".eps image found" in w for w in issues.warnings)
+
+    def test_eps_warns_without_00readme(self, tmp_path):
+        """Without 00README, .eps should warn (pdflatex default)."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}\usepackage{graphicx}"
+                r"\begin{document}\includegraphics{fig.eps}\end{document}"
+            ),
+            "fig.eps": b"%!PS-Adobe-3.0 EPSF-3.0",
+        }
+        issues = self._run(files, tmp_path)
+        assert any(".eps image found" in w for w in issues.warnings)
+
+    # ── Softened biblatex message ──
+
+    def test_biblatex_message_mentions_native_biber(self, tmp_path):
+        """biblatex warning should mention arXiv can run Biber natively."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}"
+                r"\usepackage{biblatex}\addbibresource{refs.bib}"
+                r"\begin{document}\printbibliography\end{document}"
+            ),
+            "refs.bib": "@article{foo, title={Foo}}",
+        }
+        issues = self._run(files, tmp_path)
+        bib_warns = [w for w in issues.warnings if "biblatex" in w]
+        assert bib_warns
+        assert "natively" in bib_warns[0]
