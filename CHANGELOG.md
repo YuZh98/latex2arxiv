@@ -42,7 +42,7 @@ Internal refactor. No user-visible behavior change vs v1.0.0. Verified on real a
   - `pipeline/resolve.py` — `find_main_tex`, `_is_git_url`, `_zip_directory`, `_resolve_input`, `_ZIP_EXCLUDE_*` (#141)
 
 ### Added
-- Refactor safety net: per-fixture baselines (`tests/baselines/`) for Python-level `Issues`, CLI `--json` dry-run output, and zip member-content hashes; plus `tests/test_refactor_baseline.py` (Python-level detector) gated on Python 3.12 in CI. Pre-extract AST anchor archived under `docs/adr/`. (#137)
+- Refactor safety net: per-fixture baselines (`tests/baselines/`) for Python-level `Issues`, CLI `--json` dry-run output, and zip member-content hashes; plus `tests/test_refactor_baseline.py` (Python-level detector) gated on Python 3.12 in CI. (#137)
 
 ## [1.0.0] - 2026-05-15
 
