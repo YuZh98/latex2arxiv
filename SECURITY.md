@@ -27,7 +27,7 @@ Use GitHub's private "Report a vulnerability" flow:
    and triage plan.
 
 If GitHub Security Advisories is unavailable to you, email
-`seanzhengyu1@gmail.com` with subject prefix `[latex2arxiv security]`.
+`hugh.stats@gmail.com` with subject prefix `[latex2arxiv security]`.
 
 ## In scope
 

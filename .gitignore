@@ -24,6 +24,7 @@ my_project*/
 demo.cast
 docs/vscode-extension-handoff.md
 .coverage
+.claude/
 .superpowers/
 docs/superpowers/
 vscode-extension/.vscode/
