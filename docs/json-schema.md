@@ -15,7 +15,7 @@ latex2arxiv paper.zip --dry-run --json | jq .
 
 ```jsonc
 {
-  "version": "0.11.0",           // tool version (from installed package metadata)
+  "version": "1.1.0",            // tool version (from installed package metadata)
   "schema_version": 1,           // bump on any breaking change to this layout
   "input": "path/to/paper.zip",  // absolute or as-passed
   "output": "paper_arxiv.zip",   // null when --dry-run
@@ -38,7 +38,8 @@ latex2arxiv paper.zip --dry-run --json | jq .
   },
   "compile": null,                                        // always null in v1.0; reserved for a future --compile result shape
   "flatten": false,                                       // true when --flatten was passed; mirrors the flag
-  "inlined_files": []                                     // list of fragment .tex files that were inlined when --flatten is on (empty otherwise)
+  "inlined_files": [],                                    // list of fragment .tex files that were inlined when --flatten is on (empty otherwise)
+  "metadata": null                                        // extracted paper metadata (see below); null on fatal errors or when extraction fails
 }
 ```
 
@@ -98,6 +99,9 @@ value here.
   / `\subfile` into the main `.tex`.
 - **`inlined_files`** is the list of fragment files that `--flatten`
   inlined (relative paths). Empty when `flatten: false`.
+- **`metadata`** contains extracted paper metadata when available:
+  `{"title": str, "authors": str, "abstract": str, "stats": {"figures": int, "tables": int, "pages": int|null}}`.
+  `null` on fatal errors or when the main `.tex` content cannot be parsed.
 
 ## Errors and the JSON envelope
 
@@ -107,7 +111,7 @@ error captured under `errors` and exit code 1:
 
 ```json
 {
-  "version": "0.11.0",
+  "version": "1.1.0",
   "schema_version": 1,
   "input": null,
   "output": null,
@@ -119,7 +123,10 @@ error captured under `errors` and exit code 1:
   "warnings": [],
   "counts": {"removed": 0, "kept": 0, "errors": 1, "warnings": 0},
   "sizes": {"input_bytes": null, "output_bytes": null, "uncompressed_bytes": null},
-  "compile": null
+  "compile": null,
+  "flatten": false,
+  "inlined_files": [],
+  "metadata": null
 }
 ```
 
