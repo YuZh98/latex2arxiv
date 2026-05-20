@@ -8,86 +8,79 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [1.1.0] - 2026-05-19
 
-Audited pre-flight checks against arXiv's official submission guidelines; added 6 new checks, corrected 3 existing ones, and introduced auto-detection of `arxiv_config.yaml`. MCP server gains `output_path` parameter and hardened symlink/stdout handling.
+New pre-flight checks aligned with arXiv's submission guidelines, auto-detection of `arxiv_config.yaml`, and MCP server improvements.
 
 ### Added
-- Pre-flight `[error]`: `\bibliography{foo}` with missing `foo.bib` and no `.bbl` shipped — arXiv blocks these submissions. ([ref](https://info.arxiv.org/help/submit_tex.html#include-bib-or-bbl-files-if-you-use-bibtexbiber))
-- Pre-flight `[error]`: shipped `psfig.sty` — arXiv forbids user-supplied copies. ([ref](https://info.arxiv.org/help/submit_tex.html#figure-inclusion-in-latex-submissions))
-- Pre-flight `[warn]`: `\includeonly` restricts which chapters arXiv compiles. ([ref](https://info.arxiv.org/help/faq/mistakes.html))
-- Pre-flight `[warn]`: hidden files (dot-files/directories) that survive pruning — arXiv deletes them on announcement. ([ref](https://info.arxiv.org/help/submit_tex.html#hidden-files-will-be-deleted-upon-announcement))
-- Pre-flight `[warn]`: `-eps-converted-to.pdf` artifacts indicate reliance on on-the-fly conversion arXiv doesn't perform. ([ref](https://info.arxiv.org/help/submit_tex.html#figure-inclusion-in-latex-submissions))
-- Pre-flight `[warn]`: PNG images exceeding 34 megapixels (arXiv threshold since Feb 2026). ([ref](https://info.arxiv.org/help/sizes.html))
-- Auto-detect `arxiv_config.yaml` at project root when no `--config` is passed; prints `config: arxiv_config.yaml (auto-detected)` so the user knows it was applied.
-- `clean_submission` MCP tool accepts `output_path` parameter — callers can direct the output zip to a known location instead of relying on a temp file. Caller-owned files are never unlinked, even on failure. (#147)
-- Document `LATEX2ARXIV_MCP_BASE_DIR` sandboxing in `docs/mcp.md` with Claude Desktop / Cursor config examples. (#147)
+- Pre-flight `[error]`: missing `.bib` with no `.bbl` fallback
+- Pre-flight `[error]`: user-supplied `psfig.sty` (arXiv forbids it)
+- Pre-flight `[warn]`: `\includeonly` (restricts arXiv compilation)
+- Pre-flight `[warn]`: hidden dot-files that survive pruning
+- Pre-flight `[warn]`: `-eps-converted-to.pdf` conversion artifacts
+- Pre-flight `[warn]`: PNG images exceeding 34 megapixels
+- Auto-detect `arxiv_config.yaml` at project root when `--config` is not passed
+- MCP `clean_submission` accepts `output_path` parameter (#147)
+- MCP sandboxing docs (`LATEX2ARXIV_MCP_BASE_DIR`) (#147)
 
 ### Changed
-- `SIZE_WARN_MB` now lives in `pipeline/preflight.py`; `converter.SIZE_WARN_MB` is preserved as a backward-compat re-export. Code that monkeypatches the threshold must target `pipeline.preflight.SIZE_WARN_MB` — re-binding `converter.SIZE_WARN_MB` is now ineffective. (#142)
-- Extract per-file processing pass from `convert()` into `pipeline/process.py`; add `pipeline.types.ConvertContext` to carry shared state. `converter.py` drops to 552 LOC. No behavior change. (#146)
-- `.eps` warning now suppressed when `00README` specifies `compiler: latex` (dvips mode); message updated to mention the alternative. ([ref](https://info.arxiv.org/help/submit_tex.html#figure-inclusion-in-latex-submissions))
-- biblatex `.bbl` warning softened: acknowledges arXiv runs Biber natively since late 2025; recommends `.bbl` as a version-mismatch fallback rather than implying it's required. ([ref](https://info.arxiv.org/help/submit_tex.html#include-bib-or-bbl-files-if-you-use-bibtexbiber))
-- `fontspec`/`unicode-math` error message updated to reference both new `00README` JSON format (`compiler: xelatex`) and legacy `00README.XXX` syntax. ([ref](https://info.arxiv.org/help/00README.html#currently-supported-compiler-settings))
-- MCP server no longer wraps `convert()` in `redirect_stdout`; pipeline progress goes to stderr, structured findings flow through `errors`/`warnings` lists. (#147)
-- Directory-input zipper uses `os.walk(followlinks=False)` instead of `Path.rglob`; symlinked directories now emit a warning instead of being silently skipped. (#147)
+- `.eps` warning suppressed when `00README` specifies dvips mode
+- biblatex `.bbl` warning updated: arXiv runs Biber natively since late 2025
+- `fontspec`/`unicode-math` error references both `00README` JSON and legacy syntax
+- MCP server routes progress to stderr; findings flow through structured lists (#147)
+- Directory-input zipper warns on symlinked directories instead of silently skipping (#147)
+- Internal: extract per-file processing into `pipeline/process.py` (#146)
 
 ## [1.0.1] - 2026-05-17
 
-Internal refactor. No user-visible behavior change vs v1.0.0. Verified on real arXiv-style projects: issues JSON byte-identical, output-zip member-content sha256 byte-identical.
+Internal refactor. No user-visible behavior change.
 
 ### Changed
-- Restructure `converter.py` (1,134 → 606 LOC, 46% reduction) by extracting four responsibility groups into focused `pipeline/` modules. Public API (`from converter import convert, Issues, ConverterError`) preserved via re-export — no caller-side change required.
-  - `pipeline/types.py` — `Issues`, `ConverterError` (#138)
-  - `pipeline/preflight.py` — `_check_compliance`, `_check_files`, `_check_output_size`, `_check_uncompressed_size`, `_SHELL_ESCAPE_PKGS` (#139)
-  - `pipeline/build.py` — `_open_file`, `_format_pdflatex_errors`, `_compile` (#140)
-  - `pipeline/resolve.py` — `find_main_tex`, `_is_git_url`, `_zip_directory`, `_resolve_input`, `_ZIP_EXCLUDE_*` (#141)
+- Restructure `converter.py` into focused `pipeline/` modules; public API unchanged (#138–#141)
 
 ### Added
-- Refactor safety net: per-fixture baselines (`tests/baselines/`) for Python-level `Issues`, CLI `--json` dry-run output, and zip member-content hashes; plus `tests/test_refactor_baseline.py` (Python-level detector) gated on Python 3.12 in CI. Pre-extract AST anchor archived under `docs/adr/`. (#137)
+- Refactor safety net: per-fixture baselines for issues, JSON output, and zip content hashes (#137)
 
 ## [1.0.0] - 2026-05-15
 
-v1.0 stability commitment. Promotes the project from Beta to Production/Stable. No new runtime behaviour vs v0.11.0; all substantive changes since are metadata (PyPI classifier), VS Code Marketplace assets (icon, LICENSE, listing rewrite), and CI/format hardening.
+v1.0 stability commitment. No new runtime behaviour vs v0.11.0.
 
 ### Added
-- VS Code extension package icon (`vscode-extension/icon.{svg,png}`) wired into the Marketplace listing via `package.json` `"icon"` field (#128)
-- `vscode-extension/LICENSE` so `vsce package` no longer warns and the Marketplace listing shows the licence (#128)
-- CI `ruff format --check .` step alongside the existing `ruff check .` lint step, with `ruff` pinned to `0.11.*` to match the pre-commit hook so the two enforcement points cannot diverge (#131)
+- VS Code extension icon and LICENSE for Marketplace listing (#128)
+- CI `ruff format --check` step pinned to `0.11.*` (#131)
 
 ### Changed
-- PyPI classifier upgraded from `Development Status :: 4 - Beta` to `5 - Production/Stable` (#129)
-- VS Code extension Marketplace listing rewritten — badges, hero pitch, features list, quick start, troubleshooting; bumped to v0.1.1 (#130)
-- VS Code extension integration row in main README flipped from `🔜 Planned` to `✅ Manual install` and now points at the published Marketplace listing (#127)
-- Full-repo `pre-commit run --all-files` normalization — 20 .py files ruff-formatted, `docs/overleaf.md` trailing whitespace stripped, `pipeline/__init__.py` EOF fixed. AST-verified reformat-only; 379 tests pass identically before and after (#131)
+- PyPI classifier upgraded to `Production/Stable` (#129)
+- VS Code Marketplace listing rewritten with badges and quick start (#130)
+- VS Code integration row in README updated to point at published listing (#127)
 
 ## [0.11.0] - 2026-05-15
 
-API stability, CI hardening, and test coverage ahead of v1.0. MCP error envelope is now a list (`"errors"` instead of singular `"error"`), which is a breaking change for MCP clients.
+API stability, CI hardening, and test coverage ahead of v1.0. Breaking: MCP error envelope is now a list (`"errors"` instead of `"error"`).
 
 ### Added
-- `__all__` in `converter.py` exports the stable public API: `Issues`, `ConverterError`, `convert`
-- JSON schema stability contract in `docs/json-schema.md`
-- Deprecation-strict CI job (`pytest -W error::DeprecationWarning`)
-- Coverage gate at 85% in CI; `mcp_server.py` excluded (requires optional `[mcp]` extra)
-- Pre-commit config (ruff, ruff-format, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml)
-- CI Python matrix expanded to 3.10–3.13; `pyyaml`, `mcp`, `fastmcp` added to test deps
-- 55 behavioral audit tests covering all documented features before v1.0 (#122)
-- Fixture manifest assertions: output zip contents verified, not just error/warning counts (#124)
+- `__all__` in `converter.py` exports the stable public API
+- JSON schema stability contract (`docs/json-schema.md`)
+- Deprecation-strict CI job (`-W error::DeprecationWarning`)
+- Coverage gate at 85% in CI
+- Pre-commit config (ruff, trailing-whitespace, end-of-file-fixer, check-yaml, check-toml)
+- CI Python matrix expanded to 3.10–3.13
+- 55 behavioral audit tests covering all documented features (#122)
+- Fixture manifest assertions: output zip contents verified (#124)
 - Overleaf-style zip tests: `__MACOSX/`, `.DS_Store`, wrapper-directory handling (#124)
-- New fixture `10-multifile-graphicspath`: `\graphicspath` + `\input` from subdirectory + pruning (#124)
-- End-to-end `--guide` tests with complex `\author{}` blocks (#124)
+- New fixture `10-multifile-graphicspath` (#124)
+- End-to-end `--guide` tests (#124)
 
 ### Fixed
-- `convert()` raised `FileNotFoundError` on missing input instead of `ConverterError` (#122)
-- `--resize` without a value now uses the default 1600 px instead of exiting with error code 2
-- MCP directory zip excluded `__pycache__`, `.pyc` files, and symlinks escaping the project root
-- Config and BibTeX warnings now routed through `issues.warn` (visible in `--json` and MCP output)
-- `find_used_images` return type annotation corrected to `tuple[set[Path], set[str]]`
+- `convert()` raised `FileNotFoundError` instead of `ConverterError` on missing input (#122)
+- `--resize` without a value now uses the default 1600 px
+- MCP directory zip excluded `__pycache__`, `.pyc`, and escaping symlinks
+- Config and BibTeX warnings routed through `issues.warn` (visible in `--json` and MCP)
+- `find_used_images` return type annotation corrected
 
 ### Changed
-- MCP error envelope (breaking): responses use `{"errors": [...]}` instead of `{"error": str}`
-- Publish workflow split into `publish` + `release-assets` jobs for independent re-runs
+- MCP error envelope (breaking): `{"errors": [...]}` instead of `{"error": str}`
+- Publish workflow split into `publish` + `release-assets` jobs
 - `requirements.txt` removed; `pyproject.toml` is the single source of dependencies
-- `[project.urls]` added to `pyproject.toml` (Homepage, Source, Issues, Changelog)
+- `[project.urls]` added to `pyproject.toml`
 
 ---
 
