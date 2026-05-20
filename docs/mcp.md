@@ -123,9 +123,9 @@ Both tools resolve the `path` argument relative to a sandboxed root. The root is
 
 ## Example Agent Interaction
 
-> **User:** Check if my paper at `~/papers/icml2025/` is ready for arXiv.
+> **User:** Check if my paper at `/home/user/papers/icml2025/` is ready for arXiv.
 >
-> **Agent** calls `validate_submission(path="~/papers/icml2025/")` and gets:
+> **Agent** calls `validate_submission(path="/home/user/papers/icml2025/")` and gets:
 > ```json
 > {
 >   "success": false,

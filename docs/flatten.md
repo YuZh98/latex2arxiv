@@ -1,10 +1,10 @@
 # `--flatten` — single-file output
 
 `--flatten` inlines every `\input`, `\include`, and `\subfile` reference
-reachable from the main `.tex` so the output zip contains a single
-`.tex` file (plus images, `.bib`, `.bbl`, and any required class/style
-files). Use it when an arXiv reviewer or template expects a single
-self-contained source.
+reachable from the main `.tex` so the output zip contains a single source
+`.tex` file (the zip still includes images, `.bib`, `.bbl`, and any
+required class/style files). Use it when an arXiv reviewer or template
+expects a single self-contained source.
 
 ```bash
 latex2arxiv paper.zip --flatten
@@ -43,7 +43,7 @@ manually — they're plainly visible in the output.
 | Trigger | Output |
 |---|---|
 | Referenced file missing on disk | `[warn]` — original `\input{...}` left in place. |
-| Cycle (A inputs B inputs A) | `[warn]` — second-pass reference left in place; no infinite loop. |
+| Cycle (A inputs B inputs A) | `[warn]` — recursive reference left in place; no infinite loop. A file referenced from multiple non-recursive locations is re-inlined each time. |
 | `\input{x}` where `x` has its own `\documentclass` | `[error]` — refuses to inline (would corrupt the preamble); use `\subfile` instead or remove the inner preamble. |
 | Subfile missing `\begin{document}` / `\end{document}` | `[warn]` — raw content inlined as a fallback. |
 
