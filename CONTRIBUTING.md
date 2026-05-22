@@ -81,6 +81,10 @@ included both, which arXiv rejects. Pick the root-level copy.
 Vulnerability reports go through GitHub Security Advisories — see
 [SECURITY.md](SECURITY.md). Don't open a public issue.
 
+## Code of Conduct
+
+All participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Code style
 
 - `ruff` is the formatter and linter. Run `ruff check . && ruff format .`
