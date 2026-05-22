@@ -8,6 +8,7 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: pypi
     permissions:
       id-token: write  # required for trusted publishing
     steps:
@@ -76,7 +77,20 @@ jobs:
         id: changelog
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          NOTES=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          # Extract the section, then strip trailing `---` separators and
+          # trailing blank lines defensively (older CHANGELOG entries used
+          # `---` between sections; newer ones don't).
+          NOTES=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md \
+            | awk '
+              { lines[NR] = $0 }
+              END {
+                last = NR
+                while (last > 0 && (lines[last] ~ /^[[:space:]]*$/ || lines[last] ~ /^---[[:space:]]*$/)) {
+                  last--
+                }
+                for (i = 1; i <= last; i++) print lines[i]
+              }
+            ')
           echo "notes<<EOF" >> "$GITHUB_OUTPUT"
           echo "$NOTES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
