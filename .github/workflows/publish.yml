@@ -8,6 +8,10 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # GitHub auto-creates an empty `pypi` environment on first deployment.
+    # Protection rules (required reviewers, tag-only deployments, secret
+    # scoping) must be configured under repo Settings -> Environments ->
+    # pypi; otherwise this binding is a no-op.
     environment: pypi
     permissions:
       id-token: write  # required for trusted publishing
