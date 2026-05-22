@@ -27,6 +27,14 @@ inputs:
     description: 'Python version to install. Default: 3.12.'
     required: false
     default: '3.12'
+  flatten:
+    description: 'Inline every \input / \include / \subfile into the main .tex. "true" or "false". Default: false.'
+    required: false
+    default: 'false'
+  resize:
+    description: 'Downscale images to this max pixel dimension (e.g. "1600"). Empty disables resizing. Default: empty.'
+    required: false
+    default: ''
 
 outputs:
   cleaned-zip:
@@ -62,6 +70,8 @@ runs:
         L2A_MAIN: ${{ inputs.main }}
         L2A_CONFIG: ${{ inputs.config }}
         L2A_DRY_RUN: ${{ inputs.dry-run }}
+        L2A_FLATTEN: ${{ inputs.flatten }}
+        L2A_RESIZE: ${{ inputs.resize }}
       run: |
         set -e
         INPUT_PATH="$L2A_INPUT"
@@ -84,6 +94,12 @@ runs:
         fi
         if [ -n "$L2A_CONFIG" ]; then
           ARGS+=(--config "$L2A_CONFIG")
+        fi
+        if [ "$L2A_FLATTEN" = "true" ]; then
+          ARGS+=(--flatten)
+        fi
+        if [ -n "$L2A_RESIZE" ]; then
+          ARGS+=(--resize "$L2A_RESIZE")
         fi
         latex2arxiv "$INPUT_PATH" "$OUTPUT_PATH" "${ARGS[@]}"
         if [ "$L2A_DRY_RUN" != "true" ]; then
