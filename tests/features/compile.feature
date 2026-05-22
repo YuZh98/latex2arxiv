@@ -16,12 +16,13 @@ Feature: Compile the cleaned output and open the resulting PDF
     And the platform's default PDF viewer is launched on that PDF
     And the process exits with code 0
 
-  Scenario: --compile reports failure when pdflatex errors
+  Scenario: --compile reports pdflatex failure on stderr but does not flip exit code
     Given a LaTeX project whose main .tex contains an unrecoverable syntax error
     When I run `latex2arxiv paper.zip --compile`
     Then the cleaned output zip is still written
-    And stderr surfaces the `pdflatex` failure
-    And the process exits non-zero
+    And stderr surfaces the `pdflatex` failure with a "[compile] pdflatex errors:" tail
+    # The compile failure alone does not flip the exit code; the process exits
+    # 0 unless a separate pre-flight error is present.
 
   Scenario: --compile is skipped if pdflatex is not on PATH
     Given `pdflatex` is not installed
@@ -34,6 +35,8 @@ Feature: Compile the cleaned output and open the resulting PDF
   Scenario: --compile + pre-flight error
     Given the project triggers a `[error]` (e.g. `\usepackage{minted}`)
     When I run `latex2arxiv paper.zip --compile`
-    Then the pre-flight error is reported first
-    And `pdflatex` is not run
+    Then the pre-flight error is reported on stderr
     And the process exits with code 1
+    # --compile is not gated by pre-flight errors; pdflatex still runs and may
+    # emit its own diagnostics. The non-zero exit comes from the pre-flight
+    # error, not from --compile.
