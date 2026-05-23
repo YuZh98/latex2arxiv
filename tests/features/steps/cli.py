@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import glob
+import hashlib
+import io
 import json
+import os
+import re as _re
 import shlex
+import stat as _stat
 import subprocess
 import sys
 import zipfile
+from pathlib import Path as _P
 
 from pytest_bdd import given, parsers, then, when
 
@@ -38,14 +45,10 @@ def _clean(project_dir, tex_content):
 
 @when(parsers.re(r"^I run `latex2arxiv (?P<input>\S+)(?: (?P<args>[^`]+))?`$"))
 def _run_cli(project_dir, result, input, args):
-    import os
-
     args = args or ""
     pre_hash = None
     in_path = project_dir / input
     if in_path.is_file() and result.get("track_input_hash"):
-        import hashlib
-
         pre_hash = hashlib.md5(in_path.read_bytes()).hexdigest()
     env = os.environ.copy()
     if result.get("pythonpath_prepend"):
@@ -59,8 +62,6 @@ def _run_cli(project_dir, result, input, args):
     result["rc"] = proc.returncode
     result["input"] = input
     if pre_hash is not None:
-        import hashlib
-
         post_hash = hashlib.md5(in_path.read_bytes()).hexdigest()
         assert pre_hash == post_hash, f"input zip {input!r} was modified by tool"
 
@@ -312,13 +313,14 @@ def _commented_input(project_dir, tex_content):
     common.build_paper_zip(project_dir, body)
 
 
-def _output_zip(project_dir):
-    return project_dir / "paper_arxiv.zip"
+def _output_zip(project_dir, result):
+    stem = _P(result["input"]).stem
+    return project_dir / f"{stem}_arxiv.zip"
 
 
 @then("the output zip contains exactly one .tex file at the root")
-def _one_tex_at_root(project_dir):
-    out = _output_zip(project_dir)
+def _one_tex_at_root(project_dir, result):
+    out = _output_zip(project_dir, result)
     assert out.exists(), f"no output zip at {out}"
     with zipfile.ZipFile(out) as zf:
         names = zf.namelist()
@@ -327,8 +329,8 @@ def _one_tex_at_root(project_dir):
 
 
 @then(parsers.parse('that file is the inlined "{name}"'))
-def _is_inlined_main(project_dir, name):
-    out = _output_zip(project_dir)
+def _is_inlined_main(project_dir, result, name):
+    out = _output_zip(project_dir, result)
     with zipfile.ZipFile(out) as zf:
         body = zf.read(name).decode()
     assert "Intro text" in body, f"intro not inlined into {name}: {body!r}"
@@ -336,8 +338,8 @@ def _is_inlined_main(project_dir, name):
 
 
 @then(parsers.parse("the original fragment files ({names}) are not in the output zip"))
-def _fragments_absent(project_dir, names):
-    out = _output_zip(project_dir)
+def _fragments_absent(project_dir, result, names):
+    out = _output_zip(project_dir, result)
     with zipfile.ZipFile(out) as zf:
         zip_names = set(zf.namelist())
     fragments = [n.strip() for n in names.split(",")]
@@ -346,13 +348,11 @@ def _fragments_absent(project_dir, names):
 
 
 @then("`\\includegraphics` paths in the inlined .tex still resolve relative to the new root")
-def _includegraphics_resolves(project_dir):
-    out = _output_zip(project_dir)
+def _includegraphics_resolves(project_dir, result):
+    out = _output_zip(project_dir, result)
     with zipfile.ZipFile(out) as zf:
         names = set(zf.namelist())
         body = zf.read("main.tex").decode()
-    import re as _re
-
     paths = _re.findall(r"\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}", body)
     for p in paths:
         candidates = {p, p + ".pdf", p + ".png", p + ".jpg", p + ".jpeg", p + ".eps"}
@@ -360,8 +360,8 @@ def _includegraphics_resolves(project_dir):
 
 
 @then("every referenced figure file is present in the output zip")
-def _figures_present(project_dir):
-    _includegraphics_resolves(project_dir)
+def _figures_present(project_dir, result):
+    _includegraphics_resolves(project_dir, result)
 
 
 @then(parsers.parse("the JSON field `{field}` is `{literal}`"))
@@ -393,13 +393,13 @@ def _is_empty_list(result, field):
 
 
 @then("the output zip is structurally equivalent to a non-flattened run")
-def _structural_equiv(project_dir):
-    flat_zip = _output_zip(project_dir)
+def _structural_equiv(project_dir, result):
+    flat_zip = _output_zip(project_dir, result)
     with zipfile.ZipFile(flat_zip) as zf:
         flat_names = set(zf.namelist())
     flat_zip.unlink()
     subprocess.run(
-        [sys.executable, str(common.CONVERTER), "paper.zip"],
+        [sys.executable, str(common.CONVERTER), result["input"]],
         cwd=project_dir,
         capture_output=True,
         text=True,
@@ -410,8 +410,8 @@ def _structural_equiv(project_dir):
 
 
 @then(parsers.parse('"{name}" content does not appear in the inlined output'))
-def _comment_not_inlined(project_dir, name):
-    out = _output_zip(project_dir)
+def _comment_not_inlined(project_dir, result, name):
+    out = _output_zip(project_dir, result)
     with zipfile.ZipFile(out) as zf:
         names = set(zf.namelist())
         body = zf.read("main.tex").decode()
@@ -423,15 +423,8 @@ def _comment_not_inlined(project_dir, name):
 # --- clean_prune.feature additions --------------------------------------------
 
 
-def _cp_output_zip(project_dir, result):
-    from pathlib import Path as _P
-
-    stem = _P(result["input"]).stem
-    return project_dir / f"{stem}_arxiv.zip"
-
-
 def _cp_read_main(project_dir, result) -> str:
-    with zipfile.ZipFile(_cp_output_zip(project_dir, result)) as zf:
+    with zipfile.ZipFile(_output_zip(project_dir, result)) as zf:
         return zf.read("main.tex").decode()
 
 
@@ -477,7 +470,7 @@ def _cp_track_hash(result):
     "via `\\input`, `\\include`, `\\subfile`, `\\includegraphics`, `\\graphicspath`, and `\\bibliography`"
 )
 def _cp_transitive_refs(project_dir, result):
-    out = _cp_output_zip(project_dir, result)
+    out = _output_zip(project_dir, result)
     assert out.exists(), f"no output at {out}"
     with zipfile.ZipFile(out) as zf:
         names = set(zf.namelist())
@@ -487,7 +480,7 @@ def _cp_transitive_refs(project_dir, result):
 
 @then("files not reachable from the main .tex are dropped")
 def _cp_unreachable_dropped(project_dir, result):
-    with zipfile.ZipFile(_cp_output_zip(project_dir, result)) as zf:
+    with zipfile.ZipFile(_output_zip(project_dir, result)) as zf:
         names = set(zf.namelist())
     for must_not in ("unused.tex", "backup.bak"):
         assert must_not not in names, f"{must_not!r} unexpectedly kept; got {names}"
@@ -517,7 +510,7 @@ def _cp_artifacts_project(project_dir, tex_content):
 
 @then("none of those artifacts appear in the output zip")
 def _cp_no_artifacts(project_dir, result):
-    with zipfile.ZipFile(_cp_output_zip(project_dir, result)) as zf:
+    with zipfile.ZipFile(_output_zip(project_dir, result)) as zf:
         names = set(zf.namelist())
     forbidden = {"main.aux", "main.log", "main.out", "main.pdf", ".DS_Store", "Thumbs.db", "__pycache__/cache.pyc"}
     leaked = forbidden & names
@@ -611,19 +604,17 @@ def _cp_commented_input_project(project_dir, tex_content):
 
 @given('the file "old_section.tex" exists in the input')
 def _cp_add_old_section(project_dir):
-    import zipfile as _zf
-
     zip_path = project_dir / "project.zip"
     src = project_dir / "src"
     target = src / "old_section.tex"
     target.write_text("stale content\n")
-    with _zf.ZipFile(zip_path, "a") as zf:
+    with zipfile.ZipFile(zip_path, "a") as zf:
         zf.write(target, arcname="old_section.tex")
 
 
 @then('"old_section.tex" is treated as unreferenced and dropped from the output')
 def _cp_old_section_dropped(project_dir, result):
-    with zipfile.ZipFile(_cp_output_zip(project_dir, result)) as zf:
+    with zipfile.ZipFile(_output_zip(project_dir, result)) as zf:
         names = set(zf.namelist())
     assert "old_section.tex" not in names, f"old_section.tex leaked into output: {names}"
 
@@ -665,7 +656,7 @@ def _cp_readme_project(project_dir, tex_content):
 
 @then('the "00README" file is kept verbatim in the output zip')
 def _cp_readme_kept(project_dir, result):
-    out = _cp_output_zip(project_dir, result)
+    out = _output_zip(project_dir, result)
     with zipfile.ZipFile(out) as zf:
         names = set(zf.namelist())
         assert "00README" in names, f"00README dropped; output={names}"
@@ -681,7 +672,7 @@ def _cc_write_yaml(project_dir, content: str, name: str = "my_rules.yaml") -> No
 
 
 def _cc_read_main(project_dir, result) -> str:
-    out = _cp_output_zip(project_dir, result)
+    out = _output_zip(project_dir, result)
     with zipfile.ZipFile(out) as zf:
         return zf.read("main.tex").decode()
 
@@ -691,17 +682,21 @@ def _cc_bg_yaml(project_dir, name):
     _cc_write_yaml(project_dir, "commands_to_delete: []\n", name=name)
 
 
+def _cc_write_cmd_rule(project_dir, cmd):
+    _cc_write_yaml(project_dir, f"commands_to_delete:\n  - {cmd}\n")
+
+
 @given(parsers.parse('"my_rules.yaml" declares a removable command "{cmd}"'))
 def _cc_cmd_rule(project_dir, cmd):
-    _cc_write_yaml(project_dir, f"commands_to_delete:\n  - {cmd}\n")
+    _cc_write_cmd_rule(project_dir, cmd)
 
 
 @given(parsers.parse('"my_rules.yaml" declares a custom command "{cmd}"'))
 def _cc_cmd_rule_alias(project_dir, cmd):
-    _cc_write_yaml(project_dir, f"commands_to_delete:\n  - {cmd}\n")
+    _cc_write_cmd_rule(project_dir, cmd)
 
 
-@given(parsers.re(r"^the main \.tex contains `\\(?P<cmd>\w+)\{(?P<arg>[^{}]+)\}`$"))
+@given(parsers.re(r"^the main \.tex contains `\\(?P<cmd>(?!usepackage\b|begin\b|end\b)\w+)\{(?P<arg>[^{}]+)\}`$"))
 def _cc_main_with_cmd(project_dir, tex_content, cmd, arg):
     body = f"\\documentclass{{article}}\n\\begin{{document}}\n\\{cmd}{{{arg}}}\n\\end{{document}}\n"
     tex_content["body"] = body
@@ -768,8 +763,8 @@ def _cc_misspelled_key(project_dir, key):
 
 @then(parsers.parse('a "[warn]" lists the unknown key and the four accepted keys ({accepted})'))
 def _cc_unknown_key_warning(result, accepted):
-    stream = result["stdout"] + result["stderr"]
-    assert "[warn]" in stream, f"no [warn] in output: {stream!r}"
+    stream = result["stdout"]
+    assert "[warn]" in stream, f"no [warn] in stdout: {stream!r}"
     assert "unknown" in stream.lower() or "expected" in stream.lower(), stream
     for key in ("commands_to_delete", "commands_to_unwrap", "environments_to_delete", "replacements"):
         assert key in stream, f"accepted key {key!r} missing from warning text: {stream!r}"
@@ -830,8 +825,6 @@ def _cc_malformed(project_dir):
 def _cc_stderr_yaml_error(result):
     stderr = result["stderr"]
     assert "ParserError" in stderr or "yaml" in stderr.lower(), f"no YAML error in stderr: {stderr!r}"
-    import re as _re
-
     assert _re.search(r"line \d+", stderr), f"stderr lacks line marker: {stderr!r}"
 
 
@@ -873,12 +866,10 @@ _RI_BG_MAIN = (
 def _ri_read_image_size(project_dir, result, name):
     from PIL import Image
 
-    out = _cp_output_zip(project_dir, result)
+    out = _output_zip(project_dir, result)
     with zipfile.ZipFile(out) as zf:
         with zf.open(name) as f:
-            import io as _io
-
-            with Image.open(_io.BytesIO(f.read())) as img:
+            with Image.open(io.BytesIO(f.read())) as img:
                 return img.size
 
 
@@ -893,17 +884,25 @@ def _ri_pil_present():
 def _ri_bg_project(project_dir, tex_content, name):
     from PIL import Image
 
+    big_buf = io.BytesIO()
+    Image.new("RGB", (8000, 6000), (255, 0, 0)).save(big_buf, format="PNG")
+    big_png = big_buf.getvalue()
+    small_buf = io.BytesIO()
+    Image.new("RGB", (800, 600), (0, 255, 0)).save(small_buf, format="PNG")
+    small_png = small_buf.getvalue()
+    diagram_pdf = b"%PDF-1.4\n%fake\n%%EOF\n"
+    # Mirror to disk under src/ so _ri_figure_assert can read dimensions back.
     src = project_dir / "src"
     src.mkdir(exist_ok=True)
-    Image.new("RGB", (8000, 6000), (255, 0, 0)).save(src / "big.png")
-    Image.new("RGB", (800, 600), (0, 255, 0)).save(src / "small.png")
-    (src / "diagram.pdf").write_bytes(b"%PDF-1.4\n%fake\n%%EOF\n")
+    (src / "big.png").write_bytes(big_png)
+    (src / "small.png").write_bytes(small_png)
+    (src / "diagram.pdf").write_bytes(diagram_pdf)
     tex_content["body"] = _RI_BG_MAIN
     files = {
         "main.tex": _RI_BG_MAIN,
-        "big.png": (src / "big.png").read_bytes(),
-        "small.png": (src / "small.png").read_bytes(),
-        "diagram.pdf": (src / "diagram.pdf").read_bytes(),
+        "big.png": big_png,
+        "small.png": small_png,
+        "diagram.pdf": diagram_pdf,
     }
     common.build_multifile_zip(project_dir, files, zip_name=name)
 
@@ -963,7 +962,7 @@ def _ri_unchanged(project_dir, result, name, w, h):
 @then(parsers.parse('"{name}" is copied verbatim into the output zip'))
 def _ri_verbatim(project_dir, result, name):
     src_bytes = (project_dir / "src" / name).read_bytes()
-    out = _cp_output_zip(project_dir, result)
+    out = _output_zip(project_dir, result)
     with zipfile.ZipFile(out) as zf:
         out_bytes = zf.read(name)
     assert src_bytes == out_bytes, f"{name} bytes differ between input and output"
@@ -979,7 +978,7 @@ def _ri_no_resize(project_dir, result):
 @then("the process still completes the rest of the pipeline normally")
 def _ri_pipeline_ok(project_dir, result):
     assert result["rc"] == 0, (result["rc"], result["stderr"])
-    assert _cp_output_zip(project_dir, result).exists(), "output zip missing"
+    assert _output_zip(project_dir, result).exists(), "output zip missing"
 
 
 # --- cli_inputs.feature additions ---------------------------------------------
@@ -997,8 +996,8 @@ _CI_DEFAULT_BODY = "\\documentclass{article}\n\\begin{document}\nHello.\n\\end{d
 def _ci_file_project(project_dir, tex_content, name):
     tex_content["body"] = _CI_DEFAULT_BODY
     common.build_paper_zip(project_dir, _CI_DEFAULT_BODY, zip_name=name)
-    result_hash = (project_dir / name).read_bytes()
-    (project_dir / f"{name}.orig_md5").write_bytes(result_hash)  # snapshot for unchanged check
+    digest = hashlib.md5((project_dir / name).read_bytes()).hexdigest()
+    (project_dir / f"{name}.orig_md5").write_text(digest)  # md5 snapshot for unchanged check
 
 
 @given(parsers.parse('a directory "{name}" containing a compilable LaTeX project'))
@@ -1008,18 +1007,13 @@ def _ci_dir_project(project_dir, tex_content, name):
     target.mkdir(exist_ok=True)
     (target / "main.tex").write_text(_CI_DEFAULT_BODY)
     tex_content["body"] = _CI_DEFAULT_BODY
-    # Snapshot directory listing for "unchanged" check.
-    listing = sorted((p.name, p.read_bytes()) for p in target.iterdir() if p.is_file())
-    result_pickle = project_dir / f"{dirname}.orig.pickle"
-    import pickle as _pickle
-
-    result_pickle.write_bytes(_pickle.dumps(listing))
+    # Snapshot {filename: md5} for "unchanged" check.
+    digests = {p.name: hashlib.md5(p.read_bytes()).hexdigest() for p in target.iterdir() if p.is_file()}
+    (project_dir / f"{dirname}.orig.json").write_text(json.dumps(digests, sort_keys=True))
 
 
 @given(parsers.parse('a public git repository at "{url}" containing a LaTeX project'))
 def _ci_git_repo(project_dir, result, url):
-    import stat as _stat
-
     shim = project_dir / "git_shim"
     shim.mkdir(exist_ok=True)
     log = project_dir / "git_clone.log"
@@ -1109,18 +1103,16 @@ def _ci_output_in_cwd(project_dir, name):
 def _ci_original_unchanged(project_dir, name):
     snap = project_dir / f"{name}.orig_md5"
     assert snap.exists(), f"no snapshot for {name}"
-    assert (project_dir / name).read_bytes() == snap.read_bytes(), f"{name} was modified"
+    current = hashlib.md5((project_dir / name).read_bytes()).hexdigest()
+    assert current == snap.read_text().strip(), f"{name} was modified"
 
 
 @then(parsers.parse('the directory "{name}" is unchanged'))
 def _ci_dir_unchanged(project_dir, name):
     dirname = name.rstrip("/")
     target = project_dir / dirname
-    import pickle as _pickle
-
-    snap = (project_dir / f"{dirname}.orig.pickle").read_bytes()
-    expected = _pickle.loads(snap)
-    actual = sorted((p.name, p.read_bytes()) for p in target.iterdir() if p.is_file())
+    expected = json.loads((project_dir / f"{dirname}.orig.json").read_text())
+    actual = {p.name: hashlib.md5(p.read_bytes()).hexdigest() for p in target.iterdir() if p.is_file()}
     assert actual == expected, "directory contents changed"
 
 
@@ -1135,8 +1127,6 @@ def _ci_clone_cleanup(project_dir):
     log = (project_dir / "git_clone.log").read_text().strip()
     parts = log.split()
     dest = parts[-1]
-    from pathlib import Path as _P
-
     assert not _P(dest).exists(), f"temp clone dir survived: {dest}"
 
 
@@ -1187,8 +1177,6 @@ def _ci_stdout_not_found(result):
 def _ci_version_string(result, prefix):
     stream = result["stdout"]
     assert prefix in stream, f"prefix {prefix!r} missing: {stream!r}"
-    import re as _re
-
     m = _re.search(rf"{_re.escape(prefix)}(\d+\.\d+\.\d+)", stream)
     assert m, f"semver-shape not found after {prefix!r}: {stream!r}"
 
@@ -1201,11 +1189,6 @@ def _ci_no_escape(project_dir):
     assert not (project_dir / "escape.tex").exists()
 
 
-@then("the process exits non-zero")
-def _ci_rc_nonzero(result):
-    assert result["rc"] != 0, (result["rc"], result["stderr"])
-
-
 @then("stdout explains that extraction was refused due to an escaping path")
 def _ci_stdout_zipslip(result):
     out = result["stdout"]
@@ -1216,8 +1199,6 @@ def _ci_stdout_zipslip(result):
 
 @then("no extraction occurs")
 def _ci_no_extraction(project_dir):
-    import glob
-
     leaked = glob.glob(str(project_dir / "chunk_*.dat"))
     assert not leaked, f"bomb chunks extracted: {leaked[:3]}"
 
