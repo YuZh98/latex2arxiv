@@ -39,7 +39,7 @@ Feature: Custom removal rules via YAML config
     And no `--config` flag is passed
     When I run `latex2arxiv paper.zip`
     Then the auto-detected config is loaded and applied
-    And stderr notes which config file was used
+    And stdout notes which config file was used
 
   Scenario: Missing config file fails fast with a clear error
     When I run `latex2arxiv paper.zip --config does_not_exist.yaml`
