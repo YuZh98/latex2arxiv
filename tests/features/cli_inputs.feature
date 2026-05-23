@@ -57,7 +57,7 @@ Feature: Accept LaTeX projects from any common input form
   Scenario: Nonexistent input path
     When I run `latex2arxiv does_not_exist.zip`
     Then the process exits non-zero
-    And stderr explains that the input path was not found
+    And stdout explains that the input path was not found
 
   Scenario: --version prints the installed version and exits
     When I run `latex2arxiv --version`
@@ -69,11 +69,11 @@ Feature: Accept LaTeX projects from any common input form
     When I run `latex2arxiv evil.zip`
     Then no file is written outside the extraction root
     And the process exits non-zero
-    And stderr explains that extraction was refused due to an escaping path
+    And stdout explains that extraction was refused due to an escaping path
 
   Scenario: Zip-bomb protection — uncompressed size exceeds the safety cap
     Given a "bomb.zip" whose total uncompressed size exceeds the safety cap
     When I run `latex2arxiv bomb.zip`
     Then no extraction occurs
     And the process exits non-zero
-    And stderr explains that extraction was refused due to the size cap
+    And stdout explains that extraction was refused due to the size cap
