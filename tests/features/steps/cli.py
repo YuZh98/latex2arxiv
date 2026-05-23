@@ -664,3 +664,187 @@ def _cp_readme_kept(project_dir, result):
         assert "00README" in names, f"00README dropped; output={names}"
         body = zf.read("00README").decode()
     assert "arXiv hint" in body, f"00README content not verbatim: {body!r}"
+
+
+# --- custom_config.feature additions ------------------------------------------
+
+
+def _cc_write_yaml(project_dir, content: str, name: str = "my_rules.yaml") -> None:
+    (project_dir / name).write_text(content)
+
+
+def _cc_read_main(project_dir, result) -> str:
+    out = _cp_output_zip(project_dir, result)
+    with zipfile.ZipFile(out) as zf:
+        return zf.read("main.tex").decode()
+
+
+@given(parsers.parse('a YAML file "{name}" with custom removal rules'))
+def _cc_bg_yaml(project_dir, name):
+    _cc_write_yaml(project_dir, "commands_to_delete: []\n", name=name)
+
+
+@given(parsers.parse('"my_rules.yaml" declares a removable command "{cmd}"'))
+def _cc_cmd_rule(project_dir, cmd):
+    _cc_write_yaml(project_dir, f"commands_to_delete:\n  - {cmd}\n")
+
+
+@given(parsers.parse('"my_rules.yaml" declares a custom command "{cmd}"'))
+def _cc_cmd_rule_alias(project_dir, cmd):
+    _cc_write_yaml(project_dir, f"commands_to_delete:\n  - {cmd}\n")
+
+
+@given(parsers.re(r"^the main \.tex contains `\\(?P<cmd>\w+)\{(?P<arg>[^{}]+)\}`$"))
+def _cc_main_with_cmd(project_dir, tex_content, cmd, arg):
+    body = f"\\documentclass{{article}}\n\\begin{{document}}\n\\{cmd}{{{arg}}}\n\\end{{document}}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body)
+
+
+@then(parsers.parse("the `\\{cmd}{{{arg}}}` block is removed from the cleaned main .tex"))
+def _cc_cmd_removed(project_dir, result, cmd, arg):
+    body = _cc_read_main(project_dir, result)
+    assert f"\\{cmd}" not in body, f"\\{cmd} survived: {body!r}"
+    assert arg not in body, f"arg {arg!r} survived: {body!r}"
+
+
+@given(parsers.parse('"my_rules.yaml" lists "{env}" under `environments_to_delete`'))
+def _cc_env_rule(project_dir, env):
+    _cc_write_yaml(project_dir, f"environments_to_delete:\n  - {env}\n")
+
+
+@given(parsers.parse("the main .tex contains `\\begin{{{env}}}...\\end{{{env}}}`"))
+def _cc_main_with_env(project_dir, tex_content, env):
+    body = (
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        f"\\begin{{{env}}}\nNoisy content.\n\\end{{{env}}}\n"
+        "Visible body.\n"
+        "\\end{document}\n"
+    )
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body)
+
+
+@then(parsers.parse("the entire `{env}` environment (including its body) is removed"))
+def _cc_env_removed(project_dir, result, env):
+    body = _cc_read_main(project_dir, result)
+    assert f"\\begin{{{env}}}" not in body, body
+    assert f"\\end{{{env}}}" not in body, body
+    assert "Noisy content" not in body, body
+    assert "Visible body" in body, f"Visible body lost: {body!r}"
+
+
+@given(parsers.parse('"my_rules.yaml" lists a `replacements` rule mapping `{pattern}` to ``'))
+def _cc_repl_rule(project_dir, pattern):
+    yaml = f'replacements:\n  - pattern: "{pattern}"\n    replacement: ""\n'
+    _cc_write_yaml(project_dir, yaml)
+
+
+@given(parsers.parse('the main .tex contains the literal text "{snippet}"'))
+def _cc_main_with_text(project_dir, tex_content, snippet):
+    body = f"\\documentclass{{article}}\n\\begin{{document}}\n{snippet}\n\\end{{document}}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body)
+
+
+@then(parsers.parse('the substring "{snippet}" is removed from the cleaned main .tex'))
+def _cc_snippet_removed(project_dir, result, snippet):
+    body = _cc_read_main(project_dir, result)
+    assert snippet not in body, f"{snippet!r} survived: {body!r}"
+
+
+@given(parsers.parse('"my_rules.yaml" contains a misspelled top-level key like `{key}`'))
+def _cc_misspelled_key(project_dir, key):
+    _cc_write_yaml(project_dir, f"{key}:\n  - mynote\n")
+
+
+@then(parsers.parse('a "[warn]" lists the unknown key and the four accepted keys ({accepted})'))
+def _cc_unknown_key_warning(result, accepted):
+    stream = result["stdout"] + result["stderr"]
+    assert "[warn]" in stream, f"no [warn] in output: {stream!r}"
+    assert "unknown" in stream.lower() or "expected" in stream.lower(), stream
+    for key in ("commands_to_delete", "commands_to_unwrap", "environments_to_delete", "replacements"):
+        assert key in stream, f"accepted key {key!r} missing from warning text: {stream!r}"
+
+
+@then("the process exits with code 0 if no other errors are present")
+def _cc_rc0(result):
+    assert result["rc"] == 0, (result["rc"], result["stderr"])
+
+
+@given(parsers.parse('the project root contains an "{name}" file'))
+def _cc_root_config(project_dir, tex_content, name):
+    body = "\\documentclass{article}\n\\begin{document}\n\\mynote{ignore me} Body.\n\\end{document}\n"
+    files = {
+        "main.tex": body,
+        name: "commands_to_delete:\n  - mynote\n",
+    }
+    tex_content["body"] = body
+    common.build_multifile_zip(project_dir, files)
+
+
+@given("no `--config` flag is passed")
+def _cc_no_flag():
+    pass
+
+
+@then("the auto-detected config is loaded and applied")
+def _cc_auto_detect_applied(project_dir, result):
+    body = _cc_read_main(project_dir, result)
+    assert "\\mynote" not in body, f"auto-detected config not applied: {body!r}"
+
+
+@then("stdout notes which config file was used")
+def _cc_stdout_config_name(result):
+    assert "config:" in result["stdout"] or "arxiv_config.yaml" in result["stdout"], (
+        f"stdout has no config notice: {result['stdout']!r}"
+    )
+
+
+@then("the process exits non-zero")
+def _cc_rc_nonzero(result):
+    assert result["rc"] != 0, (result["rc"], result["stderr"])
+
+
+@then("stderr explains that the config file was not found")
+def _cc_stderr_not_found(result):
+    stderr = result["stderr"]
+    assert "does_not_exist.yaml" in stderr, f"missing filename in stderr: {stderr!r}"
+    assert "not found" in stderr.lower() or "filenotfounderror" in stderr.lower(), stderr
+
+
+@given('"my_rules.yaml" contains malformed YAML')
+def _cc_malformed(project_dir):
+    _cc_write_yaml(project_dir, "commands_to_delete: [\n")
+
+
+@then("stderr contains a YAML parse error pointing to the problem location")
+def _cc_stderr_yaml_error(result):
+    stderr = result["stderr"]
+    assert "ParserError" in stderr or "yaml" in stderr.lower(), f"no YAML error in stderr: {stderr!r}"
+    import re as _re
+
+    assert _re.search(r"line \d+", stderr), f"stderr lacks line marker: {stderr!r}"
+
+
+@given(parsers.parse("the main .tex contains both `\\{cmd1}{{{a1}}}` and `\\{cmd2}{{{a2}}}`"))
+def _cc_main_two_cmds(project_dir, tex_content, cmd1, a1, cmd2, a2):
+    body = (
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        f"\\{cmd1}{{{a1}}} \\{cmd2}{{{a2}}}\n"
+        "Body.\n"
+        "\\end{document}\n"
+    )
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body)
+
+
+@then(parsers.parse("both `\\{cmd1}{{{a1}}}` and `\\{cmd2}{{{a2}}}` are removed"))
+def _cc_both_removed(project_dir, result, cmd1, a1, cmd2, a2):
+    body = _cc_read_main(project_dir, result)
+    assert f"\\{cmd1}" not in body, body
+    assert f"\\{cmd2}" not in body, body
+    assert a1 not in body, body
+    assert a2 not in body, body
