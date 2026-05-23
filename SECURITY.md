@@ -7,11 +7,9 @@ least 6 months each. The currently supported lines are:
 
 | Version | Supported          |
 |---------|--------------------|
-| 1.0.x   | :white_check_mark: |
-| 0.11.x  | :white_check_mark: |
-| < 0.11  | :x:                |
-
-Once 1.1 ships, the 0.11.x line moves to end-of-life.
+| 1.2.x   | :white_check_mark: |
+| 1.1.x   | :white_check_mark: |
+| < 1.1   | :x:                |
 
 ## Reporting a vulnerability
 

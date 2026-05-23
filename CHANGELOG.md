@@ -6,12 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-05-22
+
+GitHub Action surfaces `--flatten` and `--resize`; CI gains a macOS test matrix; publish pipeline binds to a protected `pypi` GitHub Environment. Repo adds a Code of Conduct.
+
 ### Added
 - GitHub Action: `flatten` and `resize` inputs forward to CLI (#155)
 - CI: macOS test matrix coverage (#155)
+- `CODE_OF_CONDUCT.md` (#154)
+- JSON schema: document `metadata` field (#152)
 
 ### Changed
 - `publish.yml`: bind publish job to `pypi` GitHub Environment; strip trailing `---` from CHANGELOG-extracted release notes (#155)
+- `SECURITY.md`: vulnerability-report email switched to public alias (#151)
 
 ## [1.1.0] - 2026-05-19
 
@@ -336,7 +343,8 @@ Initial release. One command converts a LaTeX zip to an arXiv-ready submission.
 
 ---
 
-[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/YuZh98/latex2arxiv/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/YuZh98/latex2arxiv/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/YuZh98/latex2arxiv/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/YuZh98/latex2arxiv/compare/v0.11.0...v1.0.0
