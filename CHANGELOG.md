@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Added
+- GitHub Action: `flatten` and `resize` inputs forward to CLI (#155)
+- CI: macOS test matrix coverage (#155)
+
+### Changed
+- `publish.yml`: bind publish job to `pypi` GitHub Environment; strip trailing `---` from CHANGELOG-extracted release notes (#155)
+
 ## [1.1.0] - 2026-05-19
 
 New pre-flight checks aligned with arXiv's submission guidelines, auto-detection of `arxiv_config.yaml`, and MCP server improvements.

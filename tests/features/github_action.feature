@@ -38,6 +38,29 @@ Feature: GitHub Action for arXiv pre-flight in CI
       | input  | value         | flag      |
       | main   | JASA_main.tex | --main    |
       | config | arxiv.yaml    | --config  |
+      | resize | 800           | --resize  |
+
+  Scenario: flatten=true appends --flatten to the CLI
+    Given the input `flatten` is set to "true"
+    When the action runs
+    Then the latex2arxiv CLI is invoked with `--flatten`
+    And the resulting output reflects the flattened single-file `.tex`
+
+  Scenario: flatten=false (default) does not append --flatten
+    Given the input `flatten` is left at its default ("false")
+    When the action runs
+    Then the latex2arxiv CLI is invoked without `--flatten`
+
+  Scenario: resize value downscales images
+    Given the input `resize` is set to "800"
+    When the action runs
+    Then the latex2arxiv CLI is invoked with `--resize 800`
+    And images in the output are downscaled so the longest side ≤ 800 px
+
+  Scenario: resize left empty (default) does not append --resize
+    Given the input `resize` is left empty
+    When the action runs
+    Then the latex2arxiv CLI is invoked without `--resize`
 
   Scenario: Specific latex2arxiv version pin
     Given the input `version` is set to "0.6.0"
