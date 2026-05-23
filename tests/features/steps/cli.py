@@ -399,7 +399,7 @@ def _structural_equiv(project_dir, result):
         flat_names = set(zf.namelist())
     flat_zip.unlink()
     subprocess.run(
-        [sys.executable, str(common.CONVERTER), "paper.zip"],
+        [sys.executable, str(common.CONVERTER), result["input"]],
         cwd=project_dir,
         capture_output=True,
         text=True,
