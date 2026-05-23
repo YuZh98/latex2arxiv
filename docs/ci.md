@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: YuZh98/latex2arxiv@v1.1.0
+      - uses: YuZh98/latex2arxiv@v1.2.0
         with:
           input: paper/        # directory of .tex sources, or a .zip path
           main: main.tex       # optional; auto-detected from \documentclass
@@ -26,7 +26,7 @@ jobs:
 The action accepts a directory or a `.zip` for `input`. If a directory, it's zipped on the fly. By default it runs in `--dry-run` mode (no output written, but `[error]` lines fail the job). Set `dry-run: 'false'` to actually emit the cleaned zip — useful in a release workflow:
 
 ```yaml
-      - uses: YuZh98/latex2arxiv@v1.1.0
+      - uses: YuZh98/latex2arxiv@v1.2.0
         id: clean
         with:
           input: paper/
@@ -42,7 +42,9 @@ The action accepts a directory or a `.zip` for `input`. If a directory, it's zip
 | `main` | (auto-detect) | Main `.tex` filename. |
 | `config` | (none) | Path to a YAML config for custom removal rules. |
 | `dry-run` | `'true'` | If `'false'`, emit the cleaned zip alongside the input. |
-| `version` | (latest) | Pin a specific `latex2arxiv` version (e.g. `'1.1.0'`). |
+| `flatten` | `'false'` | If `'true'`, inline `\input` / `\include` / `\subfile` into a single `.tex`. |
+| `resize` | `''` | Pixel cap for image downscaling (e.g. `'1600'`); empty disables resizing. |
+| `version` | (latest) | Pin a specific `latex2arxiv` version (e.g. `'1.2.0'`). |
 | `python-version` | `'3.12'` | Python version used to install `latex2arxiv`. |
 
 **Output:** `cleaned-zip` — path to the cleaned zip when `dry-run: 'false'` (empty otherwise).
@@ -54,7 +56,7 @@ For repos that keep a built submission zip checked in:
 ```yaml
 repos:
   - repo: https://github.com/YuZh98/latex2arxiv
-    rev: v1.1.0
+    rev: v1.2.0
     hooks:
       - id: latex2arxiv-dryrun
         files: paper\.zip$  # restrict to your submission zip

@@ -15,7 +15,7 @@ latex2arxiv paper.zip --dry-run --json | jq .
 
 ```jsonc
 {
-  "version": "1.1.0",            // tool version (from installed package metadata)
+  "version": "1.2.0",            // tool version (from installed package metadata)
   "schema_version": 1,           // bump on any breaking change to this layout
   "input": "path/to/paper.zip",  // absolute or as-passed
   "output": "paper_arxiv.zip",   // null when --dry-run
@@ -111,7 +111,7 @@ error captured under `errors` and exit code 1:
 
 ```json
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "schema_version": 1,
   "input": null,
   "output": null,
