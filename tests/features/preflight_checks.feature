@@ -107,8 +107,7 @@ Feature: Catch arXiv submission blockers before upload
     Then a "[warn]" notes that `\input`/`\includegraphics` resolution will break
 
   Scenario: \today + missing .bbl + oversized output coexist
-    Given a project that triggers a \today warning, a biblatex .bbl warning,
-      and an oversized-output warning at the same time
+    Given a project that triggers a \today warning, a biblatex .bbl warning, and an oversized-output warning at the same time
     When I run `latex2arxiv project.zip`
     Then all three "[warn]" lines are emitted independently
     And the process exits with code 0

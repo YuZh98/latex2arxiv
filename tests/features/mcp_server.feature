@@ -8,8 +8,7 @@ Feature: MCP server exposes arXiv validation to AI agents
 
   Background:
     Given the `latex2arxiv-mcp` stdio server is running
-    And the safe-root is the current working directory (or
-      $LATEX2ARXIV_MCP_BASE_DIR if set)
+    And the safe-root is the current working directory (or $LATEX2ARXIV_MCP_BASE_DIR if set)
 
   Scenario: validate_submission on a clean project returns success
     Given a directory "paper/" containing a valid LaTeX project
