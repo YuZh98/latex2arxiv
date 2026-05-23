@@ -36,13 +36,26 @@ def _clean(project_dir, tex_content):
     common.build_paper_zip(project_dir, tex_content["body"])
 
 
-@when(parsers.parse("I run `latex2arxiv paper.zip {args}`"))
-def _run_cli(project_dir, result, args):
-    cmd = [sys.executable, str(common.CONVERTER), "paper.zip", *shlex.split(args)]
+@when(parsers.re(r"^I run `latex2arxiv (?P<input>\S+)(?: (?P<args>[^`]+))?`$"))
+def _run_cli(project_dir, result, input, args):
+    args = args or ""
+    pre_hash = None
+    in_path = project_dir / input
+    if in_path.is_file() and result.get("track_input_hash"):
+        import hashlib
+
+        pre_hash = hashlib.md5(in_path.read_bytes()).hexdigest()
+    cmd = [sys.executable, str(common.CONVERTER), input, *shlex.split(args)]
     proc = subprocess.run(cmd, cwd=project_dir, capture_output=True, text=True)
     result["stdout"] = proc.stdout
     result["stderr"] = proc.stderr
     result["rc"] = proc.returncode
+    result["input"] = input
+    if pre_hash is not None:
+        import hashlib
+
+        post_hash = hashlib.md5(in_path.read_bytes()).hexdigest()
+        assert pre_hash == post_hash, f"input zip {input!r} was modified by tool"
 
 
 @then(parsers.parse('no "{name}" file is created'))
@@ -398,3 +411,256 @@ def _comment_not_inlined(project_dir, name):
     stem = name.replace(".tex", "")
     assert not any(stem in n for n in names if n != "main.tex"), f"{stem!r} fragment leaked into zip: {names}"
     assert stem not in body, f"{stem!r} appears in inlined main.tex: {body!r}"
+
+
+# --- clean_prune.feature additions --------------------------------------------
+
+
+def _cp_output_zip(project_dir, result):
+    from pathlib import Path as _P
+
+    stem = _P(result["input"]).stem
+    return project_dir / f"{stem}_arxiv.zip"
+
+
+def _cp_read_main(project_dir, result) -> str:
+    with zipfile.ZipFile(_cp_output_zip(project_dir, result)) as zf:
+        return zf.read("main.tex").decode()
+
+
+_CP_DEFAULT_MAIN = (
+    "\\documentclass{article}\n"
+    "\\begin{document}\n"
+    "\\input{intro}\n"
+    "\\includegraphics{fig1.pdf}\n"
+    "Body. \\todo{stale}\n"
+    "\\end{document}\n"
+)
+
+
+@given(
+    parsers.parse(
+        'a LaTeX project zip containing a main "main.tex" plus build artifacts, '
+        "unused figures, backup files, and inline draft annotations"
+    )
+)
+def _cp_default_project(project_dir, tex_content):
+    files = {
+        "main.tex": _CP_DEFAULT_MAIN,
+        "intro.tex": "Intro text.\n",
+        "fig1.pdf": b"%PDF-1.4 fake\n",
+        "unused.tex": "Unused.\n",
+        "main.aux": "fake aux\n",
+        "main.log": "fake log\n",
+        "main.out": "fake out\n",
+        "main.pdf": b"%PDF-1.4 fake build\n",
+        "backup.bak": "old backup\n",
+    }
+    tex_content["body"] = _CP_DEFAULT_MAIN
+    common.build_multifile_zip(project_dir, files, zip_name="project.zip")
+
+
+@given("the original input archive is never modified by the tool")
+def _cp_track_hash(result):
+    result["track_input_hash"] = True
+
+
+@then(
+    'the output zip contains "main.tex" and every file it transitively references '
+    "via `\\input`, `\\include`, `\\subfile`, `\\includegraphics`, `\\graphicspath`, and `\\bibliography`"
+)
+def _cp_transitive_refs(project_dir, result):
+    out = _cp_output_zip(project_dir, result)
+    assert out.exists(), f"no output at {out}"
+    with zipfile.ZipFile(out) as zf:
+        names = set(zf.namelist())
+    for must in ("main.tex", "intro.tex", "fig1.pdf"):
+        assert must in names, f"{must!r} missing from output; got {names}"
+
+
+@then("files not reachable from the main .tex are dropped")
+def _cp_unreachable_dropped(project_dir, result):
+    with zipfile.ZipFile(_cp_output_zip(project_dir, result)) as zf:
+        names = set(zf.namelist())
+    for must_not in ("unused.tex", "backup.bak"):
+        assert must_not not in names, f"{must_not!r} unexpectedly kept; got {names}"
+
+
+@given(
+    parsers.parse(
+        'the input contains "main.aux", "main.log", "main.out", "main.pdf", '
+        '".DS_Store", "Thumbs.db", and "__pycache__/cache.pyc"'
+    )
+)
+def _cp_artifacts_project(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\begin{document}\nBody.\n\\end{document}\n"
+    files = {
+        "main.tex": body,
+        "main.aux": "a\n",
+        "main.log": "a\n",
+        "main.out": "a\n",
+        "main.pdf": b"%PDF-1.4 fake\n",
+        ".DS_Store": "ds\n",
+        "Thumbs.db": "th\n",
+        "__pycache__/cache.pyc": b"\x00\x00",
+    }
+    tex_content["body"] = body
+    common.build_multifile_zip(project_dir, files, zip_name="project.zip")
+
+
+@then("none of those artifacts appear in the output zip")
+def _cp_no_artifacts(project_dir, result):
+    with zipfile.ZipFile(_cp_output_zip(project_dir, result)) as zf:
+        names = set(zf.namelist())
+    forbidden = {"main.aux", "main.log", "main.out", "main.pdf", ".DS_Store", "Thumbs.db", "__pycache__/cache.pyc"}
+    leaked = forbidden & names
+    assert not leaked, f"build artifacts kept: {leaked}; output={names}"
+
+
+@given('"main.tex" contains both `% line comments` and stretches of code preceded by an unescaped percent')
+def _cp_comments_project(project_dir, tex_content):
+    body = (
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "% line comment\n"
+        "Visible \\% escaped percent.\n"
+        "% another comment\n"
+        "Body.\n"
+        "\\end{document}\n"
+    )
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name="project.zip")
+
+
+@then('the cleaned "main.tex" in the output has those comments removed')
+def _cp_comments_removed(project_dir, result):
+    body = _cp_read_main(project_dir, result)
+    assert "% line comment" not in body, body
+    assert "% another comment" not in body, body
+
+
+@then("`\\%` (escaped percent) is preserved verbatim")
+def _cp_escaped_percent_kept(project_dir, result):
+    body = _cp_read_main(project_dir, result)
+    assert "\\%" in body, f"escaped percent missing from cleaned main.tex: {body!r}"
+
+
+@given(parsers.parse('"main.tex" contains a `{cmd}{{...}}` invocation'))
+def _cp_annotation_project(project_dir, tex_content, cmd):
+    body = f"\\documentclass{{article}}\n\\begin{{document}}\nBefore {cmd}{{noisy content}} after.\n\\end{{document}}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name="project.zip")
+
+
+@then(parsers.parse('the entire `{cmd}{{...}}` (including nested braces) is removed from the cleaned "main.tex"'))
+def _cp_annotation_removed(project_dir, result, cmd):
+    body = _cp_read_main(project_dir, result)
+    assert cmd not in body, f"{cmd!r} survived in cleaned main.tex: {body!r}"
+    assert "noisy content" not in body, body
+
+
+@given('"main.tex" contains `\\todo{see \\cite{x}}`')
+def _cp_nested_project(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\begin{document}\nBefore \\todo{see \\cite{x}} after.\n\\end{document}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name="project.zip")
+
+
+@then("the whole `\\todo{see \\cite{x}}` block is removed")
+def _cp_nested_removed(project_dir, result):
+    body = _cp_read_main(project_dir, result)
+    assert "\\todo" not in body, body
+    assert "\\cite{x}" not in body, body
+
+
+@then("no dangling `}` is left behind")
+def _cp_no_dangling_brace(project_dir, result):
+    body = _cp_read_main(project_dir, result)
+    opens = body.count("{")
+    closes = body.count("}")
+    assert opens == closes, f"unbalanced braces in cleaned main.tex: opens={opens} closes={closes}\n{body!r}"
+
+
+@given(parsers.parse("the main .tex contains `\\usepackage{{{pkg}}}`"))
+def _cp_pkg_project(project_dir, tex_content, pkg):
+    body = f"\\documentclass{{article}}\n\\usepackage{{{pkg}}}\n\\begin{{document}}\nBody.\n\\end{{document}}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name="project.zip")
+
+
+@then(parsers.parse("`\\usepackage{{{pkg}}}` is removed from the cleaned main .tex"))
+def _cp_pkg_removed(project_dir, result, pkg):
+    body = _cp_read_main(project_dir, result)
+    assert f"\\usepackage{{{pkg}}}" not in body, f"{pkg!r} usepackage survived: {body!r}"
+
+
+@given('"main.tex" contains `% \\input{old_section.tex}` on a commented line')
+def _cp_commented_input_project(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\begin{document}\n% \\input{old_section.tex}\nBody.\n\\end{document}\n"
+    tex_content["body"] = body
+    files = {"main.tex": body}
+    common.build_multifile_zip(project_dir, files, zip_name="project.zip")
+
+
+@given('the file "old_section.tex" exists in the input')
+def _cp_add_old_section(project_dir):
+    import zipfile as _zf
+
+    zip_path = project_dir / "project.zip"
+    src = project_dir / "src"
+    target = src / "old_section.tex"
+    target.write_text("stale content\n")
+    with _zf.ZipFile(zip_path, "a") as zf:
+        zf.write(target, arcname="old_section.tex")
+
+
+@then('"old_section.tex" is treated as unreferenced and dropped from the output')
+def _cp_old_section_dropped(project_dir, result):
+    with zipfile.ZipFile(_cp_output_zip(project_dir, result)) as zf:
+        names = set(zf.namelist())
+    assert "old_section.tex" not in names, f"old_section.tex leaked into output: {names}"
+
+
+@given('the input "main.tex" does not declare `\\pdfoutput`')
+def _cp_no_pdfoutput(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\begin{document}\nBody.\n\\end{document}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name="project.zip")
+
+
+@then('the cleaned "main.tex" includes `\\pdfoutput=1` so arXiv selects pdfLaTeX')
+def _cp_pdfoutput_injected(project_dir, result):
+    body = _cp_read_main(project_dir, result)
+    assert "\\pdfoutput=1" in body, f"pdfoutput not injected: {body!r}"
+
+
+@given('the input "main.tex" contains `\\pdfoutput=0`')
+def _cp_pdfoutput_zero(project_dir, tex_content):
+    body = "\\pdfoutput=0\n\\documentclass{article}\n\\begin{document}\nBody.\n\\end{document}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name="project.zip")
+
+
+@then('the cleaned "main.tex" contains `\\pdfoutput=1`')
+def _cp_pdfoutput_one(project_dir, result):
+    body = _cp_read_main(project_dir, result)
+    assert "\\pdfoutput=1" in body, body
+    assert "\\pdfoutput=0" not in body, f"pdfoutput=0 not normalized: {body!r}"
+
+
+@given('the input contains a "00README" file at the project root')
+def _cp_readme_project(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\begin{document}\nBody.\n\\end{document}\n"
+    tex_content["body"] = body
+    files = {"main.tex": body, "00README": "arXiv hint: keep this.\n"}
+    common.build_multifile_zip(project_dir, files, zip_name="project.zip")
+
+
+@then('the "00README" file is kept verbatim in the output zip')
+def _cp_readme_kept(project_dir, result):
+    out = _cp_output_zip(project_dir, result)
+    with zipfile.ZipFile(out) as zf:
+        names = set(zf.namelist())
+        assert "00README" in names, f"00README dropped; output={names}"
+        body = zf.read("00README").decode()
+    assert "arXiv hint" in body, f"00README content not verbatim: {body!r}"
