@@ -12,9 +12,16 @@ cd latex2arxiv
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[mcp]"
-pip install pytest ruff
+pip install pytest ruff pre-commit
+pre-commit install
 pytest
 ```
+
+`pre-commit install` wires the formatter, linter, and basic file
+checks into your local `git commit`. CI runs the same checks
+(`ruff format --check .` blocks the whole test matrix on failure), so
+installing the hook saves you a round-trip when a stray format issue
+slips in.
 
 `pdflatex` (TeX Live or MacTeX) is only needed if you run the
 `compile-smoke` tests locally. The default `pytest` invocation skips
