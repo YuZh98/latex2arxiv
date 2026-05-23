@@ -7,27 +7,23 @@ Feature: Inline included files into a single main .tex
 
   Background:
     Given the `latex2arxiv` CLI is installed
-    And a LaTeX project "paper.zip" whose "main.tex" contains
-      `\input{sec/intro}`, `\include{sec/methods}`, and `\subfile{sec/appendix}`
+    And a LaTeX project "paper.zip" whose "main.tex" contains `\input{sec/intro}`, `\include{sec/methods}`, and `\subfile{sec/appendix}`
 
   Scenario: --flatten produces a single .tex
     When I run `latex2arxiv paper.zip --flatten`
     Then the output zip contains exactly one .tex file at the root
     And that file is the inlined "main.tex"
-    And the original fragment files (intro.tex, methods.tex, appendix.tex)
-      are not in the output zip
+    And the original fragment files (intro.tex, methods.tex, appendix.tex) are not in the output zip
 
   Scenario: Inlined output preserves figure references unchanged
     When I run `latex2arxiv paper.zip --flatten`
-    Then `\includegraphics` paths in the inlined .tex still resolve relative
-      to the new root
+    Then `\includegraphics` paths in the inlined .tex still resolve relative to the new root
     And every referenced figure file is present in the output zip
 
   Scenario: --flatten + --json lists the inlined fragments
     When I run `latex2arxiv paper.zip --flatten --json`
     Then the JSON field `flatten` is `true`
-    And the JSON field `inlined_files` is a non-empty list containing the
-      paths of the fragment .tex files that were inlined
+    And the JSON field `inlined_files` is a non-empty list containing the paths of the fragment .tex files that were inlined
 
   Scenario: --flatten with no \input/\include/\subfile is a no-op
     Given the main .tex has no inclusion commands
