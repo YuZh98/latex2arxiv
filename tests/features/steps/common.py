@@ -23,6 +23,27 @@ def build_paper_zip(project_dir: Path, body: str, zip_name: str = "paper.zip") -
     return zip_path
 
 
+def build_multifile_zip(project_dir: Path, files: dict, zip_name: str = "paper.zip") -> Path:
+    """Write a multi-file LaTeX project to a zip inside project_dir.
+
+    `files` maps zip-relative paths (e.g. "main.tex", "sec/intro.tex") to
+    file contents (str for text, bytes for binary).
+    """
+    src = project_dir / "src"
+    src.mkdir(exist_ok=True)
+    zip_path = project_dir / zip_name
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for arc, content in files.items():
+            on_disk = src / arc
+            on_disk.parent.mkdir(parents=True, exist_ok=True)
+            if isinstance(content, bytes):
+                on_disk.write_bytes(content)
+            else:
+                on_disk.write_text(content)
+            zf.write(on_disk, arcname=arc)
+    return zip_path
+
+
 def parse_json(stdout: str) -> dict:
     return json.loads(stdout)
 
