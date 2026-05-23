@@ -154,12 +154,16 @@ def _bare_field_equals(result, field, literal):
 
 @given("the project triggers at least one error and one warning")
 def _err_and_warn(project_dir, tex_content):
-    body = tex_content["body"].replace(
-        "\\documentclass{article}",
-        "\\documentclass{article}\n\\usepackage{minted}",
-    ).replace(
-        "\\begin{document}",
-        "\\date{\\today}\n\\begin{document}",
+    body = (
+        tex_content["body"]
+        .replace(
+            "\\documentclass{article}",
+            "\\documentclass{article}\n\\usepackage{minted}",
+        )
+        .replace(
+            "\\begin{document}",
+            "\\date{\\today}\n\\begin{document}",
+        )
     )
     tex_content["body"] = body
     common.build_paper_zip(project_dir, body)
@@ -194,9 +198,7 @@ def _counts_eq_len(result, name, listname):
 def _input_bytes(project_dir, result):
     obj = common.parse_json(result["stdout"])
     actual = (project_dir / "paper.zip").stat().st_size
-    assert obj["sizes"]["input_bytes"] == actual, (
-        f"sizes.input_bytes={obj['sizes']['input_bytes']} vs on-disk={actual}"
-    )
+    assert obj["sizes"]["input_bytes"] == actual, f"sizes.input_bytes={obj['sizes']['input_bytes']} vs on-disk={actual}"
 
 
 @then("`sizes.uncompressed_bytes` matches the sum of kept-file sizes")
