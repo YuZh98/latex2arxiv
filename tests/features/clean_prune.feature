@@ -5,26 +5,21 @@ Feature: Prune the project and clean the .tex sources
   So that I don't have to hand-curate what goes to arXiv
 
   Background:
-    Given a LaTeX project zip containing a main "main.tex" plus build artifacts,
-      unused figures, backup files, and inline draft annotations
+    Given a LaTeX project zip containing a main "main.tex" plus build artifacts, unused figures, backup files, and inline draft annotations
     And the original input archive is never modified by the tool
 
   Scenario: Keep only files reachable from the main .tex
     When I run `latex2arxiv project.zip`
-    Then the output zip contains "main.tex" and every file it transitively
-      references via `\input`, `\include`, `\subfile`, `\includegraphics`,
-      `\graphicspath`, and `\bibliography`
+    Then the output zip contains "main.tex" and every file it transitively references via `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, and `\bibliography`
     And files not reachable from the main .tex are dropped
 
   Scenario: Remove build artifacts and editor leftovers
-    Given the input contains "main.aux", "main.log", "main.out", "main.pdf",
-      "main.bbl", ".DS_Store", "Thumbs.db", and "__pycache__/cache.pyc"
+    Given the input contains "main.aux", "main.log", "main.out", "main.pdf", "main.bbl", ".DS_Store", "Thumbs.db", and "__pycache__/cache.pyc"
     When I run `latex2arxiv project.zip`
     Then none of those artifacts appear in the output zip
 
   Scenario: Strip line and block comments from .tex sources
-    Given "main.tex" contains both `% line comments` and stretches of code
-      preceded by an unescaped percent
+    Given "main.tex" contains both `% line comments` and stretches of code preceded by an unescaped percent
     When I run `latex2arxiv project.zip`
     Then the cleaned "main.tex" in the output has those comments removed
     And `\%` (escaped percent) is preserved verbatim
@@ -32,8 +27,7 @@ Feature: Prune the project and clean the .tex sources
   Scenario Outline: Remove built-in draft annotations with their content
     Given "main.tex" contains a `<command>{...}` invocation
     When I run `latex2arxiv project.zip`
-    Then the entire `<command>{...}` (including nested braces) is removed
-      from the cleaned "main.tex"
+    Then the entire `<command>{...}` (including nested braces) is removed from the cleaned "main.tex"
 
     # Built-in default annotation set; revision-tracking commands like
     # \added, \deleted, \textcolor{red} are not built-in — they are added

@@ -17,8 +17,7 @@ Feature: VS Code extension surfaces validation and cleaning inside the editor
   Scenario: Validate command runs latex2arxiv against the workspace
     When I invoke the command `latex2arxiv: Validate` from the Command Palette
     Then the configured executable is run on the workspace root with `--dry-run`
-    And any pre-flight errors and warnings are surfaced in the editor
-      (e.g. via diagnostics, output channel, or notification)
+    And any pre-flight errors and warnings are surfaced in the editor (e.g. via diagnostics, output channel, or notification)
 
   Scenario: Clean command produces an arXiv-ready zip
     When I invoke the command `latex2arxiv: Clean for arXiv` from the Command Palette
@@ -42,8 +41,7 @@ Feature: VS Code extension surfaces validation and cleaning inside the editor
     Then the CLI is invoked with `--main src/JASA_main.tex`
 
   Scenario: Missing CLI executable surfaces a clear error
-    Given `latex2arxiv` is not on PATH and `latex2arxiv.executablePath` points
-      to a missing binary
+    Given `latex2arxiv` is not on PATH and `latex2arxiv.executablePath` points to a missing binary
     When I invoke `latex2arxiv: Validate`
     Then a notification explains that the CLI was not found
     And the notification links to or describes the install instructions

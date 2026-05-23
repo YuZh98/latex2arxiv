@@ -31,8 +31,7 @@ Feature: Custom removal rules via YAML config
   Scenario: Unknown YAML keys produce a clear warning
     Given "my_rules.yaml" contains a misspelled top-level key like `command_to_delete`
     When I run `latex2arxiv paper.zip --config my_rules.yaml`
-    Then a "[warn]" lists the unknown key and the four accepted keys
-      (`commands_to_delete`, `commands_to_unwrap`, `environments_to_delete`, `replacements`)
+    Then a "[warn]" lists the unknown key and the four accepted keys (`commands_to_delete`, `commands_to_unwrap`, `environments_to_delete`, `replacements`)
     And the process exits with code 0 if no other errors are present
 
   Scenario: arxiv_config.yaml at project root is auto-detected
