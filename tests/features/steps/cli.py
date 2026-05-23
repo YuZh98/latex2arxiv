@@ -38,6 +38,8 @@ def _clean(project_dir, tex_content):
 
 @when(parsers.re(r"^I run `latex2arxiv (?P<input>\S+)(?: (?P<args>[^`]+))?`$"))
 def _run_cli(project_dir, result, input, args):
+    import os
+
     args = args or ""
     pre_hash = None
     in_path = project_dir / input
@@ -45,8 +47,11 @@ def _run_cli(project_dir, result, input, args):
         import hashlib
 
         pre_hash = hashlib.md5(in_path.read_bytes()).hexdigest()
+    env = os.environ.copy()
+    if result.get("pythonpath_prepend"):
+        env["PYTHONPATH"] = result["pythonpath_prepend"] + os.pathsep + env.get("PYTHONPATH", "")
     cmd = [sys.executable, str(common.CONVERTER), input, *shlex.split(args)]
-    proc = subprocess.run(cmd, cwd=project_dir, capture_output=True, text=True)
+    proc = subprocess.run(cmd, cwd=project_dir, capture_output=True, text=True, env=env)
     result["stdout"] = proc.stdout
     result["stderr"] = proc.stderr
     result["rc"] = proc.returncode
@@ -848,3 +853,128 @@ def _cc_both_removed(project_dir, result, cmd1, a1, cmd2, a2):
     assert f"\\{cmd2}" not in body, body
     assert a1 not in body, body
     assert a2 not in body, body
+
+
+# --- resize_images.feature additions ------------------------------------------
+
+
+_RI_BG_MAIN = (
+    "\\documentclass{article}\n"
+    "\\begin{document}\n"
+    "\\includegraphics{big}\n"
+    "\\includegraphics{small}\n"
+    "\\includegraphics{diagram}\n"
+    "\\end{document}\n"
+)
+
+
+def _ri_read_image_size(project_dir, result, name):
+    from PIL import Image
+
+    out = _cp_output_zip(project_dir, result)
+    with zipfile.ZipFile(out) as zf:
+        with zf.open(name) as f:
+            import io as _io
+
+            with Image.open(_io.BytesIO(f.read())) as img:
+                return img.size
+
+
+@given("`Pillow` is available in the environment")
+def _ri_pil_present():
+    import importlib.util
+
+    assert importlib.util.find_spec("PIL") is not None, "Pillow not installed"
+
+
+@given(parsers.parse('a LaTeX project zip "{name}" containing raster figures'))
+def _ri_bg_project(project_dir, tex_content, name):
+    from PIL import Image
+
+    src = project_dir / "src"
+    src.mkdir(exist_ok=True)
+    Image.new("RGB", (8000, 6000), (255, 0, 0)).save(src / "big.png")
+    Image.new("RGB", (800, 600), (0, 255, 0)).save(src / "small.png")
+    (src / "diagram.pdf").write_bytes(b"%PDF-1.4\n%fake\n%%EOF\n")
+    tex_content["body"] = _RI_BG_MAIN
+    files = {
+        "main.tex": _RI_BG_MAIN,
+        "big.png": (src / "big.png").read_bytes(),
+        "small.png": (src / "small.png").read_bytes(),
+        "diagram.pdf": (src / "diagram.pdf").read_bytes(),
+    }
+    common.build_multifile_zip(project_dir, files, zip_name=name)
+
+
+@given(parsers.parse('a figure "{name}" is {w:d}x{h:d} pixels'))
+def _ri_figure_assert(project_dir, name, w, h):
+    from PIL import Image
+
+    p = project_dir / "src" / name
+    assert p.exists(), f"fixture image missing: {p}"
+    with Image.open(p) as img:
+        assert img.size == (w, h), f"{name} fixture is {img.size}, expected ({w},{h})"
+
+
+@given(parsers.parse('a vector figure "{name}"'))
+def _ri_pdf_assert(project_dir, name):
+    p = project_dir / "src" / name
+    assert p.exists(), f"fixture pdf missing: {p}"
+
+
+@given("`Pillow` is not installed")
+def _ri_stub_pil(project_dir, result):
+    shim = project_dir / "pil_shim"
+    pkg = shim / "PIL"
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "__init__.py").write_text('raise ImportError("Pillow stubbed out for test")\n')
+    result["pythonpath_prepend"] = str(shim)
+
+
+@then(parsers.parse('"{name}" in the output zip has a longest side equal to {px:d} pixels'))
+def _ri_longest_side(project_dir, result, name, px):
+    w, h = _ri_read_image_size(project_dir, result, name)
+    assert max(w, h) == px, f"{name} longest side is {max(w, h)}, expected {px}; got size=({w},{h})"
+
+
+@then(parsers.parse('the aspect ratio of "{name}" is preserved'))
+def _ri_aspect_preserved(project_dir, result, name):
+    w, h = _ri_read_image_size(project_dir, result, name)
+    # Source images use 4:3 (8000x6000 → 1.333...). Allow 1px rounding tolerance.
+    ratio = w / h
+    assert abs(ratio - 4 / 3) < 0.01, f"{name} aspect ratio is {ratio:.4f}, expected ~1.3333"
+
+
+@then("images are resized to the project's `DEFAULT_MAX_PX` value")
+def _ri_default_max(project_dir, result):
+    # DEFAULT_MAX_PX = 1600 in pipeline/images.py. Verify big.png hit that cap.
+    w, h = _ri_read_image_size(project_dir, result, "big.png")
+    assert max(w, h) == 1600, f"big.png longest side is {max(w, h)}, expected 1600"
+
+
+@then(parsers.parse('"{name}" in the output zip is still {w:d}x{h:d} pixels'))
+def _ri_unchanged(project_dir, result, name, w, h):
+    got = _ri_read_image_size(project_dir, result, name)
+    assert got == (w, h), f"{name} is {got}, expected ({w},{h})"
+
+
+@then(parsers.parse('"{name}" is copied verbatim into the output zip'))
+def _ri_verbatim(project_dir, result, name):
+    src_bytes = (project_dir / "src" / name).read_bytes()
+    out = _cp_output_zip(project_dir, result)
+    with zipfile.ZipFile(out) as zf:
+        out_bytes = zf.read(name)
+    assert src_bytes == out_bytes, f"{name} bytes differ between input and output"
+
+
+@then("no images in the output zip are resized")
+def _ri_no_resize(project_dir, result):
+    # All raster images keep their original dimensions.
+    assert _ri_read_image_size(project_dir, result, "big.png") == (8000, 6000)
+    assert _ri_read_image_size(project_dir, result, "small.png") == (800, 600)
+
+
+@then("the process still completes the rest of the pipeline normally")
+def _ri_pipeline_ok(project_dir, result):
+    assert result["rc"] == 0, (result["rc"], result["stderr"])
+    assert _cp_output_zip(project_dir, result).exists(), "output zip missing"
