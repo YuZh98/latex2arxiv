@@ -50,6 +50,8 @@ def _run_cli(project_dir, result, input, args):
     env = os.environ.copy()
     if result.get("pythonpath_prepend"):
         env["PYTHONPATH"] = result["pythonpath_prepend"] + os.pathsep + env.get("PYTHONPATH", "")
+    if result.get("path_prepend"):
+        env["PATH"] = result["path_prepend"] + os.pathsep + env.get("PATH", "")
     cmd = [sys.executable, str(common.CONVERTER), input, *shlex.split(args)]
     proc = subprocess.run(cmd, cwd=project_dir, capture_output=True, text=True, env=env)
     result["stdout"] = proc.stdout
@@ -978,3 +980,249 @@ def _ri_no_resize(project_dir, result):
 def _ri_pipeline_ok(project_dir, result):
     assert result["rc"] == 0, (result["rc"], result["stderr"])
     assert _cp_output_zip(project_dir, result).exists(), "output zip missing"
+
+
+# --- cli_inputs.feature additions ---------------------------------------------
+
+
+@given("the `latex2arxiv` CLI is installed and on PATH")
+def _ci_cli_present_on_path():
+    assert common.CONVERTER.exists(), f"converter.py not found at {common.CONVERTER}"
+
+
+_CI_DEFAULT_BODY = "\\documentclass{article}\n\\begin{document}\nHello.\n\\end{document}\n"
+
+
+@given(parsers.parse('a file "{name}" containing a compilable LaTeX project'))
+def _ci_file_project(project_dir, tex_content, name):
+    tex_content["body"] = _CI_DEFAULT_BODY
+    common.build_paper_zip(project_dir, _CI_DEFAULT_BODY, zip_name=name)
+    result_hash = (project_dir / name).read_bytes()
+    (project_dir / f"{name}.orig_md5").write_bytes(result_hash)  # snapshot for unchanged check
+
+
+@given(parsers.parse('a directory "{name}" containing a compilable LaTeX project'))
+def _ci_dir_project(project_dir, tex_content, name):
+    dirname = name.rstrip("/")
+    target = project_dir / dirname
+    target.mkdir(exist_ok=True)
+    (target / "main.tex").write_text(_CI_DEFAULT_BODY)
+    tex_content["body"] = _CI_DEFAULT_BODY
+    # Snapshot directory listing for "unchanged" check.
+    listing = sorted((p.name, p.read_bytes()) for p in target.iterdir() if p.is_file())
+    result_pickle = project_dir / f"{dirname}.orig.pickle"
+    import pickle as _pickle
+
+    result_pickle.write_bytes(_pickle.dumps(listing))
+
+
+@given(parsers.parse('a public git repository at "{url}" containing a LaTeX project'))
+def _ci_git_repo(project_dir, result, url):
+    import stat as _stat
+
+    shim = project_dir / "git_shim"
+    shim.mkdir(exist_ok=True)
+    log = project_dir / "git_clone.log"
+    script_body = (
+        "#!/bin/sh\n"
+        f'echo "$@" >> "{log}"\n'
+        'if [ "$1" = "clone" ]; then\n'
+        '  for arg do dest="$arg"; done\n'
+        '  mkdir -p "$dest"\n'
+        f'  cat > "$dest/main.tex" <<EOF\n'
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "Cloned project.\n"
+        "\\end{document}\n"
+        "EOF\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 1\n"
+    )
+    gitbin = shim / "git"
+    gitbin.write_text(script_body)
+    gitbin.chmod(gitbin.stat().st_mode | _stat.S_IXUSR | _stat.S_IXGRP | _stat.S_IXOTH)
+    result["path_prepend"] = str(shim)
+
+
+@given(parsers.parse('a zip whose only file containing `\\documentclass` is "{name}"'))
+def _ci_autodetect_zip(project_dir, tex_content, name):
+    files = {
+        "header.tex": "\\usepackage{amsmath}\n",  # no \documentclass
+        name: _CI_DEFAULT_BODY,  # has \documentclass
+    }
+    tex_content["body"] = _CI_DEFAULT_BODY
+    common.build_multifile_zip(project_dir, files, zip_name="paper.zip")
+
+
+@given("a zip with multiple files containing `\\documentclass`")
+def _ci_multi_documentclass_zip(project_dir, tex_content):
+    body_a = "\\documentclass{article}\n\\begin{document}A.\\end{document}\n"
+    body_b = "\\documentclass{article}\n\\begin{document}B.\\end{document}\n"
+    files = {"main.tex": body_a, "JASA_main.tex": body_b}
+    tex_content["body"] = body_a
+    common.build_multifile_zip(project_dir, files, zip_name="paper.zip")
+
+
+@given(parsers.parse('a malicious "{name}" whose entries include "{member}"'))
+def _ci_evil_zip(project_dir, name, member):
+    z = project_dir / name
+    with zipfile.ZipFile(z, "w") as zf:
+        zi = zipfile.ZipInfo(member)
+        zf.writestr(zi, "escaped!\n")
+
+
+@given(parsers.parse('a "{name}" whose total uncompressed size exceeds the safety cap'))
+def _ci_bomb_zip(project_dir, name):
+    chunk = b"\x00" * (10 * 1024 * 1024)
+    z = project_dir / name
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i in range(60):  # 600 MB uncompressed total, > 500 MB cap
+            zf.writestr(f"chunk_{i:03d}.dat", chunk)
+
+
+@when("I run `latex2arxiv` with no input and no `--demo`")
+def _ci_run_noargs(project_dir, result):
+    proc = subprocess.run(
+        [sys.executable, str(common.CONVERTER)],
+        cwd=project_dir,
+        capture_output=True,
+        text=True,
+    )
+    result["stdout"] = proc.stdout
+    result["stderr"] = proc.stderr
+    result["rc"] = proc.returncode
+    result["input"] = ""
+
+
+@then(parsers.parse('a file "{name}" is written next to the input'))
+def _ci_output_next_to_input(project_dir, name):
+    assert (project_dir / name).exists(), f"{name} not found in {project_dir}"
+
+
+@then(parsers.parse('a file "{name}" is written in the current directory'))
+def _ci_output_in_cwd(project_dir, name):
+    assert (project_dir / name).exists(), f"{name} not found in {project_dir}"
+
+
+@then(parsers.parse('the original "{name}" is unchanged'))
+def _ci_original_unchanged(project_dir, name):
+    snap = project_dir / f"{name}.orig_md5"
+    assert snap.exists(), f"no snapshot for {name}"
+    assert (project_dir / name).read_bytes() == snap.read_bytes(), f"{name} was modified"
+
+
+@then(parsers.parse('the directory "{name}" is unchanged'))
+def _ci_dir_unchanged(project_dir, name):
+    dirname = name.rstrip("/")
+    target = project_dir / dirname
+    import pickle as _pickle
+
+    snap = (project_dir / f"{dirname}.orig.pickle").read_bytes()
+    expected = _pickle.loads(snap)
+    actual = sorted((p.name, p.read_bytes()) for p in target.iterdir() if p.is_file())
+    assert actual == expected, "directory contents changed"
+
+
+@then("the repository is cloned to a temp location with `--depth 1`")
+def _ci_depth_1(project_dir):
+    log = (project_dir / "git_clone.log").read_text()
+    assert "clone --depth 1" in log, f"git not called with --depth 1: {log!r}"
+
+
+@then("the temp clone is removed before the process exits")
+def _ci_clone_cleanup(project_dir):
+    log = (project_dir / "git_clone.log").read_text().strip()
+    parts = log.split()
+    dest = parts[-1]
+    from pathlib import Path as _P
+
+    assert not _P(dest).exists(), f"temp clone dir survived: {dest}"
+
+
+@then("no input argument is required")
+def _ci_demo_no_input_required(result):
+    assert result["rc"] == 0, (result["rc"], result["stderr"])
+
+
+@then("the bundled demo project is processed")
+def _ci_demo_processed(project_dir):
+    assert (project_dir / "demo_project_arxiv.zip").exists(), "demo output missing"
+
+
+@then(parsers.parse('the cleaned output is written to "{name}"'))
+def _ci_explicit_output(project_dir, name):
+    assert (project_dir / name).exists(), f"{name} not written"
+
+
+@then(parsers.parse('no file "{name}" is created'))
+def _ci_no_default_output(project_dir, name):
+    assert not (project_dir / name).exists(), f"unexpected {name}"
+
+
+@then(parsers.parse('"{name}" is selected as the main file'))
+def _ci_main_selected(result, name):
+    stream = result["stdout"]
+    assert f"main tex: {name}" in stream, f"main tex line not found for {name}: {stream!r}"
+
+
+@then(parsers.parse('"{name}" is used as the main file regardless of auto-detection'))
+def _ci_main_override(result, name):
+    stream = result["stdout"]
+    assert f"main tex: {name}" in stream, f"main tex override not honored: {stream!r}"
+
+
+@then(parsers.parse('stderr contains "{snippet}"'))
+def _ci_stderr_contains(result, snippet):
+    assert snippet in result["stderr"], f"missing {snippet!r} in stderr: {result['stderr']!r}"
+
+
+@then("stdout explains that the input path was not found")
+def _ci_stdout_not_found(result):
+    out = result["stdout"]
+    assert "not found" in out.lower(), f"missing 'not found' in stdout: {out!r}"
+
+
+@then(parsers.parse('stdout contains "{prefix}" followed by a semver-shaped string'))
+def _ci_version_string(result, prefix):
+    stream = result["stdout"]
+    assert prefix in stream, f"prefix {prefix!r} missing: {stream!r}"
+    import re as _re
+
+    m = _re.search(rf"{_re.escape(prefix)}(\d+\.\d+\.\d+)", stream)
+    assert m, f"semver-shape not found after {prefix!r}: {stream!r}"
+
+
+@then("no file is written outside the extraction root")
+def _ci_no_escape(project_dir):
+    parent = project_dir.parent
+    leak = parent / "escape.tex"
+    assert not leak.exists(), f"escape.tex leaked to {leak}"
+    assert not (project_dir / "escape.tex").exists()
+
+
+@then("the process exits non-zero")
+def _ci_rc_nonzero(result):
+    assert result["rc"] != 0, (result["rc"], result["stderr"])
+
+
+@then("stdout explains that extraction was refused due to an escaping path")
+def _ci_stdout_zipslip(result):
+    out = result["stdout"]
+    assert "escapes the extraction root" in out or "zip-slip" in out.lower(), (
+        f"zip-slip message missing from stdout: {out!r}"
+    )
+
+
+@then("no extraction occurs")
+def _ci_no_extraction(project_dir):
+    import glob
+
+    leaked = glob.glob(str(project_dir / "chunk_*.dat"))
+    assert not leaked, f"bomb chunks extracted: {leaked[:3]}"
+
+
+@then("stdout explains that extraction was refused due to the size cap")
+def _ci_stdout_zipbomb(result):
+    out = result["stdout"]
+    assert "safety cap" in out or "uncompressed size" in out, f"bomb-cap message missing from stdout: {out!r}"
