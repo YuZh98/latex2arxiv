@@ -14,7 +14,7 @@ Feature: Prune the project and clean the .tex sources
     And files not reachable from the main .tex are dropped
 
   Scenario: Remove build artifacts and editor leftovers
-    Given the input contains "main.aux", "main.log", "main.out", "main.pdf", "main.bbl", ".DS_Store", "Thumbs.db", and "__pycache__/cache.pyc"
+    Given the input contains "main.aux", "main.log", "main.out", "main.pdf", ".DS_Store", "Thumbs.db", and "__pycache__/cache.pyc"
     When I run `latex2arxiv project.zip`
     Then none of those artifacts appear in the output zip
 
@@ -36,7 +36,7 @@ Feature: Prune the project and clean the .tex sources
       | command   |
       | \todo     |
       | \hl       |
-      | \note     |
+      | \\note    |
       | \fixme    |
 
   Scenario: Nested braces inside removed commands are handled
