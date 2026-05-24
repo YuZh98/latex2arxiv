@@ -6,9 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Added
+- Zed MCP extension for the Zed editor marketplace
+- `docs/mcp.md`: setup instructions for VS Code Copilot, Windsurf, and Zed
+
+### Changed
+- README and comparison table list all MCP platforms explicitly (Claude, Cursor, Copilot, Windsurf, Zed)
+
 ## [1.2.1] - 2026-05-24
 
-Closes four pre-flight coverage gaps surfaced by the BDD wiring pass: each was a documented arXiv requirement that earlier code did not enforce.
+Pre-flight coverage gaps. Four documented arXiv requirements that earlier code did not enforce are now checked.
 
 ### Fixed
 - Pre-flight: `\usepackage{fontspec}` / `unicode-math` error suppressed when a `00README` declares `compiler: xelatex` (or legacy `00README.XXX` with `xelatex` / `lualatex`) — matches the directive the error message itself recommends (#174)
@@ -106,8 +113,6 @@ API stability, CI hardening, and test coverage ahead of v1.0. Breaking: MCP erro
 - `requirements.txt` removed; `pyproject.toml` is the single source of dependencies
 - `[project.urls]` added to `pyproject.toml`
 
----
-
 ## [0.10.0] - 2026-05-13
 
 Upload guide and metadata extraction. Pass `--guide` to get a step-by-step arXiv upload walkthrough with copy-paste-ready title, authors, and abstract.
@@ -122,8 +127,6 @@ Upload guide and metadata extraction. Pass `--guide` to get a step-by-step arXiv
 ### Fixed
 - Author extraction handles `\thanks{...}`, `\\`-separated authors, multiple `\author{}` commands, and `\and` separators
 - Figure/table counting scans all `.tex` files (not just main) and counts starred variants
-
----
 
 ## [0.9.0] - 2026-05-13
 
@@ -142,8 +145,6 @@ Homebrew tap, `--version`, `--json`, and `--flatten` flags. The tool now install
 ### Fixed
 - `--json` fatal-error envelopes now populate `input` and `sizes.input_bytes` from the input file (#111)
 
----
-
 ## [0.8.0] - 2026-05-07
 
 MCP server for AI agent integration. Claude, Cursor, and Copilot can now validate and clean submissions directly via `latex2arxiv-mcp`.
@@ -155,8 +156,6 @@ MCP server for AI agent integration. Claude, Cursor, and Copilot can now validat
 ### Changed
 - README rewritten with "Works everywhere" hero section and decision-funnel structure
 - Comparison table corrected and expanded (MCP, GitHub Action rows added)
-
----
 
 ## [0.7.1] - 2026-05-07
 
@@ -174,8 +173,6 @@ Expanded pre-flight checks and reduced false positives. Catches more submission 
 
 ### Changed
 - Pre-flight docs (`docs/pre-flight.md`) updated to match all check changes
-
----
 
 ## [0.7.0] - 2026-05-06
 
@@ -195,7 +192,6 @@ Directory and git URL input, GitHub Action, and pre-commit hook. The tool now ac
 - SSH-style git URL name derivation (`git@host:user/repo.git` → `repo_arxiv.zip`)
 - `git clone` has a 5-minute timeout to prevent indefinite hangs
 
----
 
 ## [0.6.0] - 2026-05-04
 
@@ -225,7 +221,6 @@ CI regression fixtures, zip-slip protection, and biblatex/biber support in `--co
 - `\addbibresource{bib/refs.bib}` resolves correctly by stripping directory components
 - Malformed config rules warn and skip instead of crashing
 
----
 
 ## [0.5.1] - 2026-05-04
 
@@ -238,7 +233,6 @@ Packaging fix. `demo_project.zip` was missing from the wheel.
 - README rewritten with result-first headline and restructured comparison table
 - PyPI keywords and classifiers added for discoverability
 
----
 
 ## [0.5.0] - 2026-05-03
 
@@ -255,7 +249,6 @@ Pre-flight checks and CI gating. Errors cause a non-zero exit code so a bad subm
 ### Changed
 - Demo restructured by user value; `arxiv_config.yaml` bundled and auto-applied by `--demo`
 
----
 
 ## [0.4.2] - 2026-05-03
 
@@ -270,7 +263,6 @@ Main tex detection and `\graphicspath` support. Projects with multiple `\documen
 ### Internal
 - Pinned `bibtexparser` to `>=1.4,<2` to avoid the breaking v2 API
 
----
 
 ## [0.4.1] - 2026-05-02
 
@@ -283,7 +275,6 @@ Bug fixes for `--demo` and `--compile` on PyPI installs.
 ### Internal
 - Release workflow opens a PR instead of pushing directly to `main`
 
----
 
 ## [0.4.0] - 2025-05-02
 
@@ -301,7 +292,6 @@ Bug fixes for `--demo` and `--compile` on PyPI installs.
 ### Internal
 - Switched to PyPI trusted publishing (OIDC); removed API token requirement
 
----
 
 ## [0.3.0] - 2025-05-02
 
@@ -316,7 +306,6 @@ Test suite and CI linting. All pipeline stages now have automated coverage.
 - Comment stripping: comment-only lines no longer introduce spurious paragraph breaks
 - BibTeX deduplication: prefer the cited entry when multiple duplicates share the same DOI/title
 
----
 
 ## [0.2.0] - 2025-05-01
 
@@ -334,7 +323,6 @@ Custom removal rules via `--config`. Users can now strip revision markup (`\adde
 - Support file whitelist: root-only, `.bbl` must match main stem
 - Compile: `UnicodeDecodeError` on binary files
 
----
 
 ## [0.1.0] - 2025-05-01
 
@@ -351,9 +339,9 @@ Initial release. One command converts a LaTeX zip to an arXiv-ready submission.
 - Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\begin{overpic}`, `\bibliography`
 - Compliance warnings: referee/double-space mode, custom style files, `\today` in `\date`, `.eps` images
 
----
 
-[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/YuZh98/latex2arxiv/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/YuZh98/latex2arxiv/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/YuZh98/latex2arxiv/compare/v1.0.0...v1.0.1
