@@ -70,6 +70,13 @@ include = ["pipeline*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib"
+# Silence a known DeprecationWarning emitted by gherkin-official (transitive
+# dep of pytest-bdd): re.split() positional `maxsplit` is deprecated in
+# Python 3.14. Fixed upstream in newer gherkin-official, but pytest-bdd 8.1
+# pins the older version. Remove this filter when pytest-bdd bumps gherkin.
+filterwarnings = [
+    "ignore:'maxsplit' is passed as positional argument:DeprecationWarning:gherkin.gherkin_line",
+]
 
 [tool.pyright]
 pythonVersion = "3.10"
