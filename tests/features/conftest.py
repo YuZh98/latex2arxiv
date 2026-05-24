@@ -28,16 +28,26 @@ def result():
 
 
 _XFAIL_TAGS = {
-    "xfail_preflight_gap": "scenario describes intended behavior not yet implemented in preflight (psfig.sty/fontspec-00README/main-subdir/dot-file gaps); leave as canonical contract until backlog PR lands",
+    "xfail_preflight_gap": (
+        "preflight code gap — scenario describes intended arXiv contract not yet "
+        "enforced in code (psfig.sty/fontspec-00README/main-subdir/dot-file). "
+        "Tracked in https://github.com/YuZh98/latex2arxiv/issues/174 — remove this "
+        "xfail once the matching pipeline change lands."
+    ),
 }
 
 
 def pytest_bdd_apply_tag(tag, function):
-    """Translate Gherkin @<tag> markers into pytest marks for known gap-scenarios."""
+    """Translate Gherkin @<tag> markers into pytest marks for known gap-scenarios.
+
+    strict=True so an accidental partial fix surfaces as XPASS (loud) rather
+    than silently passing. Per global CLAUDE.md §7: bridge xfails must surface
+    when the underlying gap closes.
+    """
     reason = _XFAIL_TAGS.get(tag)
     if reason is None:
         return None
-    pytest.mark.xfail(strict=False, reason=reason)(function)
+    pytest.mark.xfail(strict=True, reason=reason)(function)
     return True
 
 
@@ -51,7 +61,7 @@ def pytest_collection_modifyitems(config, items):
         if "test_additional_advisory_warnings" in item.nodeid and "dot-file" in item.nodeid:
             item.add_marker(
                 pytest.mark.xfail(
-                    strict=False,
+                    strict=True,
                     reason=_XFAIL_TAGS["xfail_preflight_gap"],
                 )
             )

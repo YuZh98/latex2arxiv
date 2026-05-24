@@ -310,11 +310,20 @@ def _act_setup_python(result, version):
 
 @then("the latex2arxiv CLI exits with code 1")
 def _act_cli_exits_1(result):
-    # The CLI's exit-1-on-error behavior is covered by preflight_checks.feature.
-    # Here we just confirm the action's set -e wiring will propagate it.
+    # Static-analysis: the CLI's exit-1-on-error behavior itself is covered by
+    # preflight_checks.feature. Here we verify the action actually invokes
+    # `latex2arxiv` AND nothing after the invocation could mask a non-zero exit
+    # before `set -e` propagates it (no unconditional `exit 0`, no `&& :` etc).
     assert result.get("act_project_error") is True
     script = _run_pre_flight_script()
-    assert "set -e" in script, "run step does not use set -e"
+    invoke_line = next(
+        (line for line in script.splitlines() if line.strip().startswith("latex2arxiv ")),
+        None,
+    )
+    assert invoke_line is not None, f"no latex2arxiv invocation in run script:\n{script}"
+    tail = script.split(invoke_line, 1)[1]
+    assert "exit 0" not in tail, f"unconditional `exit 0` after latex2arxiv would mask exit code:\n{tail}"
+    assert "&& :" not in tail and "|| :" not in tail, f"`&& :` / `|| :` after latex2arxiv would mask exit code:\n{tail}"
 
 
 @then("the step fails (`set -e` propagates the non-zero exit)")
