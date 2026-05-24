@@ -6,16 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-05-24
+
+Pre-flight coverage gaps and Zed MCP extension. Four documented arXiv requirements that earlier code did not enforce are now checked; MCP docs updated to list all supported platforms.
+
 ### Added
 - Zed MCP extension for the Zed editor marketplace
 - `docs/mcp.md`: setup instructions for VS Code Copilot, Windsurf, and Zed
 
 ### Changed
 - README and comparison table list all MCP platforms explicitly (Claude, Cursor, Copilot, Windsurf, Zed)
-
-## [1.2.1] - 2026-05-24
-
-Pre-flight coverage gaps. Four documented arXiv requirements that earlier code did not enforce are now checked.
 
 ### Fixed
 - Pre-flight: `\usepackage{fontspec}` / `unicode-math` error suppressed when a `00README` declares `compiler: xelatex` (or legacy `00README.XXX` with `xelatex` / `lualatex`) — matches the directive the error message itself recommends (#174)
