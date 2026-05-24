@@ -67,7 +67,6 @@ Feature: Catch arXiv submission blockers before upload
     Then a "[warn]" recommends shipping the `.bbl` as a fallback
     And the process exits with code 0
 
-  @xfail_preflight_gap
   Scenario: Main .tex not at the submission root
     Given the only file containing `\documentclass` is "src/main.tex"
     When I run `latex2arxiv project.zip --dry-run`
