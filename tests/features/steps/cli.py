@@ -1351,3 +1351,362 @@ def _guide_no_zip(project_dir, result):
 def _guide_no_guide_file(project_dir, result):
     p = _guide_path(project_dir, result)
     assert not p.exists(), f"guide unexpectedly written at {p}"
+
+
+# --- preflight_checks.feature additions ---------------------------------------
+
+
+_PF_DEFAULT_BODY = "\\documentclass{article}\n\\begin{document}\nBody.\n\\end{document}\n"
+_PF_ZIP = "project.zip"
+
+
+def _pf_build(project_dir, body, extras=None):
+    """Rebuild project.zip with `body` as main.tex plus optional extras dict."""
+    files = {"main.tex": body}
+    if extras:
+        files.update(extras)
+    common.build_multifile_zip(project_dir, files, zip_name=_PF_ZIP)
+
+
+def _pf_assert_severity(result, severity, *keywords):
+    """Assert stdout has a `[severity]` line containing all keyword substrings (case-insensitive)."""
+    lines = [line for line in result["stdout"].splitlines() if f"[{severity}]" in line]
+    assert lines, f"no [{severity}] in stdout:\n{result['stdout']}"
+    matched = [line for line in lines if all(k.lower() in line.lower() for k in keywords)]
+    assert matched, f"no [{severity}] line matched all of {keywords}; got:\n" + "\n".join(lines)
+
+
+def _pf_assert_no_severity_containing(result, severity, keyword):
+    lines = [
+        line for line in result["stdout"].splitlines() if f"[{severity}]" in line and keyword.lower() in line.lower()
+    ]
+    assert not lines, f"unexpected [{severity}] containing {keyword!r}:\n" + "\n".join(lines)
+
+
+# --- Background + project-shape Givens ---
+
+
+@given("a LaTeX project zip ready for inspection")
+def _pf_bg_zip(project_dir, tex_content):
+    tex_content["body"] = _PF_DEFAULT_BODY
+    _pf_build(project_dir, _PF_DEFAULT_BODY)
+
+
+@given(parsers.re(r"^the main \.tex contains `\\usepackage\{(?P<pkg>[^{}]+)\}`$"))
+def _pf_usepackage(project_dir, tex_content, pkg):
+    body = f"\\documentclass{{article}}\n\\usepackage{{{pkg}}}\n\\begin{{document}}\nBody.\n\\end{{document}}\n"
+    tex_content["body"] = body
+    _pf_build(project_dir, body)
+
+
+@given(parsers.parse('the input contains "{name}" at any depth'))
+def _pf_input_contains(project_dir, tex_content, name):
+    # Spec says only "input contains <name>" — do not inject usepackage to coerce
+    # the file into the kept set. Code currently only checks kept_files, which is
+    # the gap covered by @xfail_preflight_gap.
+    body = tex_content.get("body") or _PF_DEFAULT_BODY
+    _pf_build(project_dir, body, {name: "fake-bytes\n"})
+
+
+@given('no "00README" with `compiler: xelatex` is shipped')
+def _pf_no_readme():
+    pass
+
+
+@given('a "00README" at the project root contains `compiler: xelatex`')
+def _pf_with_readme(project_dir, tex_content):
+    body = tex_content.get("body") or _PF_DEFAULT_BODY
+    _pf_build(project_dir, body, {"00README": "compiler: xelatex\n"})
+
+
+@given("the main .tex contains `\\tikzexternalize`")
+def _pf_tikzext(project_dir, tex_content):
+    body = (
+        "\\documentclass{article}\n\\usepackage{tikz}\n\\tikzexternalize\n\\begin{document}\nBody.\n\\end{document}\n"
+    )
+    tex_content["body"] = body
+    _pf_build(project_dir, body)
+
+
+@given("no `*-figure*.pdf` files are present")
+def _pf_no_tikz_fig():
+    pass
+
+
+@given("the main .tex contains `\\bibliography{refs}`")
+def _pf_bibliography(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\begin{document}\n\\bibliography{refs}\nBody.\n\\end{document}\n"
+    tex_content["body"] = body
+    _pf_build(project_dir, body)
+
+
+@given('neither "refs.bib" nor any "*.bbl" file is in the project')
+def _pf_no_bib_no_bbl():
+    pass
+
+
+@given("the main .tex contains `\\usepackage{biblatex}` or `\\addbibresource{...}`")
+def _pf_biblatex(project_dir, tex_content):
+    body = (
+        "\\documentclass{article}\n"
+        "\\usepackage{biblatex}\n"
+        "\\addbibresource{refs.bib}\n"
+        "\\begin{document}\nBody.\n\\end{document}\n"
+    )
+    tex_content["body"] = body
+    _pf_build(project_dir, body, {"refs.bib": "@article{x,title={X}}\n"})
+
+
+@given("no `<main>.bbl` is shipped in the project")
+def _pf_no_main_bbl():
+    pass
+
+
+@given(parsers.parse('the only file containing `\\documentclass` is "{path}"'))
+def _pf_documentclass_in_subdir(project_dir, tex_content, path):
+    body = _PF_DEFAULT_BODY
+    tex_content["body"] = body
+    files = {path: body}
+    common.build_multifile_zip(project_dir, files, zip_name=_PF_ZIP)
+
+
+def _pf_set_directive(project_dir, tex_content, directive):
+    body = f"\\documentclass{{article}}\n\\begin{{document}}\n\\{directive}\n\\end{{document}}\n"
+    tex_content["body"] = body
+    _pf_build(project_dir, body)
+
+
+# Note: pytest-bdd 8.x double-escapes backslashes from Scenario Outline Examples
+# cells before substituting into step text. So the rendered step text for cell
+# `\printindex` is `the main .tex contains `\\printindex`` (two backslashes).
+@given(parsers.parse("the main .tex contains `\\\\printindex`"))
+def _pf_printindex(project_dir, tex_content):
+    _pf_set_directive(project_dir, tex_content, "printindex")
+
+
+@given(parsers.parse("the main .tex contains `\\\\printglossary`"))
+def _pf_printglossary(project_dir, tex_content):
+    _pf_set_directive(project_dir, tex_content, "printglossary")
+
+
+@given(parsers.parse("the main .tex contains `\\\\printnomenclature`"))
+def _pf_printnomenclature(project_dir, tex_content):
+    _pf_set_directive(project_dir, tex_content, "printnomenclature")
+
+
+@given(parsers.parse("the matching `{sidecar}` file is not shipped"))
+def _pf_no_sidecar(sidecar):
+    pass
+
+
+@given("the main .tex contains `\\date{\\today}`")
+def _pf_today_date(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\date{\\today}\n\\begin{document}\nBody.\n\\end{document}\n"
+    tex_content["body"] = body
+    _pf_build(project_dir, body)
+
+
+@given("the cleaned output would exceed 50 megabytes")
+def _pf_oversized(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\begin{document}\n\\includegraphics{big}\n\\end{document}\n"
+    tex_content["body"] = body
+    # Use os.urandom so DEFLATE cannot squeeze it under the threshold.
+    extras = {"big.pdf": b"%PDF-1.4\n" + os.urandom(60 * 1024 * 1024)}
+    _pf_build(project_dir, body, extras)
+
+
+@given(parsers.parse('the project contains "{name}"'))
+def _pf_project_contains_file(project_dir, tex_content, name):
+    body = f"\\documentclass{{article}}\n\\begin{{document}}\n\\includegraphics{{{_P(name).stem}}}\n\\end{{document}}\n"
+    tex_content["body"] = body
+    _pf_build(project_dir, body, {name: b"fake\n"})
+
+
+@given('no "00README" specifies `compiler: latex`')
+def _pf_no_latex_hint():
+    pass
+
+
+@given(parsers.parse('the project contains a file named "{name}"'))
+def _pf_project_named_file(project_dir, tex_content, name):
+    body = f"\\documentclass{{article}}\n\\begin{{document}}\n\\includegraphics{{{_P(name).stem}}}\n\\end{{document}}\n"
+    tex_content["body"] = body
+    _pf_build(project_dir, body, {name: b"fake\n"})
+
+
+@given(
+    "a project that triggers a \\today warning, a biblatex .bbl warning, "
+    "and an oversized-output warning at the same time"
+)
+def _pf_three_warns(project_dir, tex_content):
+    body = (
+        "\\documentclass{article}\n"
+        "\\usepackage{biblatex}\n"
+        "\\addbibresource{refs.bib}\n"
+        "\\date{\\today}\n"
+        "\\begin{document}\n\\includegraphics{big}\n\\end{document}\n"
+    )
+    tex_content["body"] = body
+    extras = {
+        "refs.bib": "@article{x,title={X}}\n",
+        "big.pdf": b"%PDF-1.4\n" + os.urandom(60 * 1024 * 1024),
+    }
+    _pf_build(project_dir, body, extras)
+
+
+# --- Advisory-warnings dispatcher (Outline 15) ---
+
+
+def _pf_advisory_setup(project_dir, tex_content, condition):
+    """Map a condition string from Outline 15's Examples table to project state."""
+    if "xr" in condition and "xr-hyper" in condition:
+        body = "\\documentclass{article}\n\\usepackage{xr}\n\\begin{document}Body.\\end{document}\n"
+        extras = None
+    elif "referee" in condition or "doublespace" in condition:
+        body = "\\documentclass[referee]{article}\n\\begin{document}Body.\\end{document}\n"
+        extras = None
+    elif "includeonly" in condition:
+        body = "\\documentclass{article}\n\\includeonly{a}\n\\begin{document}Body.\\end{document}\n"
+        extras = None
+    elif "subfile" in condition and "bibliographystyle" in condition:
+        body = "\\documentclass{article}\n\\usepackage{subfiles}\n\\begin{document}\n\\subfile{sub}\n\\end{document}\n"
+        sub_body = "\\documentclass[main]{subfiles}\n\\begin{document}\n\\bibliographystyle{plain}\n\\end{document}\n"
+        extras = {"sub.tex": sub_body}
+    elif "absolute path" in condition:
+        body = "\\documentclass{article}\n\\begin{document}\n\\input{/etc/passwd}\n\\end{document}\n"
+        extras = None
+    elif "eps-converted-to.pdf" in condition:
+        body = _PF_DEFAULT_BODY
+        extras = {"fig1-eps-converted-to.pdf": b"%PDF\n"}
+    elif "dot-file" in condition or "dot-directory" in condition:
+        body = _PF_DEFAULT_BODY
+        extras = {".arxivignore": "secret\n"}
+    elif "34 megapixels" in condition or ".png" in condition:
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (8000, 5000), (255, 0, 0)).save(buf, format="PNG")
+        body = "\\documentclass{article}\n\\begin{document}\n\\includegraphics{big}\n\\end{document}\n"
+        extras = {"big.png": buf.getvalue()}
+    elif "valid UTF-8" in condition:
+        body = b"\\documentclass{article}\\begin{document}\xff\\end{document}"
+        # Use binary path directly via build_multifile_zip
+        common.build_multifile_zip(project_dir, {"main.tex": body}, zip_name=_PF_ZIP)
+        tex_content["body"] = body.decode("latin-1")
+        return
+    elif "non-ASCII filename" in condition or "non-ASCII characters" in condition:
+        body = "\\documentclass{article}\n\\begin{document}\n\\includegraphics{figü}\n\\end{document}\n"
+        extras = {"figü.pdf": b"fake\n"}
+    elif "spaces" in condition and "directory" in condition:
+        body = "\\documentclass{article}\n\\begin{document}\n\\includegraphics{my dir/fig}\n\\end{document}\n"
+        extras = {"my dir/fig.pdf": b"fake\n"}
+    else:
+        raise AssertionError(f"unhandled advisory condition: {condition!r}")
+    tex_content["body"] = body if isinstance(body, str) else body.decode("latin-1")
+    _pf_build(project_dir, body if isinstance(body, str) else body.decode("latin-1"), extras)
+
+
+@given(parsers.parse('the project condition "{condition}" holds'))
+def _pf_advisory_given(project_dir, tex_content, condition):
+    _pf_advisory_setup(project_dir, tex_content, condition)
+
+
+# --- Then assertions ---
+
+
+@then(parsers.parse('{stream:w} contains a line starting with "[{severity}]" mentioning "{token}"'))
+def _pf_stream_severity_mentions(result, stream, severity, token):
+    stream_text = result[stream]
+    matches = [line for line in stream_text.splitlines() if line.lstrip().startswith(f"[{severity}]") and token in line]
+    assert matches, f"no [{severity}] line in {stream} mentioning {token!r}; got:\n{stream_text}"
+
+
+@then('a "[error]" mentions that arXiv forbids user-supplied psfig.sty')
+def _pf_psfig_error(result):
+    _pf_assert_severity(result, "error", "psfig.sty", "forbids")
+
+
+@then('an "[error]" mentions that XeLaTeX or LuaLaTeX is required')
+def _pf_xelatex_required(result):
+    _pf_assert_severity(result, "error", "XeLaTeX")
+
+
+@then('no fontspec-related "[error]" is emitted')
+def _pf_no_fontspec_error(result):
+    _pf_assert_no_severity_containing(result, "error", "fontspec")
+
+
+@then('an "[error]" instructs the user to externalize TikZ figures locally')
+def _pf_tikz_error(result):
+    _pf_assert_severity(result, "error", "tikzexternalize")
+
+
+@then('an "[error]" notes the missing .bib without a fallback .bbl')
+def _pf_bib_missing_error(result):
+    _pf_assert_severity(result, "error", "bibliography", "bbl")
+
+
+@then('a "[warn]" recommends shipping the `.bbl` as a fallback')
+def _pf_biblatex_warn(result):
+    _pf_assert_severity(result, "warn", "biblatex", "bbl")
+
+
+@then('a "[warn]" notes that arXiv compiles from root')
+def _pf_main_root_warn(result):
+    _pf_assert_severity(result, "warn", "root")
+
+
+@then('a "[warn]" notes the section will silently disappear on arXiv')
+def _pf_section_disappear_warn(result):
+    _pf_assert_severity(result, "warn", "arXiv")
+
+
+@then('a "[warn]" notes that arXiv may rebuild the PDF and the date will change')
+def _pf_today_warn(result):
+    _pf_assert_severity(result, "warn", "today", "date")
+
+
+@then('a "[warn]" notes the size and recommends `--resize` or splitting')
+def _pf_size_warn(result):
+    _pf_assert_severity(result, "warn", "MB", "--resize")
+
+
+@then("the process still exits with code 0 if no errors are present")
+def _pf_rc0_if_no_errors(result):
+    assert result["rc"] == 0, (result["rc"], result["stderr"])
+
+
+@then('a "[warn]" recommends converting .eps or switching compilers')
+def _pf_eps_warn(result):
+    _pf_assert_severity(result, "warn", ".eps")
+
+
+@then('a "[warn]" notes that `\\input`/`\\includegraphics` resolution will break')
+def _pf_filename_warn(result):
+    _pf_assert_severity(result, "warn", "filename", "spaces")
+
+
+@then('all three "[warn]" lines are emitted independently')
+def _pf_three_warn_independent(result):
+    for kw in ("today", "biblatex", "MB"):
+        _pf_assert_severity(result, "warn", kw)
+
+
+@then(parsers.parse('a "[warn]" mentioning "{topic}" is emitted'))
+def _pf_advisory_warn(result, topic):
+    # Map topic phrasing → keyword(s) actually present in code's warn line.
+    keyword_map = {
+        "external-document references break": ["xr", "external-document"],
+        "single-spaced submissions required": ["single-spaced"],
+        "includeonly restricts compilation": ["includeonly"],
+        "duplicate bibliography command": ["bibliographystyle", "subfile"],
+        "build server can't resolve absolute paths": ["absolute path"],
+        "eps→pdf artifacts in source": ["eps-converted-to"],
+        "arXiv deletes files starting with `.`": ["hidden", "."],
+        "oversized PNG; consider `--resize`": ["megapixels", "--resize"],
+        "re-save as UTF-8": ["UTF-8"],
+        "non-ASCII filename": ["non-ASCII", "filename"],
+        "spaces in directory name": ["spaces", "directory"],
+    }
+    keywords = keyword_map.get(topic, [topic])
+    _pf_assert_severity(result, "warn", *keywords)
