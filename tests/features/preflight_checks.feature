@@ -40,7 +40,6 @@ Feature: Catch arXiv submission blockers before upload
     Then an "[error]" mentions that XeLaTeX or LuaLaTeX is required
     And the process exits with code 1
 
-  @xfail_preflight_gap
   Scenario: fontspec accepted with a 00README compiler hint
     Given the main .tex contains `\usepackage{fontspec}`
     And a "00README" at the project root contains `compiler: xelatex`
