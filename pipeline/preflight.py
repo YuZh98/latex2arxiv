@@ -281,33 +281,68 @@ def _check_compliance(
         )
 
 
-def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
-    """Filesystem checks over kept files: problematic filenames, directory names,
-    hidden files, shipped psfig.sty, and -eps-converted-to.pdf artifacts.
+def _check_archive_layout(root: Path, issues: Issues) -> None:
+    """Pre-prune scan over EVERY extracted file (not just kept_files).
 
-    Directory components are deduped so a single bad directory containing many
-    files only emits one warning per category.
+    Two checks belong here rather than in :func:`_check_files`:
+
+    * shipped ``psfig.sty`` — arXiv hard-rejects this regardless of whether the
+      user ``\\usepackage{psfig}``-d it. Without the pre-prune scan, an
+      unreferenced ``psfig.sty`` is silently dropped before the error can fire.
+    * hidden / dot-files — arXiv deletes files starting with ``.`` upon
+      announcement. Same kept-files limitation: ``.arxivignore`` etc. would
+      never reach :func:`_check_files`.
+
+    Both checks ignore macOS ``__MACOSX/`` metadata noise and ``.DS_Store`` —
+    the extractor strips those before we reach this point, so they would not
+    appear in the kept-files set anyway.
     """
-    flagged_dir_spaces: set[Path] = set()
-    flagged_dir_ascii: set[Path] = set()
-    for path in sorted(kept_files):
+    flagged_hidden: set[Path] = set()
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
         rel = path.relative_to(root)
 
-        # Hidden files (dot-files): arXiv deletes these upon announcement.
-        # They may work during preview but will vanish in the final version.
-        if any(part.startswith(".") for part in rel.parts):
-            issues.warn(
-                f"hidden file: {rel} — arXiv deletes files/directories starting with '.' "
-                "upon announcement; if your build depends on this file, rename it"
-            )
-            continue  # skip further checks for this file
+        # Skip macOS metadata noise.
+        if any(part == "__MACOSX" or part == ".DS_Store" for part in rel.parts):
+            continue
 
-        # Shipped psfig.sty: arXiv explicitly forbids user-supplied psfig.sty.
+        # Hidden files / dot-directories.
+        if any(part.startswith(".") for part in rel.parts):
+            # Dedup at the dot-component level so a deep .dir/foo/bar tree
+            # only warns once.
+            dot_anchor = next(part for part in rel.parts if part.startswith("."))
+            if dot_anchor in flagged_hidden:
+                continue
+            flagged_hidden.add(Path(dot_anchor))
+            issues.warn(
+                f"hidden file or directory: {rel} — arXiv deletes paths starting with "
+                "'.' upon announcement; if your build depends on this, rename it"
+            )
+
+        # Shipped psfig.sty at any depth.
         if path.name == "psfig.sty":
             issues.error(
                 f"shipped psfig.sty ({rel}) — arXiv forbids user-supplied psfig.sty "
                 "and will fail to build; remove it and migrate to \\includegraphics"
             )
+
+
+def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
+    """Filesystem checks over kept files: problematic filenames, directory names,
+    and -eps-converted-to.pdf artifacts.
+
+    Directory components are deduped so a single bad directory containing many
+    files only emits one warning per category.
+
+    Note: hidden-file and shipped-psfig.sty checks moved to
+    :func:`_check_archive_layout` so they fire BEFORE the keep/prune step
+    silently drops the offending file (#174).
+    """
+    flagged_dir_spaces: set[Path] = set()
+    flagged_dir_ascii: set[Path] = set()
+    for path in sorted(kept_files):
+        rel = path.relative_to(root)
 
         # Walk directory components: rel.parents includes Path('.') as the last
         # element, which we skip.

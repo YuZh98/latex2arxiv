@@ -26,7 +26,6 @@ Feature: Catch arXiv submission blockers before upload
       | svg          |
       | psfig        |
 
-  @xfail_preflight_gap
   Scenario: Shipped psfig.sty file is rejected
     Given the input contains "psfig.sty" at any depth
     When I run `latex2arxiv project.zip --dry-run`
