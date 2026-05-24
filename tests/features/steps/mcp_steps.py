@@ -60,7 +60,9 @@ def _mcp_project_plus_out(project_dir, paper, out):
 def _mcp_symlink_subdir(project_dir, name, link, target):
     paper = project_dir / name.rstrip("/")
     _write_main(paper)
-    external = Path(target)
+    # Treat `target` as illustrative; place the actual external dir under tmp_path
+    # so parallel runs do not race on a shared /tmp path.
+    external = project_dir / "_external_dir"
     external.mkdir(parents=True, exist_ok=True)
     (external / "external.tex").write_text("External content\n")
     (paper / link).symlink_to(external, target_is_directory=True)
@@ -166,10 +168,17 @@ def _mcp_output_zip_written(result):
 
 @then("the caller is responsible for cleaning up that file")
 def _mcp_caller_cleanup_responsibility(result):
-    # Documentation assertion — verified by the absence of any server-managed
-    # tempfile teardown. The presence of output_zip in the response satisfies
-    # this contractually.
-    assert "output_zip" in result["response"]
+    # Contract: the server does not register a teardown — the returned file
+    # must still exist after the call returns and a follow-up call to the same
+    # server instance must not have deleted it.
+    out = Path(result["response"]["output_zip"])
+    assert out.exists(), f"output zip missing immediately after return: {out}"
+    # A subsequent validate call must not touch the prior output_zip.
+    _, _clean = _import_tools()
+    from mcp_server import validate_submission as _v
+
+    _v(path=str(out.parent))
+    assert out.exists(), f"server-side cleanup unexpectedly removed {out}"
 
 
 @then(parsers.parse('"{name}" is written'))
@@ -187,9 +196,14 @@ def _mcp_output_zip_equals(project_dir, result, name):
 
 @then("on subsequent failures the file is not auto-deleted by the server")
 def _mcp_no_auto_delete(project_dir, result):
-    # The server returns the resolved output_path verbatim — nothing in
-    # mcp_server registers a cleanup callback. Documentation assertion.
-    assert "output_zip" in result["response"]
+    # Trigger a follow-up failure (path outside safe root) and verify the
+    # caller-supplied output_path is left alone.
+    out = Path(result["response"]["output_zip"])
+    assert out.exists(), f"output_zip vanished before failure step: {out}"
+    _, _clean = _import_tools()
+    fail = _clean(path="/etc/passwd")
+    assert fail["success"] is False, f"expected failure for unsafe path; got: {fail}"
+    assert out.exists(), f"server auto-deleted {out} after a follow-up failure"
 
 
 @then(parsers.parse("`errors[]` mentions that the output directory does not exist"))
@@ -214,11 +228,12 @@ def _mcp_warn_symlink_dir(result):
 
 @then(parsers.parse('no files from outside "{name}" leak into the output zip'))
 def _mcp_no_leak(result, name):
+    # clean_submission on success always writes output_zip; absence is a bug.
     out = Path(result["response"]["output_zip"])
-    if not out.exists():
-        return  # output not written (validation-only path)
+    assert out.exists(), f"expected output zip at {out} but it was not written"
     with zipfile.ZipFile(out) as zf:
         names = zf.namelist()
+    assert "main.tex" in names, f"project did not pack normally; zip={names}"
     assert not any("external" in n for n in names), f"external file leaked: {names}"
 
 
@@ -231,11 +246,11 @@ def _mcp_warn_symlink_escape(result):
 @then("the escaped target is not in the output zip")
 def _mcp_escape_not_in_zip(result):
     out = Path(result["response"]["output_zip"])
-    if not out.exists():
-        return
+    assert out.exists(), f"expected output zip at {out} but it was not written"
     with zipfile.ZipFile(out) as zf:
-        body = "\n".join(zf.namelist())
-    assert "elsewhere" not in body, f"escaped target leaked: {body}"
+        names = zf.namelist()
+    assert "main.tex" in names, f"project did not pack normally; zip={names}"
+    assert "elsewhere" not in "\n".join(names), f"escaped target leaked: {names}"
 
 
 @then("`errors[]` contains a human-readable description of the failure")
@@ -272,12 +287,21 @@ def _mcp_stdout_jsonrpc(project_dir):
     # FastMCP's stdio transport writes one JSON object per line.
     frames = [line for line in raw.splitlines() if line.strip()]
     assert frames, f"no frames captured on stdout; raw:\n{raw!r}"
+    decoded = []
     for line in frames:
         try:
             obj = json.loads(line)
         except json.JSONDecodeError as exc:
             raise AssertionError(f"non-JSON line on stdout: {line!r} ({exc})")
         assert obj.get("jsonrpc") == "2.0", f"frame missing jsonrpc=2.0: {obj}"
+        decoded.append(obj)
+    # Require evidence the tools/call (id=2) actually completed — otherwise an
+    # initialize-only response would silently pass.
+    call_replies = [obj for obj in decoded if obj.get("id") == 2]
+    assert call_replies, f"no reply for tools/call (id=2); frames seen: {[d.get('id') for d in decoded]}"
+    assert "result" in call_replies[0] or "error" in call_replies[0], (
+        f"tools/call reply missing result/error: {call_replies[0]}"
+    )
 
 
 def _stdio_invoke(cwd: Path, tool_name: str, arguments: dict, timeout: float = 30.0) -> subprocess.CompletedProcess:

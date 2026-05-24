@@ -53,6 +53,11 @@ Feature: MCP server exposes arXiv validation to AI agents
       | /etc/passwd          |
       | ~/secret             |
 
+  Scenario: Empty path is rejected with its own message
+    When the agent calls `validate_submission(path="")`
+    Then the response has `success: false`
+    And `errors[]` contains "path must not be empty"
+
   Scenario: Nonexistent path returns a clear error
     When the agent calls `validate_submission(path="not_a_real_dir")`
     Then the response has `success: false`
