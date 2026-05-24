@@ -120,8 +120,14 @@ def convert(
         # Unwrap single top-level directory if present.
         # Ignore macOS zip noise (__MACOSX/ metadata sibling, .DS_Store file)
         # so a zip created via the macOS Finder still unwraps cleanly.
+        #
+        # Do NOT unwrap a wrapper dir whose name suggests a structural sub-directory
+        # (src/, sources/, latex/, tex/) — otherwise a zip layout like `src/main.tex`
+        # would silently flatten to look like main is at the root, and the
+        # "compiles from root" pre-flight warn could not fire (#174).
+        _STRUCTURAL_DIRNAMES = {"src", "sources", "source", "latex", "tex"}
         entries = [p for p in root.iterdir() if p.name != "__MACOSX" and p.name != ".DS_Store"]
-        if len(entries) == 1 and entries[0].is_dir():
+        if len(entries) == 1 and entries[0].is_dir() and entries[0].name not in _STRUCTURAL_DIRNAMES:
             root = entries[0]
 
         # 2. Find main .tex and all included .tex files
