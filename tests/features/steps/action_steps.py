@@ -113,12 +113,26 @@ def _arg_branch(flag: str, env_var: str, value_check: str = "-n") -> str:
     return f'if [ "{value_check}" "${env_var}" ];' if value_check else env_var
 
 
+def _has_block(script: str, *required_substrings: str) -> bool:
+    """All substrings must be present in `script` in the given order, with no
+    intervening newlines outside their own content. We approximate by checking
+    each appears and the next one starts after the previous one ends.
+    """
+    cursor = 0
+    for needle in required_substrings:
+        idx = script.find(needle, cursor)
+        if idx < 0:
+            return False
+        cursor = idx + len(needle)
+    return True
+
+
 @then("the latex2arxiv CLI is invoked with `--dry-run`")
 def _act_dry_run_on():
     script = _run_pre_flight_script()
-    # The dry-run branch must add --dry-run when L2A_DRY_RUN == "true".
-    assert 'L2A_DRY_RUN" = "true"' in script and "--dry-run" in script, (
-        f"action.yml does not conditionally append --dry-run; script:\n{script}"
+    # Assert the gated block literally: `if [ "$L2A_DRY_RUN" = "true" ]` … `ARGS+=(--dry-run)`.
+    assert _has_block(script, '"$L2A_DRY_RUN" = "true"', "ARGS+=(--dry-run)"), (
+        f"action.yml does not conditionally append --dry-run inside the dry-run gate; script:\n{script}"
     )
 
 
@@ -133,9 +147,17 @@ def _act_no_cleaned_zip_output():
 @then("the latex2arxiv CLI is invoked without `--dry-run`")
 def _act_dry_run_off():
     script = _run_pre_flight_script()
-    # Conditional must still exist (we don't strip it for non-dry-run); just
-    # verify the conditional structure is symmetric.
-    assert 'L2A_DRY_RUN" = "true"' in script, "no --dry-run conditional in action.yml"
+    # The only --dry-run occurrence must live inside the L2A_DRY_RUN == "true"
+    # gate; that's what makes the false-input path skip the flag.
+    assert _has_block(script, '"$L2A_DRY_RUN" = "true"', "ARGS+=(--dry-run)"), (
+        f"--dry-run is not gated inside the dry-run-true branch; script:\n{script}"
+    )
+    # If --dry-run appears anywhere outside the gate, the flag would be
+    # appended unconditionally. There is exactly one occurrence in the gated
+    # block; assert that count is also 1.
+    assert script.count("--dry-run") == 1, (
+        f"--dry-run appears outside the dry-run-true gate {script.count('--dry-run')} time(s); script:\n{script}"
+    )
 
 
 @then("the step output `cleaned-zip` is exported pointing at the written zip")
@@ -204,7 +226,7 @@ def _act_flag_with_value(result, flag):
 @then("the latex2arxiv CLI is invoked with `--flatten`")
 def _act_flatten_on():
     script = _run_pre_flight_script()
-    assert 'L2A_FLATTEN" = "true"' in script and "--flatten" in script, (
+    assert _has_block(script, '"$L2A_FLATTEN" = "true"', "ARGS+=(--flatten)"), (
         f"--flatten branch missing or unguarded:\n{script}"
     )
 
@@ -220,11 +242,16 @@ def _act_flatten_outcome():
 @then("the latex2arxiv CLI is invoked without `--flatten`")
 def _act_flatten_off():
     script = _run_pre_flight_script()
-    # The conditional is still declared (gating on L2A_FLATTEN). Verify the
-    # default keeps it off.
     inputs = _load_action()["inputs"]
     assert inputs["flatten"]["default"] == "false", "flatten default is not 'false'"
-    assert 'L2A_FLATTEN" = "true"' in script, "no flatten gate in run step"
+    # The --flatten flag must live entirely inside the L2A_FLATTEN gate so the
+    # default-false input path skips it.
+    assert _has_block(script, '"$L2A_FLATTEN" = "true"', "ARGS+=(--flatten)"), (
+        f"no gated --flatten block in run step; script:\n{script}"
+    )
+    assert script.count("--flatten") == 1, (
+        f"--flatten appears outside the flatten gate {script.count('--flatten')} time(s); script:\n{script}"
+    )
 
 
 @then("the latex2arxiv CLI is invoked with `--resize 800`")
@@ -298,10 +325,14 @@ def _act_set_e():
 
 @then("the job is marked failed by the GitHub runner")
 def _act_job_fails():
-    # GitHub Actions runners propagate a non-zero exit status from a composite
-    # step run as a job failure unless `continue-on-error` is set. Assert that
-    # no continue-on-error escape hatch is wired in.
+    # Three guards must hold for non-zero CLI exit to surface as a job failure:
+    # (1) no `continue-on-error` escape hatch on any step,
+    # (2) the run script does not contain `|| true` (would swallow the CLI exit),
+    # (3) the run script does not contain `set +e` (would disable the propagation set -e provides).
     for step in _run_steps():
         assert not step.get("continue-on-error"), (
             f"step {step.get('name')!r} silently swallows failures via continue-on-error"
         )
+    script = _run_pre_flight_script()
+    assert "|| true" not in script, f"run script contains `|| true` and would swallow exit:\n{script}"
+    assert "set +e" not in script, f"run script disables `set -e` and would not propagate exit:\n{script}"
