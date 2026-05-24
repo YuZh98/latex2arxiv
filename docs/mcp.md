@@ -36,6 +36,41 @@ Add to `.cursor/mcp.json` in your project:
 }
 ```
 
+## Usage with VS Code (Copilot Chat)
+
+Add to `.vscode/mcp.json` in your workspace (or user settings):
+
+```json
+{
+  "servers": {
+    "latex2arxiv": {
+      "command": "latex2arxiv-mcp"
+    }
+  }
+}
+```
+
+## Usage with Windsurf
+
+Add to `~/.codeium/windsurf/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "latex2arxiv": {
+      "command": "latex2arxiv-mcp"
+    }
+  }
+}
+```
+
+## Usage with Zed
+
+Install the `latex2arxiv` extension from Zed's Extensions panel. The extension launches `latex2arxiv-mcp` automatically — no JSON config needed.
+
+> Requires `latex2arxiv-mcp` on PATH (`pip install "latex2arxiv[mcp]"`).
+
+
 ## Available Tools
 
 ### `validate_submission`

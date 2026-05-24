@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-05-24
+
+Closes four pre-flight coverage gaps surfaced by the BDD wiring pass: each was a documented arXiv requirement that earlier code did not enforce.
+
 ### Fixed
 - Pre-flight: `\usepackage{fontspec}` / `unicode-math` error suppressed when a `00README` declares `compiler: xelatex` (or legacy `00README.XXX` with `xelatex` / `lualatex`) — matches the directive the error message itself recommends (#174)
 - Pre-flight: warn when the main `.tex` is shipped under a structural sub-directory (`src/`, `sources/`, `source/`, `latex/`, `tex/`, case-insensitive). Previously the auto-unwrap of a single top-level dir silently flattened such layouts and the "compiles from root" warn never fired (#174)
