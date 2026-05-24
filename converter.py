@@ -33,6 +33,7 @@ from pipeline.guide import extract_metadata, count_stats, format_summary, format
 
 from pipeline.preflight import (
     SIZE_WARN_MB,  # noqa: F401  re-exported so `converter.SIZE_WARN_MB` keeps working
+    _check_archive_layout,
     _check_compliance,
     _check_files,
     _check_output_size,
@@ -130,6 +131,12 @@ def convert(
         entries = [p for p in root.iterdir() if p.name != "__MACOSX" and p.name != ".DS_Store"]
         if len(entries) == 1 and entries[0].is_dir() and entries[0].name.lower() not in _STRUCTURAL_DIRNAMES:
             root = entries[0]
+
+        # Pre-prune scan over the full extracted tree (shipped psfig.sty,
+        # hidden files). Done before find_main_tex / keep-prune so files that
+        # the cleanup step will later drop still get their warnings/errors
+        # surfaced. See pipeline.preflight._check_archive_layout for details.
+        _check_archive_layout(root, issues)
 
         # 2. Find main .tex and all included .tex files
         if main_hint:

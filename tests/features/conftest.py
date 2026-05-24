@@ -51,17 +51,6 @@ def pytest_bdd_apply_tag(tag, function):
     return True
 
 
-def pytest_collection_modifyitems(config, items):
-    """Mark the dot-file row of the advisory-warnings outline as xfail.
-
-    Per-row tagging is not expressible in Gherkin; we identify the row by node-id
-    substring instead. Same backlog gap as the @xfail_preflight_gap scenarios.
-    """
-    for item in items:
-        if "test_additional_advisory_warnings" in item.nodeid and "dot-file" in item.nodeid:
-            item.add_marker(
-                pytest.mark.xfail(
-                    strict=True,
-                    reason=_XFAIL_TAGS["xfail_preflight_gap"],
-                )
-            )
+# pytest_collection_modifyitems was used to xfail the dot-file row of the
+# advisory-warnings outline. That gap is closed (#174) by the pre-prune scan
+# in pipeline.preflight._check_archive_layout, so the per-row xfail is gone.
