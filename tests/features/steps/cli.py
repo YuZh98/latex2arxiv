@@ -1472,9 +1472,10 @@ def _pf_documentclass_in_subdir(project_dir, tex_content, path):
     common.build_multifile_zip(project_dir, files, zip_name=_PF_ZIP)
 
 
-def _pf_set_directive(project_dir, tex_content, directive):
+def _pf_set_directive(project_dir, tex_content, result, directive):
     body = f"\\documentclass{{article}}\n\\begin{{document}}\n\\{directive}\n\\end{{document}}\n"
     tex_content["body"] = body
+    result["pf_directive"] = directive  # threaded so the Then can scope its assertion
     _pf_build(project_dir, body)
 
 
@@ -1482,18 +1483,18 @@ def _pf_set_directive(project_dir, tex_content, directive):
 # cells before substituting into step text. So the rendered step text for cell
 # `\printindex` is `the main .tex contains `\\printindex`` (two backslashes).
 @given(parsers.parse("the main .tex contains `\\\\printindex`"))
-def _pf_printindex(project_dir, tex_content):
-    _pf_set_directive(project_dir, tex_content, "printindex")
+def _pf_printindex(project_dir, tex_content, result):
+    _pf_set_directive(project_dir, tex_content, result, "printindex")
 
 
 @given(parsers.parse("the main .tex contains `\\\\printglossary`"))
-def _pf_printglossary(project_dir, tex_content):
-    _pf_set_directive(project_dir, tex_content, "printglossary")
+def _pf_printglossary(project_dir, tex_content, result):
+    _pf_set_directive(project_dir, tex_content, result, "printglossary")
 
 
 @given(parsers.parse("the main .tex contains `\\\\printnomenclature`"))
-def _pf_printnomenclature(project_dir, tex_content):
-    _pf_set_directive(project_dir, tex_content, "printnomenclature")
+def _pf_printnomenclature(project_dir, tex_content, result):
+    _pf_set_directive(project_dir, tex_content, result, "printnomenclature")
 
 
 @given(parsers.parse("the matching `{sidecar}` file is not shipped"))
@@ -1660,7 +1661,13 @@ def _pf_main_root_warn(result):
 
 @then('a "[warn]" notes the section will silently disappear on arXiv')
 def _pf_section_disappear_warn(result):
-    _pf_assert_severity(result, "warn", "arXiv")
+    # Scoped to the directive set by the matching Given so an unrelated warn
+    # firing in place of the expected one does not silently pass.
+    directive = result.get("pf_directive")
+    if directive:
+        _pf_assert_severity(result, "warn", directive)
+    else:
+        _pf_assert_severity(result, "warn", "arXiv")
 
 
 @then('a "[warn]" notes that arXiv may rebuild the PDF and the date will change')
