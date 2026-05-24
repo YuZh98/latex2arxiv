@@ -57,6 +57,8 @@ def _run_cli(project_dir, result, input, args):
         env["PYTHONPATH"] = result["pythonpath_prepend"] + os.pathsep + env.get("PYTHONPATH", "")
     if result.get("path_prepend"):
         env["PATH"] = result["path_prepend"] + os.pathsep + env.get("PATH", "")
+    if result.get("path_replace"):
+        env["PATH"] = result["path_replace"]
     cmd = [sys.executable, str(common.CONVERTER), input, *shlex.split(args)]
     proc = subprocess.run(cmd, cwd=project_dir, capture_output=True, text=True, env=env)
     result["stdout"] = proc.stdout
@@ -1710,3 +1712,129 @@ def _pf_advisory_warn(result, topic):
     }
     keywords = keyword_map.get(topic, [topic])
     _pf_assert_severity(result, "warn", *keywords)
+
+
+# --- compile.feature additions ------------------------------------------------
+
+
+def _compile_skip_if_no_pdflatex():
+    if not shutil.which("pdflatex"):
+        pytest.skip("pdflatex not on PATH; --compile scenario skipped")
+
+
+def _compile_make_shim(project_dir) -> _P:
+    """Install a sandboxed `open`/`xdg-open` shim so --compile does not actually
+    launch a viewer during tests. Returns the directory to prepend to PATH."""
+    shim = project_dir / "viewer_shim"
+    shim.mkdir(exist_ok=True)
+    log = project_dir / "viewer.log"
+    for name in ("open", "xdg-open"):
+        bin_path = shim / name
+        bin_path.write_text(f'#!/bin/sh\necho "$@" >> "{log}"\n')
+        bin_path.chmod(bin_path.stat().st_mode | _stat.S_IXUSR | _stat.S_IXGRP | _stat.S_IXOTH)
+    return shim
+
+
+@given("`pdflatex` is available on PATH")
+def _compile_pdflatex_available(project_dir, result):
+    _compile_skip_if_no_pdflatex()
+    # Install viewer shim so subsequent --compile runs do not actually launch a viewer.
+    shim = _compile_make_shim(project_dir)
+    result["path_prepend"] = str(shim)
+
+
+@given("`pdflatex` is not installed")
+def _compile_pdflatex_missing(project_dir, tex_content, result):
+    # Strip every directory that contains pdflatex, then route the run through
+    # the viewer shim. Uses the new `path_replace` side-channel honored by _run_cli.
+    parts = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p and not _P(p, "pdflatex").exists()]
+    if shutil.which("pdflatex", path=os.pathsep.join(parts)):
+        raise AssertionError("PATH filter failed to strip pdflatex")
+    shim = _compile_make_shim(project_dir)
+    result["path_replace"] = str(shim) + os.pathsep + os.pathsep.join(parts)
+    # Background only declares CLI + pdflatex availability — neither builds the
+    # baseline project. Materialize one here so the converter has something to
+    # process.
+    body = tex_content.get("body") or "\\documentclass{article}\n\\begin{document}\nHello.\n\\end{document}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name="paper.zip")
+
+
+@given(parsers.parse('a compilable LaTeX project "{name}"'))
+def _compile_compilable_project(project_dir, tex_content, name):
+    body = tex_content.get("body") or "\\documentclass{article}\n\\begin{document}\nHello.\n\\end{document}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name=name)
+
+
+@given("the project triggers a `[error]` (e.g. `\\usepackage{minted}`)")
+def _compile_preflight_error_project(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\usepackage{minted}\n\\begin{document}\nHello.\n\\end{document}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name="paper.zip")
+
+
+@given("a LaTeX project whose main .tex contains an unrecoverable syntax error")
+def _compile_syntax_error(project_dir, tex_content):
+    body = "\\documentclass{article}\n\\begin{document}\n\\undefinedcommandthatdoesnotexist\n\\end{document}\n"
+    tex_content["body"] = body
+    common.build_paper_zip(project_dir, body, zip_name="paper.zip")
+
+
+@then("the cleaned output zip is written")
+def _compile_zip_written(project_dir, result):
+    out = project_dir / f"{_P(result['input']).stem}_arxiv.zip"
+    assert out.exists(), f"output zip missing at {out}"
+
+
+@then("the cleaned output zip is still written")
+def _compile_zip_still_written(project_dir, result):
+    _compile_zip_written(project_dir, result)
+
+
+@then("the cleaned output zip is still written for later use")
+def _compile_zip_still_written_alt(project_dir, result):
+    _compile_zip_written(project_dir, result)
+
+
+@then("`pdflatex` is invoked on the cleaned main .tex")
+def _compile_pdflatex_invoked(result):
+    out = result["stdout"]
+    assert "Compiling" in out or "pdflatex" in out.lower() or "PDF →" in out, (
+        f"no compile-invocation evidence in stdout:\n{out}"
+    )
+
+
+@then("a PDF file is produced alongside the output")
+def _compile_pdf_alongside(project_dir, result):
+    stem = _P(result["input"]).stem
+    pdf = project_dir / f"{stem}_arxiv.pdf"
+    assert pdf.exists(), f"expected PDF at {pdf}; dir listing: {sorted(p.name for p in project_dir.iterdir())}"
+
+
+@then("the platform's default PDF viewer is launched on that PDF")
+def _compile_viewer_launched(project_dir, result):
+    log = project_dir / "viewer.log"
+    assert log.exists(), f"viewer shim never invoked; expected log at {log}"
+    body = log.read_text()
+    stem = _P(result["input"]).stem
+    assert f"{stem}_arxiv.pdf" in body, f"viewer log does not name the produced PDF:\n{body}"
+
+
+@then('stdout surfaces the `pdflatex` failure with a "[compile] pdflatex errors:" tail')
+def _compile_failure_on_stdout(result):
+    assert "[compile] pdflatex errors:" in result["stdout"], (
+        f"missing compile-failure tail in stdout:\n{result['stdout']}"
+    )
+
+
+@then("stdout clearly states that `pdflatex` was not found with install hints")
+def _compile_missing_message(result):
+    out = result["stdout"]
+    assert "pdflatex not found" in out, f"missing 'pdflatex not found' notice in stdout:\n{out}"
+    assert "TeX Live" in out or "MacTeX" in out, f"missing install hint in stdout:\n{out}"
+
+
+@then("the pre-flight error is reported on stdout")
+def _compile_preflight_on_stdout(result):
+    _pf_assert_severity(result, "error", "minted")
