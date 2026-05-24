@@ -69,6 +69,7 @@ include = ["pipeline*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--import-mode=importlib"
 
 [tool.pyright]
 pythonVersion = "3.10"

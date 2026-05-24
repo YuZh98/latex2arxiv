@@ -9,12 +9,14 @@ import json
 import os
 import re as _re
 import shlex
+import shutil
 import stat as _stat
 import subprocess
 import sys
 import zipfile
 from pathlib import Path as _P
 
+import pytest
 from pytest_bdd import given, parsers, then, when
 
 import common
@@ -1207,3 +1209,145 @@ def _ci_no_extraction(project_dir):
 def _ci_stdout_zipbomb(result):
     out = result["stdout"]
     assert "safety cap" in out or "uncompressed size" in out, f"bomb-cap message missing from stdout: {out!r}"
+
+
+# --- guide.feature additions --------------------------------------------------
+
+
+def _guide_path(project_dir, result) -> _P:
+    stem = _P(result["input"]).stem
+    return project_dir / f"{stem}_arxiv_UPLOAD_GUIDE.txt"
+
+
+def _guide_text(project_dir, result) -> str:
+    return _guide_path(project_dir, result).read_text()
+
+
+_GUIDE_METADATA_MAIN = (
+    "\\documentclass{article}\n"
+    "\\title{My Wired Paper}\n"
+    "\\author{Alice Author and Bob Builder}\n"
+    "\\begin{document}\n"
+    "\\begin{abstract}\n"
+    "Wired abstract body.\n"
+    "\\end{abstract}\n"
+    "Body.\n"
+    "\\end{document}\n"
+)
+
+
+@given(parsers.parse('a compilable LaTeX project zip "{name}"'))
+def _guide_compilable_zip(project_dir, tex_content, name):
+    common.build_paper_zip(project_dir, tex_content["body"], zip_name=name)
+
+
+@given("the main .tex contains a `\\title{...}`, `\\author{...}`, and `\\begin{abstract}` block")
+def _guide_metadata_project(project_dir, tex_content):
+    tex_content["body"] = _GUIDE_METADATA_MAIN
+    common.build_paper_zip(project_dir, _GUIDE_METADATA_MAIN, zip_name="paper.zip")
+
+
+@then("a plain-text file is written next to the output zip")
+def _guide_file_written(project_dir, result):
+    p = _guide_path(project_dir, result)
+    assert p.exists(), f"guide file missing at {p}"
+    text = p.read_text()
+    assert text.strip(), "guide file is empty"
+
+
+@then("its filename clearly identifies it as the upload guide")
+def _guide_filename_identifies(project_dir, result):
+    p = _guide_path(project_dir, result)
+    name = p.name.upper()
+    assert "UPLOAD" in name and "GUIDE" in name, f"guide filename unclear: {p.name!r}"
+
+
+@then(parsers.parse('the guide contains a "{section}:" section with the extracted title'))
+def _guide_section_title(project_dir, result, section):
+    text = _guide_text(project_dir, result)
+    assert f"{section}:" in text, f"missing {section!r}: section in guide:\n{text}"
+    assert "My Wired Paper" in text, f"extracted title missing from guide:\n{text}"
+
+
+@then(parsers.parse('the guide contains an "{section}:" section with the extracted author list'))
+def _guide_section_authors(project_dir, result, section):
+    text = _guide_text(project_dir, result)
+    assert f"{section}:" in text, f"missing {section!r}: section in guide:\n{text}"
+    assert "Alice Author" in text and "Bob Builder" in text, f"extracted authors missing:\n{text}"
+
+
+@then(parsers.parse('the guide contains an "{section}:" section with the extracted abstract'))
+def _guide_section_abstract(project_dir, result, section):
+    text = _guide_text(project_dir, result)
+    assert f"{section}:" in text, f"missing {section!r}: section in guide:\n{text}"
+    assert "Wired abstract body" in text, f"extracted abstract missing:\n{text}"
+
+
+@then(parsers.parse('the guide contains a "{section}:" section like "{template}"'))
+def _guide_comments_section(project_dir, result, section, template):
+    if not shutil.which("pdflatex"):
+        pytest.skip("pdflatex not installed; --compile-dependent assertion skipped")
+    text = _guide_text(project_dir, result)
+    assert f"{section}:" in text, f"missing {section!r}: section in guide:\n{text}"
+    for token in ("pages", "figures", "tables"):
+        assert token in text, f"{token!r} missing from Comments-like line:\n{text}"
+
+
+@then("the guide contains numbered steps covering:")
+def _guide_numbered_steps(project_dir, result, datatable):
+    text = _guide_text(project_dir, result)
+    topics = [row[0].strip() for row in datatable]
+    keyword_map = {
+        "starting a new submission": ["new submission", "start"],
+        "choosing a license": ["license"],
+        "selecting a category": ["category"],
+        "uploading files": ["upload"],
+        "checking processing": ["process"],
+        "filling in metadata": ["metadata"],
+        "preview and submit": ["preview", "submit"],
+    }
+    missing = []
+    text_lower = text.lower()
+    for topic in topics:
+        keys = keyword_map.get(topic, [topic.lower()])
+        if not all(k in text_lower for k in keys):
+            missing.append(topic)
+    assert not missing, f"topics not covered in guide: {missing}\nguide:\n{text}"
+
+
+@then('the guide contains a "Files in your zip:" listing')
+def _guide_files_listing(project_dir, result):
+    text = _guide_text(project_dir, result)
+    assert "Files in your zip:" in text, f"files-listing header missing:\n{text}"
+
+
+@then('the main .tex is annotated as "← main file"')
+def _guide_main_annotation(project_dir, result):
+    text = _guide_text(project_dir, result)
+    assert "main.tex" in text, f"main.tex not listed in guide:\n{text}"
+    assert "← main file" in text, f"main-file annotation missing:\n{text}"
+
+
+@then("the guide is still generated using static project inspection")
+def _guide_static_inspection(project_dir, result):
+    p = _guide_path(project_dir, result)
+    assert p.exists(), f"guide missing at {p}"
+
+
+@then("the page / figure / table counts may be omitted if not derivable")
+def _guide_counts_optional(project_dir, result):
+    # Permissive: without --compile, page count is not derivable; figures/tables may be 0.
+    # Assert nothing stronger than guide-file presence.
+    assert _guide_path(project_dir, result).exists()
+
+
+@then("no output zip is written")
+def _guide_no_zip(project_dir, result):
+    out = project_dir / f"{_P(result['input']).stem}_arxiv.zip"
+    assert not out.exists(), f"output zip unexpectedly written at {out}"
+
+
+@then("no guide file is written")
+def _guide_no_guide_file(project_dir, result):
+    p = _guide_path(project_dir, result)
+    assert not p.exists(), f"guide unexpectedly written at {p}"
