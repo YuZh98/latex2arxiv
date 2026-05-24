@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Fixed
+- Pre-flight: `\usepackage{fontspec}` / `unicode-math` error suppressed when a `00README` declares `compiler: xelatex` (or legacy `00README.XXX` with `xelatex` / `lualatex`) — matches the directive the error message itself recommends (#174)
+
 ## [1.2.0] - 2026-05-22
 
 GitHub Action surfaces `--flatten` and `--resize`; CI gains a macOS test matrix; publish pipeline binds to a protected `pypi` GitHub Environment. Repo adds a Code of Conduct.

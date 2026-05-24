@@ -42,6 +42,31 @@ def _has_latex_dvips_mode(root: Path) -> bool:
     return False
 
 
+def _has_xelatex_mode(root: Path) -> bool:
+    """Return True if a 00README at root opts into XeLaTeX or LuaLaTeX.
+
+    Mirrors :func:`_has_latex_dvips_mode`. Matches either the modern
+    ``compiler: xelatex`` / ``compiler: lualatex`` directive in 00README /
+    00README.json / 00README.yaml, or the legacy ``nohypertex,xelatex`` form
+    used in 00README.XXX.
+    """
+    for name in ("00README", "00README.XXX", "00README.json", "00README.yaml", "00README.yml"):
+        readme = root / name
+        if not readme.exists():
+            continue
+        try:
+            content = readme.read_text(encoding="utf-8", errors="replace").lower()
+        except OSError:
+            continue
+        # Modern: "compiler": "xelatex" / compiler: lualatex.
+        if re.search(r'"?compiler"?\s*[:=]\s*"?(xelatex|lualatex)', content):
+            return True
+        # Legacy XXX format: a nohypertex line that also mentions xelatex/lualatex.
+        if name == "00README.XXX" and re.search(r"(xelatex|lualatex)", content):
+            return True
+    return False
+
+
 def _check_compliance(
     main_tex: Path,
     all_sources: list[str],
@@ -132,9 +157,13 @@ def _check_compliance(
 
     # fontspec / unicode-math require XeLaTeX or LuaLaTeX; arXiv defaults to pdfLaTeX.
     # XeLaTeX is available via a 00README directive (compiler: xelatex);
-    # without that directive the build will fail.
+    # without that directive the build will fail. With the directive present,
+    # the error is suppressed — the user has explicitly opted into XeLaTeX.
+    xelatex_opted_in = _has_xelatex_mode(root)
     for pkg in ("fontspec", "unicode-math"):
         if re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\b" + pkg + r"\b[^}]*\}", combined_nc):
+            if xelatex_opted_in:
+                continue
             issues.error(
                 f"\\usepackage{{{pkg}}} requires XeLaTeX or LuaLaTeX — "
                 "arXiv defaults to pdfLaTeX; ship a 00README with "
