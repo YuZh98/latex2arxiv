@@ -1,0 +1,9 @@
+id = "latex2arxiv"
+name = "latex2arxiv"
+description = "MCP server for arXiv submission validation and cleaning"
+version = "0.1.0"
+schema_version = 1
+authors = ["Yu Zheng <YuZh98@users.noreply.github.com>"]
+repository = "https://github.com/YuZh98/latex2arxiv-zed"
+
+[context_servers.latex2arxiv]

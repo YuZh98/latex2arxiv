@@ -123,7 +123,7 @@ latex2arxiv paper.zip --compile --guide
 - run: pip install latex2arxiv && latex2arxiv paper.zip --dry-run
 ```
 
-**AI agents** — Claude, Cursor, or Copilot validate and fix issues in conversation:
+**AI editors** — works with any MCP-compatible client (Claude Desktop, Cursor, VS Code Copilot, Windsurf, Zed, etc.):
 
 ```bash
 pip install "latex2arxiv[mcp]"
@@ -132,6 +132,8 @@ pip install "latex2arxiv[mcp]"
 ```json
 {"mcpServers": {"latex2arxiv": {"command": "latex2arxiv-mcp"}}}
 ```
+
+> Add the JSON above to your editor's MCP config. See [MCP setup guide →](docs/mcp.md) for per-editor paths.
 
 ## Installation
 
@@ -261,7 +263,7 @@ The brace-balanced matcher correctly handles nested commands like `\deleted{see 
 | **Upload walkthrough** (`--guide`) | ✅ | ❌ |
 | **Non-zero exit on errors** (CI-gateable) | ✅ | ❌ |
 | **Outputs the `.zip` you upload** | ✅ | ❌ |
-| **MCP server** (Claude / Cursor / Copilot) | ✅ | ❌ |
+| **MCP server** (Claude / Cursor / Copilot / Windsurf / Zed) | ✅ | ❌ |
 | **GitHub Action + `pre-commit` hook** | ✅ | ❌ |
 | **VS Code extension** | ✅ | ❌ |
 | **Multiple input forms** (`.zip` / directory / git URL) | ✅ | ❌ |
@@ -297,7 +299,7 @@ BibTeX normalization · image resizing (Pillow).
 | CLI | ✅ | `pip install latex2arxiv` |
 | GitHub Action | ✅ | [`action.yml`](docs/ci.md) |
 | `pre-commit` hook | ✅ | [`latex2arxiv-dryrun`](docs/ci.md) |
-| MCP server (AI agents) | ✅ | `pip install "latex2arxiv[mcp]"` — [setup](docs/mcp.md) |
+| MCP server (Claude, Cursor, Copilot, Windsurf, Zed) | ✅ | `pip install "latex2arxiv[mcp]"` — [setup](docs/mcp.md) |
 | VS Code extension | ✅ | [Marketplace](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv) — `ext install YuZh98.latex2arxiv` |
 | Homebrew formula | ✅ | `brew tap YuZh98/latex2arxiv && brew install latex2arxiv` |
 
