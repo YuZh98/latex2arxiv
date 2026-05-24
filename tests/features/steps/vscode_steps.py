@@ -26,6 +26,30 @@ def _load_src() -> str:
     return _SRC.read_text()
 
 
+def _function_block(src: str, name: str) -> str | None:
+    """Return the body of a TypeScript function declaration matching `name`.
+
+    Tolerates `function`, `async function`, and `export function` prefixes. Uses
+    a balanced-brace walk from the first `{` after the declaration, so refactors
+    that add/remove sibling helpers do not bloat the captured region.
+    """
+    pattern = rf"(?:export\s+)?(?:async\s+)?function\s+{re.escape(name)}\b[^{{]*\{{"
+    m = re.search(pattern, src)
+    if not m:
+        return None
+    start = m.end()  # position just after the opening `{`
+    depth = 1
+    i = start
+    while i < len(src) and depth > 0:
+        c = src[i]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        i += 1
+    return src[start : i - 1] if depth == 0 else None
+
+
 @given("the `latex2arxiv` VS Code extension is installed")
 def _vs_ext_installed():
     assert _PKG.exists(), f"package.json missing at {_PKG}"
@@ -96,9 +120,9 @@ def _vs_activated():
 @then("the configured executable is run on the workspace root with `--dry-run`")
 def _vs_validate_invokes_dry_run():
     src = _load_src()
-    # The validate path should spawn the CLI with --dry-run somewhere.
-    assert "--dry-run" in src, "extension.ts never passes --dry-run"
-    # And there should be a registerCommand wiring the validate handler.
+    body = _function_block(src, "validate")
+    assert body is not None, "validate() function not found in extension.ts"
+    assert "--dry-run" in body, "validate() never passes --dry-run"
     assert "registerCommand('latex2arxiv.validate'" in src or 'registerCommand("latex2arxiv.validate"' in src, (
         "validate command not registered"
     )
@@ -124,11 +148,9 @@ def _vs_surface_diagnostics():
 @then("the configured executable is run on the workspace root without `--dry-run`")
 def _vs_clean_no_dry_run():
     src = _load_src()
-    # The clean handler should NOT include --dry-run in its arg list. We verify
-    # by locating the clean handler block and asserting --dry-run is absent.
-    m = re.search(r"function\s+clean\b.*?(?=\n(?:export\s+)?function\b|\Z)", src, re.S)
-    assert m, "clean() function not found in extension.ts"
-    assert "--dry-run" not in m.group(0), "clean handler unexpectedly passes --dry-run"
+    body = _function_block(src, "clean")
+    assert body is not None, "clean() function not found in extension.ts"
+    assert "--dry-run" not in body, "clean() unexpectedly passes --dry-run"
 
 
 @then("the resulting `_arxiv.zip` location is reported back to the user")
@@ -139,11 +161,10 @@ def _vs_clean_reports_output():
     assert "parseOutputZip" in src or "Converting" in src, (
         "extension does not parse the output zip path from CLI stdout"
     )
-    m = re.search(r"function\s+clean\b.*?(?=\n(?:export\s+|async\s+)?function\b|\Z)", src, re.S)
-    assert m, "clean() function not found in extension.ts"
-    body = m.group(0)
+    body = _function_block(src, "clean")
+    assert body is not None, "clean() function not found in extension.ts"
     assert any(api in body for api in ("showInformationMessage", "appendLine")), (
-        "clean handler does not surface a result message"
+        "clean() does not surface a result message"
     )
 
 
@@ -160,10 +181,9 @@ def _vs_save_triggers_validation(result):
 @then("results are surfaced without blocking the editor")
 def _vs_nonblocking():
     src = _load_src()
-    # Async invocation pattern: validate(false) or similar fire-and-forget.
-    assert "validate(false)" in src or "void validate" in src or "validate()" in src, (
-        "no fire-and-forget validate call in onSave path"
-    )
+    # Fire-and-forget validate call (the bare `validate()` form was deliberately
+    # dropped — too generic, would match unrelated invocations).
+    assert "validate(false)" in src or "void validate" in src, "no fire-and-forget validate call in onSave path"
 
 
 @then("no validation is triggered")
