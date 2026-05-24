@@ -305,10 +305,24 @@ def _mcp_stdout_jsonrpc(project_dir):
 
 
 def _stdio_invoke(cwd: Path, tool_name: str, arguments: dict, timeout: float = 30.0) -> subprocess.CompletedProcess:
-    """Send initialize + tools/call to a freshly-spawned latex2arxiv-mcp."""
+    """Send initialize + tools/call to a freshly-spawned latex2arxiv-mcp.
 
-    def frame(payload: dict) -> str:
-        return json.dumps(payload) + "\n"
+    Previous implementation used `subprocess.run(input=...)`, which writes the
+    full stdin payload then closes stdin immediately. FastMCP's stdio loop
+    treats EOF on stdin as a shutdown signal — on slower runners (observed on
+    macos-3.13 CI) the tools/call response could be lost because the server
+    received EOF mid-processing and exited before flushing reply id=2.
+
+    The Popen-based version writes each frame with explicit flush, then reads
+    stdout line-by-line until both expected reply ids (1 from initialize,
+    2 from tools/call) have arrived (or `timeout` elapses), and only then
+    closes stdin to trigger a graceful shutdown. This eliminates the race.
+    """
+    import threading
+    import time
+
+    def frame(payload: dict) -> bytes:
+        return (json.dumps(payload) + "\n").encode()
 
     initialize = {
         "jsonrpc": "2.0",
@@ -327,15 +341,92 @@ def _stdio_invoke(cwd: Path, tool_name: str, arguments: dict, timeout: float = 3
         "method": "tools/call",
         "params": {"name": tool_name, "arguments": arguments},
     }
-    stdin_payload = frame(initialize) + frame(initialized) + frame(call)
     repo_root = str(Path(__file__).resolve().parent.parent.parent.parent)
     env = {**os.environ, "LATEX2ARXIV_MCP_BASE_DIR": str(cwd), "PYTHONPATH": repo_root}
-    return subprocess.run(
+
+    proc = subprocess.Popen(
         [sys.executable, "-m", "mcp_server"],
-        input=stdin_payload,
-        capture_output=True,
-        text=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         cwd=cwd,
         env=env,
-        timeout=timeout,
+    )
+    # PIPE was passed for all three streams, so they are guaranteed non-None;
+    # bind locally to keep the type-checker happy.
+    assert proc.stdin is not None and proc.stdout is not None and proc.stderr is not None
+    p_in, p_out, p_err = proc.stdin, proc.stdout, proc.stderr
+
+    # Drain stderr concurrently so pipe-buffer back-pressure cannot stall the server.
+    stderr_chunks: list[bytes] = []
+
+    def _drain_stderr():
+        try:
+            for chunk in iter(lambda: p_err.read(4096), b""):
+                stderr_chunks.append(chunk)
+        except Exception:
+            pass
+
+    t_err = threading.Thread(target=_drain_stderr, daemon=True)
+    t_err.start()
+
+    try:
+        # Write all three frames, flushing each so the server can begin processing
+        # before we even consider closing stdin.
+        for payload in (initialize, initialized, call):
+            p_in.write(frame(payload))
+            p_in.flush()
+
+        # Read stdout line-by-line until both reply ids (1 and 2) have arrived
+        # or `timeout` is reached. Lines from FastMCP's stdio transport are one
+        # JSON object each, so a blocking readline() is a per-frame wait.
+        deadline = time.monotonic() + timeout
+        seen_ids: set[int] = set()
+        stdout_chunks: list[bytes] = []
+        while time.monotonic() < deadline and {1, 2} - seen_ids:
+            line = p_out.readline()
+            if not line:
+                # EOF on stdout — server exited. Stop reading to avoid a hang.
+                break
+            stdout_chunks.append(line)
+            try:
+                obj = json.loads(line)
+                if "id" in obj:
+                    seen_ids.add(obj["id"])
+            except json.JSONDecodeError:
+                # Non-JSON line on stdout is itself a finding; keep it for
+                # the assertion in `_mcp_stdout_jsonrpc` to flag.
+                pass
+
+        # Now safe to signal shutdown: stdin EOF triggers FastMCP's clean exit.
+        try:
+            p_in.close()
+        except BrokenPipeError:
+            pass
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=2)
+
+        # Drain any final stdout lines emitted between our last readline and shutdown.
+        try:
+            tail = p_out.read()
+            if tail:
+                stdout_chunks.append(tail)
+        except Exception:
+            pass
+    finally:
+        t_err.join(timeout=2)
+        for stream in (p_in, p_out, p_err):
+            try:
+                stream.close()
+            except Exception:
+                pass
+
+    return subprocess.CompletedProcess(
+        args=proc.args,
+        returncode=proc.returncode if proc.returncode is not None else -1,
+        stdout=b"".join(stdout_chunks).decode("utf-8", errors="replace"),
+        stderr=b"".join(stderr_chunks).decode("utf-8", errors="replace"),
     )
