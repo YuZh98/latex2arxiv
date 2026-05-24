@@ -320,8 +320,11 @@ def _check_archive_layout(root: Path, issues: Issues) -> None:
                 "'.' upon announcement; if your build depends on this, rename it"
             )
 
-        # Shipped psfig.sty at any depth.
-        if path.name == "psfig.sty":
+        # Shipped psfig.sty at any depth (case-insensitive — Mac/Windows
+        # filesystems are case-preserving, so PSFIG.STY / Psfig.sty must
+        # still be rejected: arXiv's case-sensitive Linux builder would also
+        # fail to resolve them).
+        if path.name.lower() == "psfig.sty":
             issues.error(
                 f"shipped psfig.sty ({rel}) — arXiv forbids user-supplied psfig.sty "
                 "and will fail to build; remove it and migrate to \\includegraphics"
