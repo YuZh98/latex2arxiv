@@ -37,6 +37,7 @@ Feature: MCP server exposes arXiv validation to AI agents
     And on subsequent failures the file is not auto-deleted by the server
 
   Scenario: clean_submission rejects an output_path whose parent does not exist
+    Given a directory "paper/" containing a valid LaTeX project
     When the agent calls `clean_submission(path="paper", output_path="missing/out.zip")`
     Then the response has `success: false`
     And `errors[]` mentions that the output directory does not exist
@@ -51,7 +52,11 @@ Feature: MCP server exposes arXiv validation to AI agents
       | ../escape            |
       | /etc/passwd          |
       | ~/secret             |
-      |                      |
+
+  Scenario: Empty path is rejected with its own message
+    When the agent calls `validate_submission(path="")`
+    Then the response has `success: false`
+    And `errors[]` contains "path must not be empty"
 
   Scenario: Nonexistent path returns a clear error
     When the agent calls `validate_submission(path="not_a_real_dir")`
