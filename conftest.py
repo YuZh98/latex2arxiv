@@ -14,10 +14,4 @@ from pathlib import Path
 _STEPS = Path(__file__).parent / "tests" / "features" / "steps"
 sys.path.insert(0, str(_STEPS))
 
-<<<<<<< HEAD
-pytest_plugins = ["common", "cli", "mcp_steps", "action_steps"]
-||||||| cfb2d53
-pytest_plugins = ["common", "cli", "mcp_steps"]
-=======
-pytest_plugins = ["common", "cli", "mcp_steps", "vscode_steps"]
->>>>>>> origin/main
+pytest_plugins = ["common", "cli", "mcp_steps", "vscode_steps", "action_steps"]
