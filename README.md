@@ -60,13 +60,13 @@ On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)
 
 ## What it does
 
-| Feature | What it does |
-|---|---|
-| 📦 **One command, any input** | Accepts a `.zip`, directory, or git URL; outputs an arXiv-ready `.zip`; optionally compiles and opens the PDF for review |
-| ✂️ **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
-| 🧹 **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
-| 🚨 **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, missing index files, oversized output, undefined citations, problematic filenames — [full list](#pre-flight-checks) |
-| 🗺️ **Guides you through upload** | `--guide` extracts title, authors, abstract, page/figure/table counts and writes a step-by-step arXiv upload walkthrough |
+|| Feature | What it does |
+|---|---|---|
+| 📦 | **One command, any input** | Accepts a `.zip`, directory, or git URL; outputs an arXiv-ready `.zip`; optionally compiles and opens the PDF for review |
+| ✂️ | **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
+| 🧹 | **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
+| 🚨 | **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex without `.bbl`, missing index files, oversized output, undefined citations, problematic filenames — [full list](#pre-flight-checks) |
+| 🗺️ | **Guides you through upload** | `--guide` extracts title, authors, abstract, page/figure/table counts and writes a step-by-step arXiv upload walkthrough |
 
 Also: `--flatten` (single-file output, [docs](docs/flatten.md)), `--json` (CI integration, [schema](docs/json-schema.md)), `--resize` (image downscaling), `--dry-run` (preview without writing), BibTeX normalization, `\pdfoutput=1` injection.
 
