@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-05-24
+
+### Added
+- `--clean-demo` flag to remove demo output files (`demo_project_arxiv*`)
+
 ## [1.2.1] - 2026-05-24
 
 Pre-flight coverage gaps and Zed MCP extension. Four documented arXiv requirements that earlier code did not enforce are now checked; MCP docs updated to list all supported platforms.
