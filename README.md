@@ -24,6 +24,8 @@ pip install latex2arxiv
 latex2arxiv --demo --compile --guide
 ```
 
+Clean up demo output when you're done: `latex2arxiv --clean-demo`
+
 This processes a bundled self-documenting paper, opens the cleaned PDF, and writes a step-by-step arXiv upload guide with copy-paste-ready metadata. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf`.
 
 ## Before / After
@@ -186,6 +188,7 @@ latex2arxiv input [output.zip] [options]
 | `--flatten` | Inline every `\input` / `\include` / `\subfile` into the main `.tex` for single-file output. [Details](docs/flatten.md). |
 | `--json` | Emit a machine-readable JSON summary on stdout; route progress to stderr. [Schema](docs/json-schema.md). |
 | `--demo` | Run the built-in demo project (no input file needed). |
+| `--clean-demo` | Remove demo output files (`demo_project_arxiv*`). |
 | `--version` | Print version and exit. |
 
 **Examples**
