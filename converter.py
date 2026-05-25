@@ -527,10 +527,26 @@ def main():
     parser.add_argument(
         "--guide", action="store_true", help="Write a detailed arXiv upload guide to a text file alongside the output"
     )
+    parser.add_argument(
+        "--clean-demo", action="store_true", help="Remove demo output files (demo_project_arxiv*)"
+    )
     args = parser.parse_args()
 
     # argparse-level validation. Fail fast before setting up stdout capture —
     # these errors are not part of the JSON envelope contract.
+    if args.clean_demo:
+        _DEMO_GLOBS = ("demo_project_arxiv*",)
+        removed = []
+        for g in _DEMO_GLOBS:
+            for f in Path(".").glob(g):
+                f.unlink()
+                removed.append(str(f))
+        if removed:
+            print(f"Removed: {', '.join(removed)}")
+        else:
+            print("Nothing to clean.")
+        sys.exit(0)
+
     if not args.demo and not args.input:
         parser.error("the following arguments are required: input")
 
