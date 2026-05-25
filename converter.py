@@ -527,9 +527,7 @@ def main():
     parser.add_argument(
         "--guide", action="store_true", help="Write a detailed arXiv upload guide to a text file alongside the output"
     )
-    parser.add_argument(
-        "--clean-demo", action="store_true", help="Remove demo output files (demo_project_arxiv*)"
-    )
+    parser.add_argument("--clean-demo", action="store_true", help="Remove demo output files (demo_project_arxiv*)")
     args = parser.parse_args()
 
     # argparse-level validation. Fail fast before setting up stdout capture —
