@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Fixed
+- Pre-flight: tighten `00README.XXX` legacy check to exclude `xelatex` / `lualatex` (#178)
+
 ## [1.2.2] - 2026-05-24
 
 ### Added

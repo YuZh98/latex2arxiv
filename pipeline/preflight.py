@@ -36,8 +36,10 @@ def _has_latex_dvips_mode(root: Path) -> bool:
         # JSON/YAML: "compiler": "latex" or compiler: latex
         if re.search(r'"?compiler"?\s*[:=]\s*"?(latex|tex|latex\+dvips)', content):
             return True
-        # Legacy XXX format: nohypertex line or latex directive
-        if name == "00README.XXX" and "latex" in content:
+        # Legacy XXX format: nohypertex line or latex directive.
+        # Use a word-aware match so "xelatex" / "lualatex" don't false-positive here
+        # (they belong to _has_xelatex_mode, a separate code path).
+        if name == "00README.XXX" and re.search(r"(?<!xe)(?<!lua)latex", content):
             return True
     return False
 
