@@ -2975,18 +2975,32 @@ class TestPreflightV3:
         issues = self._run(files, tmp_path)
         assert any(".eps image found" in w for w in issues.warnings)
 
-    def test_eps_warns_with_00readme_xxx_xelatex(self, tmp_path):
-        """00README.XXX declaring xelatex must not be misread as latex+dvips mode."""
+    @pytest.mark.parametrize("hint", ["xelatex", "lualatex"])
+    def test_eps_warns_with_00readme_xxx_non_dvips_engine(self, tmp_path, hint):
+        """00README.XXX declaring xelatex/lualatex must not be misread as latex+dvips."""
         files = {
             "main.tex": (
                 r"\documentclass{article}\usepackage{graphicx}"
                 r"\begin{document}\includegraphics{fig.eps}\end{document}"
             ),
             "fig.eps": b"%!PS-Adobe-3.0 EPSF-3.0",
-            "00README.XXX": "nohypertex,xelatex\n",
+            "00README.XXX": f"nohypertex,{hint}\n",
         }
         issues = self._run(files, tmp_path)
         assert any(".eps image found" in w for w in issues.warnings)
+
+    def test_eps_no_warn_with_00readme_xxx_bare_latex(self, tmp_path):
+        """Regression guard: bare `latex` in 00README.XXX still suppresses the .eps warning."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}\usepackage{graphicx}"
+                r"\begin{document}\includegraphics{fig.eps}\end{document}"
+            ),
+            "fig.eps": b"%!PS-Adobe-3.0 EPSF-3.0",
+            "00README.XXX": "nohypertex,latex\n",
+        }
+        issues = self._run(files, tmp_path)
+        assert not any(".eps image found" in w for w in issues.warnings)
 
     # ── Softened biblatex message ──
 
