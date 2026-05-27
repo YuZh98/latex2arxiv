@@ -2,6 +2,18 @@
 // the output zip. The content script builds the Blob URL (chrome.runtime
 // .sendMessage uses JSON serialization, which would corrupt a Uint8Array)
 // and passes only the URL string here.
+//
+// v0.1.1 follow-up:
+//   1. Smoke-test in a real Chrome that content-script-created blob URLs
+//      resolve from the service-worker process. The blob registry has been
+//      per-renderer historically; if MV3 breaks the cross-process resolve,
+//      fall back to fetching the blob in the content script, converting to
+//      an ArrayBuffer, and passing a data: URL.
+//   2. Reclaim the blob URL after the download finishes. Listen on
+//      chrome.downloads.onChanged for state === "complete"/"interrupted",
+//      then chrome.tabs.sendMessage back to the content script which calls
+//      URL.revokeObjectURL. Without that, repeated "Clean" presses leak
+//      one multi-MB blob per run until the page tears down.
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg && msg.type === "download" && typeof msg.url === "string") {
