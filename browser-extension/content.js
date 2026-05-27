@@ -51,7 +51,8 @@ async function fetchProjectZip(projectId) {
 
 function spawnWorker() {
   const url = chrome.runtime.getURL("worker.js");
-  return new Worker(url, { type: "module" });
+  // Classic worker; worker.js uses importScripts to load Pyodide.
+  return new Worker(url);
 }
 
 let workerPromise = null;
@@ -61,10 +62,12 @@ function getWorker() {
       const worker = spawnWorker();
       await new Promise((resolve, reject) => {
         const onMsg = (ev) => {
-          if (ev.data && ev.data.type === "ready") {
+          if (!ev.data) return;
+          if (ev.data.type === "ready") {
             worker.removeEventListener("message", onMsg);
             resolve();
-          } else if (ev.data && ev.data.type === "error") {
+          } else if (ev.data.type === "error") {
+            worker.removeEventListener("message", onMsg);
             reject(new Error(ev.data.error));
           }
         };
@@ -72,7 +75,10 @@ function getWorker() {
         worker.postMessage({ type: "init" });
       });
       return worker;
-    })();
+    })().catch((err) => {
+      workerPromise = null;
+      throw err;
+    });
   }
   return workerPromise;
 }
@@ -91,8 +97,22 @@ function runInWorker(worker, msg) {
   });
 }
 
-async function run({ projectId, mode, options, panel }) {
+function sanitizeFilename(name) {
+  // Drop path separators so a malicious filename cannot escape the user's
+  // default download directory. Final folder choice is the user's via saveAs.
+  return name.replace(/[\\/]/g, "_");
+}
+
+async function run({ mode, options, panel }) {
   try {
+    // Read projectId at call time, not at panel-build time, so SPA navigation
+    // between projects in the same tab keeps actions aimed at the current one.
+    const projectId = getProjectId();
+    if (!projectId) {
+      setStatus(panel, "Not on an Overleaf project page.", "err");
+      return;
+    }
+
     setStatus(panel, "Loading engine…", "info");
     const worker = await getWorker();
 
@@ -111,12 +131,15 @@ async function run({ projectId, mode, options, panel }) {
     renderDiagnostics(panel, result.diagnostics);
 
     if (mode === "clean" && result.outputZip) {
-      const suggestedFilename = (panel.querySelector(".l2a-filename").value || "paper-arxiv.zip").trim();
-      chrome.runtime.sendMessage({
-        type: "download",
-        zipBytes: result.outputZip,
-        suggestedFilename,
-      });
+      // Build the Blob URL here in the content script — chrome.runtime
+      // .sendMessage uses JSON serialization, which would corrupt a
+      // Uint8Array. The service worker only needs the URL string.
+      const suggestedFilename = sanitizeFilename(
+        (panel.querySelector(".l2a-filename").value || "paper-arxiv.zip").trim(),
+      );
+      const blob = new Blob([result.outputZip], { type: "application/zip" });
+      const url = URL.createObjectURL(blob);
+      chrome.runtime.sendMessage({ type: "download", url, suggestedFilename });
       setStatus(panel, "Done. Choose where to save…", "ok");
     } else {
       setStatus(panel, "Done.", "ok");
@@ -126,7 +149,7 @@ async function run({ projectId, mode, options, panel }) {
   }
 }
 
-function buildPanel(projectId) {
+function buildPanel() {
   const panel = el("aside", { class: "l2a-panel", "aria-label": "latex2arxiv" });
 
   panel.append(el("header", { class: "l2a-header" }, "latex2arxiv"));
@@ -163,7 +186,7 @@ function buildPanel(projectId) {
       "button",
       {
         class: "l2a-btn l2a-btn-primary",
-        onclick: () => run({ projectId, mode: "clean", options: collectOptions(), panel }),
+        onclick: () => run({ mode: "clean", options: collectOptions(), panel }),
       },
       "Clean for arXiv",
     ),
@@ -173,7 +196,7 @@ function buildPanel(projectId) {
       "button",
       {
         class: "l2a-btn",
-        onclick: () => run({ projectId, mode: "validate", options: collectOptions(), panel }),
+        onclick: () => run({ mode: "validate", options: collectOptions(), panel }),
       },
       "Just validate",
     ),
@@ -187,12 +210,11 @@ function buildPanel(projectId) {
 }
 
 function inject() {
-  const projectId = getProjectId();
-  if (!projectId) return;
+  if (!getProjectId()) return;
   if (document.querySelector(".l2a-panel")) return;
   const host = document.body;
   if (!host) return;
-  host.append(buildPanel(projectId));
+  host.append(buildPanel());
 }
 
 if (document.readyState === "complete" || document.readyState === "interactive") {

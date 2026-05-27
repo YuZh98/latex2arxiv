@@ -4,7 +4,12 @@ Chrome extension that runs [`latex2arxiv`](https://github.com/YuZh98/latex2arxiv
 
 ## Status
 
-**v0.1 scaffold.** The UI, content script, service worker, and Web Worker shell are wired end-to-end against the Overleaf project download endpoint. The Pyodide-hosted pipeline is stubbed and echoes a placeholder result; full conversion lands in v0.1.1 once the upstream wheel ships the cross-platform regex-timeout fix.
+**v0.1 scaffold — not yet store-ready.** The UI, content script, service worker, and Web Worker shell are wired end-to-end against the Overleaf project download endpoint. Two gates before Chrome Web Store submission:
+
+1. The Pyodide-hosted pipeline is stubbed; full conversion lands in v0.1.1 once the upstream wheel ships the cross-platform regex-timeout fix.
+2. Pyodide is currently loaded from the jsDelivr CDN. MV3 prohibits remotely-hosted code from extension contexts at review time, so v0.1.1 must also bundle the Pyodide runtime into the extension package.
+
+Design rationale, dismissed alternatives, and the full build plan: `docs/browser-extension-design.md`.
 
 ## Architecture
 
