@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Added
+- `browser-extension/`: Manifest V3 Chrome extension scaffold for an Overleaf companion that runs `latex2arxiv` via Pyodide in-browser. Pipeline wiring is stubbed in v0.1; full conversion ships in v0.1.1 (#192)
+
 ### Changed
 - VS Code extension README: remove retired Marketplace shields badges (version, installs, rating) — endpoints no longer served reliably by shields.io
 
