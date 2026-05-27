@@ -6,6 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Changed
+- VS Code extension README: remove retired Marketplace shields badges (version, installs, rating) — endpoints no longer served reliably by shields.io
+
 ### Fixed
 - Pre-flight: tighten `00README.XXX` legacy check to exclude `xelatex` / `lualatex` (#178)
 
