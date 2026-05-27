@@ -1,8 +1,5 @@
 # latex2arxiv
 
-[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/YuZh98.latex2arxiv?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/YuZh98.latex2arxiv)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
-[![Rating](https://img.shields.io/visual-studio-marketplace/r/YuZh98.latex2arxiv)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
 [![CI](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml/badge.svg)](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/YuZh98/latex2arxiv/blob/main/LICENSE)
 
