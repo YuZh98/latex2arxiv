@@ -1,7 +1,8 @@
 import re
-import signal
 from pathlib import Path
 from typing import Callable
+
+import regex
 
 from pipeline.tex import remove_cmd, remove_bare_cmd, unwrap_cmd
 
@@ -9,22 +10,13 @@ _REGEX_TIMEOUT_SECONDS = 2
 
 
 def _safe_re_sub(pattern: str, replacement: str, source: str) -> str:
-    """Apply re.sub with a hard OS-level timeout via SIGALRM (Unix only).
+    """Apply regex.sub with a timeout that preempts catastrophic backtracking.
 
-    SIGALRM interrupts C-level code (unlike threading timeouts which cannot
-    preempt a GIL-holding regex backtrack). Only callable from the main thread.
+    Uses the third-party ``regex`` package: its ``timeout=`` parameter works
+    on Linux, macOS, Windows, and WebAssembly. The ``signal.SIGALRM`` mechanism
+    it replaces was Unix-only and silently no-op on Windows and Pyodide.
     """
-
-    def _handler(_signum: int, _frame: object) -> None:
-        raise TimeoutError
-
-    old = signal.signal(signal.SIGALRM, _handler)
-    signal.alarm(_REGEX_TIMEOUT_SECONDS)
-    try:
-        return re.sub(pattern, replacement, source)
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old)
+    return regex.sub(pattern, replacement, source, timeout=_REGEX_TIMEOUT_SECONDS)
 
 
 try:
@@ -168,7 +160,7 @@ def apply_config(source: str, config: dict, warn_fn: Callable[[str], None] | Non
                 f"after {_REGEX_TIMEOUT_SECONDS}s (possible ReDoS pattern): "
                 f"{pattern!r}"
             )
-        except re.error as e:
+        except (re.error, regex.error) as e:
             _warn(f"replacements rule #{i} skipped — invalid regex {pattern!r}: {e}")
 
     return source

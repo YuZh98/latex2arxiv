@@ -42,6 +42,7 @@ dependencies = [
     "bibtexparser>=1.4,<2",
     "Pillow>=10.0",
     "pyyaml>=6.0",
+    "regex>=2024.0",
 ]
 
 [project.optional-dependencies]

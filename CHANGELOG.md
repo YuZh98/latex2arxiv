@@ -8,9 +8,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ### Changed
 - VS Code extension README: remove retired Marketplace shields badges (version, installs, rating) — endpoints no longer served reliably by shields.io
+- ReDoS regex guard rewritten to use the `regex` package's portable `timeout=` parameter; replaces the previous Unix-only `signal.SIGALRM` mechanism that silently no-op'd on Windows
 
 ### Fixed
 - Pre-flight: tighten `00README.XXX` legacy check to exclude `xelatex` / `lualatex` (#178)
+- Custom regex replacements in YAML config now time out on catastrophic patterns on Windows (previously hung indefinitely)
 
 ## [1.2.2] - 2026-05-24
 
