@@ -1,6 +1,6 @@
 # Browser extension design — `latex2arxiv-overleaf`
 
-Status: **proposed**. Target: v0.1 of a Chrome extension that runs `latex2arxiv` against an open Overleaf project, surfaces diagnostics in-page, and produces an arXiv-ready zip with one click — no local install.
+Status: **partially implemented**. v0.1 ships the wired Pyodide pipeline (`browser-extension/`) for unpacked-dev install; v0.1.1 will vendor the Pyodide runtime and pin SHA-256s on bundled wheels for Chrome Web Store submission. Target: a Chrome extension that runs `latex2arxiv` against an open Overleaf project, surfaces diagnostics in-page, and produces an arXiv-ready zip with one click — no local install.
 
 ## Goal
 
@@ -61,20 +61,11 @@ Bundle cost: CPython + stdlib ~7 MB gzipped, Pillow ~2-3 MB, `latex2arxiv` wheel
 - Install dialog warns "this extension can communicate with native applications on your computer." High friction for a tool a new user is trying for the first time.
 - Possible re-introduction in v1.x as an opt-in fast path for power users who already have the CLI; not before the Pyodide path is validated.
 
-## Prerequisite: ReDoS-guard rewrite
+## Prerequisite: ReDoS-guard rewrite — landed
 
-`pipeline/config.py` guards regex application with `signal.SIGALRM` / `signal.alarm`. This does not work in:
+`pipeline/config.py` used to guard regex application with `signal.SIGALRM` / `signal.alarm`, which does not work on Windows or in WebAssembly (Pyodide has no Unix signals). The guard was therefore already broken on Windows in the existing CLI — a real bug, not a browser-only concern.
 
-- WebAssembly (Pyodide has no Unix signals)
-- Windows (no `SIGALRM`)
-
-The guard is therefore already broken on Windows in the existing CLI — a real bug, not a browser-only concern. Fix lands as a **separate prerequisite PR on the main repo** before any browser-extension work. Replacement options:
-
-- Run regex in a `concurrent.futures` worker with a timeout (works on Pyodide single-threaded too if the worker is the JS-side Web Worker, but adds complexity).
-- Bound regex input size and complexity statically; drop runtime timeout.
-- Use a platform-portable timeout via `threading.Timer` to set a flag that the regex loop polls.
-
-Decision deferred to that PR. Acceptance criteria: the existing ReDoS test (`tests/test_redos.py`) passes on Linux, macOS, and Windows in CI, and the implementation has no `signal.*` references.
+**Resolved in #191:** the guard is now the third-party `regex` package's `timeout=` parameter, which preempts matching portably across Linux, macOS, Windows, and Pyodide. A pinning test in `tests/test_redos.py` guards against `signal` being re-imported.
 
 ## Pipeline survival matrix in Pyodide
 
@@ -88,7 +79,7 @@ Decision deferred to that PR. Acceptance criteria: the existing ReDoS test (`tes
 | `pipeline/process.py` | calls into above + `pipeline/images` | Yes (Pillow available as Pyodide package) |
 | `pipeline/images.py` | `PIL.Image` (soft dep, no-op if absent) | Yes with Pillow loaded; degraded no-op if not |
 | `pipeline/guide.py` | `subprocess.run(['pdfinfo', …])` for page count | Falls back to raw-PDF byte regex on `/Type /Page`; degrades to `None` page count when no PDF (browser case) |
-| `pipeline/config.py` | `signal.SIGALRM` | **Blocked** until prerequisite PR lands |
+| `pipeline/config.py` | `signal.SIGALRM` → `regex.sub(timeout=)` | Yes (since #191) |
 | `pipeline/build.py` | `subprocess` (pdflatex/bibtex/open) | Skipped — feature not exposed in browser UI |
 | `pipeline/resolve.py` | `subprocess` (git clone), `zipfile`, `tempfile` | Git-URL branch unused in browser (input is in-memory zip from Overleaf); zipfile/tempfile fine |
 | `converter.py` | `importlib.resources` for packaged demo + default config | Works if those resources are written into Pyodide's virtual FS at init |
@@ -164,13 +155,14 @@ Advanced row reveals a textarea that accepts the YAML contents of an `arxiv_conf
 
 ## Build sequence
 
-1. **Prereq PR on `latex2arxiv`:** replace `signal.SIGALRM` ReDoS guard with a portable timeout. Land + release before any browser-extension code.
-2. **Scaffold `browser-extension/`** parallel to `vscode-extension/`. Vite + TypeScript + a Web Worker entry that boots Pyodide and exports a single `runPipeline(zipBytes, opts) → { outputZip, diagnostics }` handler.
-3. **Pyodide pipeline harness.** Load Pyodide, `micropip.install('latex2arxiv')` (or bundle the wheel), expose the Python entrypoint, smoke-test against a fixture project from `tests/`.
-4. **Overleaf content script.** Same-origin fetch, project-id detection, message channel to worker, message channel to background.
-5. **Background download handler.** `chrome.downloads.download` with `saveAs: true`.
-6. **UI panel + diagnostics renderer.** Inject into Overleaf toolbar; preserve a fallback "open in standalone tab" path in case the toolbar slot disappears.
-7. **End-to-end on a real Overleaf project** before opening Chrome Web Store submission.
+1. **Prereq PR on `latex2arxiv`:** replace `signal.SIGALRM` ReDoS guard with a portable timeout. — **shipped (#191).**
+2. **Scaffold `browser-extension/`** parallel to `vscode-extension/`. Plain JS (no build step yet) + a classic Web Worker entry that boots Pyodide and exposes a single `run(zipBytes, mode, options) → { outputZip, diagnostics }` handler. — **shipped (#192).**
+3. **Pyodide pipeline harness.** Boot Pyodide via `importScripts`, install bundled wheels (`latex2arxiv`, `bibtexparser`, `pyparsing`) via `micropip.install(["emfs:..."])`, expose the Python entrypoint, smoke-test against a fixture project from `tests/fixtures/`. — **shipped (#193).**
+4. **Overleaf content script.** Same-origin fetch, project-id detection, message channel to worker, message channel to background. — **shipped (#192).**
+5. **Background download handler.** `chrome.downloads.download` with `saveAs: true`. — **shipped (#192).**
+6. **UI panel + diagnostics renderer.** Inject into Overleaf; aria-label-targeted host. — **shipped (#192).**
+7. **v0.1.1 store-readiness work:** vendor the Pyodide runtime under `browser-extension/pyodide/` (drop CDN load); pin SHA-256 per entry in `wheels/index.json` and verify on install; `chrome.downloads.onChanged` listener to revoke blob URLs after completion; extract `PY_RUN` to a shared `.py` file loaded by both worker and smoke; real-Chrome smoke test of cross-process blob-URL resolve.
+8. **End-to-end on a real Overleaf project** before opening Chrome Web Store submission.
 
 ## Testing strategy
 

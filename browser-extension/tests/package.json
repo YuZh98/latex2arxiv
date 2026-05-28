@@ -1,0 +1,11 @@
+{
+  "name": "browser-extension-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node pyodide-smoke.mjs ../wheels ../../tests/fixtures/01-minimal"
+  },
+  "dependencies": {
+    "pyodide": "0.29.4"
+  }
+}
