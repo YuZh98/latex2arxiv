@@ -27,6 +27,43 @@ jobs:
             exit 1
           fi
 
+      - name: Rotate CHANGELOG [Unreleased] -> [VERSION]
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          # Safety: refuse to rotate if [VERSION] already exists or if the
+          # [Unreleased] section is empty (publish.yml's extractor would emit
+          # blank release notes either way). The publish step matches
+          # `^## [VERSION]` exactly; this rotation pins that anchor.
+          if grep -qE "^## \[${VERSION}\]" CHANGELOG.md; then
+            echo "ERROR: CHANGELOG.md already has a [${VERSION}] section" >&2
+            exit 1
+          fi
+          # Body = content between [Unreleased] and the next ## heading.
+          # Treat as empty when there's nothing but whitespace; sub-headers
+          # like "### Added" count as content because the CHANGELOG style
+          # nests bullets under them.
+          unreleased_body=$(awk '/^## \[Unreleased\]/{found=1; next} found && /^## \[/{exit} found{print}' CHANGELOG.md)
+          if [[ -z "$(echo "$unreleased_body" | tr -d '[:space:]')" ]]; then
+            echo "ERROR: CHANGELOG.md [Unreleased] section is empty — nothing to release" >&2
+            exit 1
+          fi
+          DATE=$(date -u +%Y-%m-%d)
+          # GNU sed (CI is ubuntu-latest) honors \n in the replacement so the
+          # rotation lands as two adjacent headers separated by a blank line.
+          # `[[:space:]]*$` swallows accidental trailing whitespace on the
+          # header line so an editor that re-saves CHANGELOG with a trailing
+          # space does not silently no-op the rotation.
+          sed -i -E "s/^## \[Unreleased\][[:space:]]*$/## [Unreleased]\n\n## [${VERSION}] - ${DATE}/" CHANGELOG.md
+          # Defense in depth: confirm the new header is now present. If the
+          # sed regex somehow failed to match, this catches it loudly instead
+          # of letting publish.yml emit blank release notes downstream.
+          if ! grep -qE "^## \[${VERSION}\] - ${DATE}$" CHANGELOG.md; then
+            echo "ERROR: rotation did not produce the expected [${VERSION}] header" >&2
+            exit 1
+          fi
+          echo "Rotated CHANGELOG: new section [${VERSION}] - ${DATE}"
+
       - name: Bump version in pyproject.toml
         env:
           VERSION: ${{ github.event.inputs.version }}
