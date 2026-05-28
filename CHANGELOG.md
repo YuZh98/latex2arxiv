@@ -6,7 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
-## [1.2.3] - 2026-05-27
+## [1.2.3] - 2026-05-28
 
 ### Added
 - `browser-extension/`: Manifest V3 Chrome extension for an Overleaf companion that runs `latex2arxiv` via Pyodide in-browser. v0.1 wires the full pipeline end-to-end (panel UI, same-origin project fetch, in-browser conversion, download); v0.1.1 will vendor the Pyodide runtime to satisfy the MV3 remote-code policy ahead of Chrome Web Store submission (#192, #193)
