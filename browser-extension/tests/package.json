@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test *.test.mjs",
     "smoke": "node pyodide-smoke.mjs ../wheels ../../tests/fixtures/01-minimal"
   },
   "dependencies": {

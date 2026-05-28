@@ -10,6 +10,11 @@ import path from "node:path";
 import process from "node:process";
 import { execFileSync } from "node:child_process";
 import os from "node:os";
+import { fileURLToPath } from "node:url";
+import { verifyWheels } from "./lib/wheels-integrity.mjs";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PY_RUN_PATH = path.resolve(__dirname, "..", "py", "run.py");
 
 const WHEELS_DIR = process.argv[2];
 const FIXTURE_PATH = process.argv[3];
@@ -21,20 +26,9 @@ if (!WHEELS_DIR || !FIXTURE_PATH) {
 // Read the same index.json the worker reads in production. Going through
 // the index — not fs.readdirSync — is what makes the smoke a faithful
 // rehearsal of init(): an index entry that does not exist on disk fails
-// here the same way it would fail in the browser.
-const indexJsonPath = path.join(WHEELS_DIR, "index.json");
-const wheelIndex = JSON.parse(fs.readFileSync(indexJsonPath, "utf-8"));
-const wheelFiles = wheelIndex.wheels;
-if (!Array.isArray(wheelFiles) || wheelFiles.length === 0) {
-  console.error(`${indexJsonPath} has no 'wheels' array`);
-  process.exit(1);
-}
-for (const f of wheelFiles) {
-  if (!fs.existsSync(path.join(WHEELS_DIR, f))) {
-    console.error(`index.json lists ${f} but the file does not exist in ${WHEELS_DIR}`);
-    process.exit(1);
-  }
-}
+// here the same way it would fail in the browser. verifyWheels also pins
+// sha256 so the smoke catches the same tampering the worker would.
+const wheelEntries = verifyWheels(WHEELS_DIR);
 
 function readFixtureZip(fixturePath) {
   // Accept a .zip directly or a directory we zip with the system `zip`
@@ -53,8 +47,8 @@ const t0 = Date.now();
 const pyodide = await loadPyodide();
 console.log(`pyodide booted in ${Date.now() - t0}ms`);
 
-for (const f of wheelFiles) {
-  pyodide.FS.writeFile(`/tmp/${f}`, fs.readFileSync(path.join(WHEELS_DIR, f)));
+for (const entry of wheelEntries) {
+  pyodide.FS.writeFile(`/tmp/${entry.name}`, fs.readFileSync(path.join(WHEELS_DIR, entry.name)));
 }
 pyodide.FS.writeFile("/tmp/input.zip", fixtureBytes);
 
@@ -65,32 +59,14 @@ const tInstall = Date.now();
 // Honour the order from index.json — deps before dependents — instead of
 // re-sorting here. If the index ordering is wrong, the smoke fails the way
 // the worker would.
-const installList = wheelFiles.map((f) => `emfs:/tmp/${f}`);
+const installList = wheelEntries.map((entry) => `emfs:/tmp/${entry.name}`);
 await micropip.install(pyodide.toPy(installList));
 console.log(`bundled wheels installed in ${Date.now() - tInstall}ms`);
 
-// Mirror the worker's PY_RUN string verbatim — if these drift, the smoke
-// stops verifying what the worker actually executes in production.
-const PY_RUN = `
-import json
-from pathlib import Path
-from converter import convert
-
-issues = convert(
-    input_zip=Path("/tmp/input.zip"),
-    output_zip=Path("/tmp/output.zip"),
-    dry_run=(_l2a_mode == "validate"),
-    flatten=bool(_l2a_opts.get("flatten")),
-    resize=1600 if _l2a_opts.get("resize") else None,
-    guide=bool(_l2a_opts.get("guide")),
-)
-
-json.dumps({
-    "main_tex": issues.main_tex,
-    "errors": list(issues.errors),
-    "warnings": list(issues.warnings),
-})
-`;
+// Load the same Python entrypoint the worker fetches at init time. Both
+// sides resolve the same file on disk — if drift creeps in, only one
+// place can be the source of truth, and that place is browser-extension/py/run.py.
+const PY_RUN = fs.readFileSync(PY_RUN_PATH, "utf-8");
 
 async function runConvert(mode, options) {
   pyodide.globals.set("_l2a_mode", mode);
