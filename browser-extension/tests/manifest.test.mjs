@@ -74,11 +74,19 @@ test("content script only injects on Overleaf project pages", () => {
   assert.deepEqual(manifest.content_scripts[0].matches, ["https://www.overleaf.com/project/*"]);
 });
 
-test("web_accessible_resources expose worker, py/run.py, and wheels to Overleaf", () => {
+test("web_accessible_resources expose only worker.js to Overleaf", () => {
+  // worker.js is the only WAR-required entry: it is loaded via
+  // `new Worker(chrome.runtime.getURL("worker.js"))` from the content script,
+  // which crosses page-origin → extension-origin. Everything the worker
+  // itself fetches afterwards (py/run.py, wheels/*, pyodide/*) is
+  // same-origin from chrome-extension:// and needs no WAR. Keeping the WAR
+  // narrow tightens the page's view of the extension's filesystem.
   assert.equal(manifest.web_accessible_resources.length, 1);
   const war = manifest.web_accessible_resources[0];
   assert.deepEqual(war.matches, ["https://www.overleaf.com/*"]);
-  for (const required of ["worker.js", "py/run.py", "wheels/index.json", "wheels/*.whl"]) {
-    assert.ok(war.resources.includes(required), `WAR is missing required entry '${required}'`);
-  }
+  assert.deepEqual(war.resources, ["worker.js"]);
+});
+
+test("manifest version is 0.1.1", () => {
+  assert.equal(manifest.version, "0.1.1");
 });

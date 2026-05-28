@@ -186,3 +186,22 @@ jobs:
             exit 1
           fi
           echo "Error fixture failed as expected."
+
+  browser-extension-tests:
+    # Re-verifies the vendored Pyodide integrity, manifest snapshot, and wheel
+    # sha256 set on every push. The Pyodide cold-load smoke is left out by
+    # design — its cost (~10-30s) is not worth doubling browser-ext CI for a
+    # check the integrity hashes already pin. Manual real-Chrome smoke at
+    # release time covers the live-Chrome behavior.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Install browser-extension test deps
+        working-directory: browser-extension/tests
+        run: npm ci
+      - name: Run node:test suites
+        working-directory: browser-extension/tests
+        run: npm test

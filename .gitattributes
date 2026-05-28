@@ -1,0 +1,9 @@
+# Treat bundled binaries as binary so git does not try to diff them. Without
+# these markers a `git log -p` over the vendored Pyodide runtime emits
+# multi-megabyte garbled output.
+*.wasm binary
+*.whl binary
+*.bz2 binary
+*.zip binary
+*.data binary
+*.png binary

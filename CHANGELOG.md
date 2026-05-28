@@ -16,6 +16,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - Browser extension: manifest snapshot test pins permission and host_permissions shape
 - Browser extension: project zip download is capped at 200 MB to fail fast on outsized projects
 - Browser extension: `minimum_chrome_version` pinned at 120
+- Browser extension: vendor the Pyodide runtime alongside the extension so the package satisfies the Chrome Web Store remote-code policy
 
 ### Fixed
 - Browser extension: copy the Pyodide output zip before posting so a transferred WASM-heap buffer cannot detach Pyodide memory between runs
