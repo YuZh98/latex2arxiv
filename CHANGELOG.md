@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ### Fixed
 - Pre-flight: tighten `00README.XXX` legacy check to exclude `xelatex` / `lualatex` (#178)
+- Custom regex replacements in YAML config: catastrophic patterns now time out portably on Windows + WebAssembly (previously hung indefinitely on those platforms; Unix-only `SIGALRM` guard replaced with the `regex` package's `timeout=`) (#191)
 
 ## [1.2.2] - 2026-05-24
 
