@@ -175,34 +175,17 @@ def _act_cleaned_zip_exported():
     )
 
 
-@then("the action zips the directory to a temporary location")
-def _act_dir_zipped():
+@then("the action does not zip the directory itself")
+def _act_no_shell_zip_wrap():
     script = _run_pre_flight_script()
-    assert "if [ -d" in script and "zip" in script, f"no directory→zip branch in run step:\n{script}"
-    assert "mktemp" in script, "no mktemp invocation for the temp zip location"
+    assert "if [ -d" not in script, f"shell dir→zip branch leaked back into run step:\n{script}"
+    assert "mktemp" not in script, f"action.yml mktemp-zip wrap should be retired; CLI handles dir input:\n{script}"
 
 
-@then(parsers.parse("`{exclusions}` are excluded from that zip"))
-def _act_zip_exclusions(exclusions):
+@then("the CLI is invoked with `$L2A_INPUT` directly")
+def _act_cli_direct_input():
     script = _run_pre_flight_script()
-    # Spec lists exclusions backtick-comma-separated with an English "and "
-    # before the last entry. Strip both before/after each token.
-    expected = []
-    for tok in exclusions.split(","):
-        cleaned = tok.strip().strip("`")
-        if cleaned.lower().startswith("and "):
-            cleaned = cleaned[4:].strip().strip("`")
-        if cleaned:
-            expected.append(cleaned)
-    for pattern in expected:
-        assert pattern in script, f"zip exclusion {pattern!r} missing from run step:\n{script}"
-
-
-@then("the CLI is invoked against the temp zip")
-def _act_cli_temp_zip():
-    script = _run_pre_flight_script()
-    assert "ZIP_PATH" in script and "INPUT_PATH=" in script, "no temp-zip path threading in run step"
-    assert 'latex2arxiv "$INPUT_PATH"' in script, "CLI is not invoked against $INPUT_PATH"
+    assert 'latex2arxiv "$L2A_INPUT"' in script, f"CLI is not invoked against $L2A_INPUT directly:\n{script}"
 
 
 @then(parsers.parse("the CLI is invoked with the flag `{flag}` and the same value"))

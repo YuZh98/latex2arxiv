@@ -63,7 +63,7 @@ def _is_git_url(s: str) -> bool:
 
 
 # Directories and files to exclude when zipping a directory input.
-_ZIP_EXCLUDE_DIRS = {".git", "__pycache__", "__MACOSX", ".DS_Store"}
+_ZIP_EXCLUDE_DIRS = {".git", ".github", "__pycache__", "__MACOSX", ".DS_Store"}
 _ZIP_EXCLUDE_SUFFIXES = {".pyc", ".pyo"}
 _ZIP_EXCLUDE_NAMES = {".DS_Store", "Thumbs.db"}
 

@@ -21,12 +21,11 @@ Feature: GitHub Action for arXiv pre-flight in CI
     Then the latex2arxiv CLI is invoked without `--dry-run`
     And the step output `cleaned-zip` is exported pointing at the written zip
 
-  Scenario: Directory input is zipped before invocation
+  Scenario: Directory input is passed directly to the CLI
     Given the input `input` is a directory
     When the action runs
-    Then the action zips the directory to a temporary location
-    And `.git/`, `.github/`, `__pycache__/`, `*.pyc`, `.DS_Store`, `*/.DS_Store`, `Thumbs.db`, and `*/Thumbs.db` are excluded from that zip
-    And the CLI is invoked against the temp zip
+    Then the action does not zip the directory itself
+    And the CLI is invoked with `$L2A_INPUT` directly
 
   Scenario Outline: Optional inputs are forwarded to the CLI
     Given the input `<input>` is set to "<value>"
