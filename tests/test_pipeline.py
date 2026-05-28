@@ -1667,6 +1667,29 @@ class TestInputResolution:
 
             shutil.rmtree(d, ignore_errors=True)
 
+    def test_zip_directory_excludes_github_metadata(self, tmp_path):
+        """`.github/` is repo metadata, never a paper input. Excluding it at
+        zip time prevents `_check_archive_layout` from emitting a spurious
+        `hidden file or directory` warn when the GitHub Action passes a
+        checked-out repo root directly to the CLI."""
+        from pipeline.resolve import _zip_directory
+
+        (tmp_path / "main.tex").write_text(r"\documentclass{article}\begin{document}hi\end{document}")
+        (tmp_path / ".github").mkdir()
+        (tmp_path / ".github" / "workflows").mkdir()
+        (tmp_path / ".github" / "workflows" / "ci.yml").write_text("name: ci\n")
+
+        cleanup = []
+        zip_path = _zip_directory(tmp_path, cleanup)
+        with zipfile.ZipFile(zip_path) as zf:
+            names = zf.namelist()
+        assert "main.tex" in names
+        assert not any(n.startswith(".github") for n in names), names
+        for d in cleanup:
+            import shutil
+
+            shutil.rmtree(d, ignore_errors=True)
+
     def test_zip_directory_excludes_external_symlinks(self, tmp_path):
         from pipeline.resolve import _zip_directory
 

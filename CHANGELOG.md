@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Changed
+- GitHub Action: drop redundant dir-zip shell wrap; CLI handles dir input natively since v0.10
+- CLI: exclude `.github/` when zipping a directory input
+
 ## [1.2.3] - 2026-05-28
 
 ### Added
