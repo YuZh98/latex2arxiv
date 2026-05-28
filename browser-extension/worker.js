@@ -1,24 +1,22 @@
 // Web Worker. Hosts the Pyodide runtime + latex2arxiv pipeline.
 //
-// On init: boots Pyodide, fetches the bundled wheels from the extension's
+// On init: boots a locally-vendored Pyodide (no remote code per MV3 Web
+// Store policy), fetches the bundled wheels from the extension's
 // web-accessible-resources, writes them to the Pyodide virtual filesystem,
-// and installs them via micropip. Transitive deps available in Pyodide's
-// own package index (Pillow, pyyaml, regex) resolve automatically; only
-// bibtexparser and pyparsing are bundled because they ship as sdists on
-// PyPI and micropip cannot build sdists in-browser.
+// and installs them via micropip. The four Pyodide-managed transitive deps
+// (micropip, Pillow, pyyaml, regex) ship under pyodide/ alongside the
+// runtime; bibtexparser and pyparsing live under wheels/ because they ship
+// as sdists on PyPI and micropip cannot build sdists in-browser.
 //
 // On run: writes the input zip to MEMFS, invokes converter.convert(),
 // reads the output zip back, marshals the Issues object to a serializable
 // shape, and posts back.
-//
-// v0.1.1 store-distribution gate: Pyodide itself still loads from the
-// jsDelivr CDN here. MV3 prohibits remotely-hosted code at Chrome Web Store
-// review. Before Store submission, vendor pyodide.js + pyodide.asm.* + the
-// built-in package set into browser-extension/pyodide/ and switch indexURL
-// to chrome.runtime.getURL("pyodide/").
 
-const PYODIDE_VERSION = "0.29.4";
-const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+// chrome.runtime.getURL is the only way to resolve extension assets to a URL
+// the worker can fetch. self.location.origin is the same chrome-extension://
+// origin, but going through chrome.runtime keeps the call site explicit and
+// matches Chrome's documented pattern.
+const PYODIDE_BASE = chrome.runtime.getURL("pyodide/");
 
 // Bundled wheels live under browser-extension/wheels/. The list is read from
 // wheels/index.json at runtime so a wheel rebuild (which may change minor
@@ -45,8 +43,8 @@ async function sha256Hex(bytes) {
 }
 
 async function init() {
-  importScripts(`${PYODIDE_CDN}pyodide.js`);
-  pyodide = await self.loadPyodide({ indexURL: PYODIDE_CDN });
+  importScripts(`${PYODIDE_BASE}pyodide.js`);
+  pyodide = await self.loadPyodide({ indexURL: PYODIDE_BASE });
 
   PY_RUN = await (await fetchExtensionResource(PY_RUN_PATH)).text();
 
