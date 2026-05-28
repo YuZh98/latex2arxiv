@@ -5,6 +5,16 @@
 //   - On user action: fetch the project zip (same-origin), hand it to the
 //     worker, render diagnostics, and route the output zip to the background
 //     service worker for download.
+//   - Revoke blob URLs once the service worker confirms the download landed.
+
+// Registered at top-level so SPA navigation in the same tab cannot spawn
+// duplicate listeners. The SW posts {type:"revoke", url} from the
+// downloads.onChanged handler once the file is on disk.
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.type === "revoke" && typeof msg.url === "string") {
+    URL.revokeObjectURL(msg.url);
+  }
+});
 
 const PROJECT_ID_RE = /^\/project\/([0-9a-f]{24})(?:\/|$)/;
 

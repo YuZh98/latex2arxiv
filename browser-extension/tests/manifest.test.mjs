@@ -17,8 +17,11 @@ test("manifest_version is 3", () => {
   assert.equal(manifest.manifest_version, 3);
 });
 
-test("permissions are exactly ['downloads']", () => {
-  assert.deepEqual(manifest.permissions, ["downloads"]);
+test("permissions are exactly ['downloads', 'storage']", () => {
+  // `storage` is only used for chrome.storage.session, which tracks
+  // (downloadId → blob URL) so onChanged can revoke after the file lands.
+  // No persistent storage; cleared on browser session end.
+  assert.deepEqual(manifest.permissions, ["downloads", "storage"]);
 });
 
 test("host_permissions are exactly ['https://www.overleaf.com/*']", () => {
@@ -26,7 +29,7 @@ test("host_permissions are exactly ['https://www.overleaf.com/*']", () => {
 });
 
 test("no sensitive permissions are requested", () => {
-  const banned = ["<all_urls>", "tabs", "cookies", "storage", "webRequest", "nativeMessaging", "history", "bookmarks"];
+  const banned = ["<all_urls>", "tabs", "cookies", "webRequest", "nativeMessaging", "history", "bookmarks"];
   // optional_permissions is a silent escalation channel; pin it empty so a
   // future PR cannot add sensitive perms there without tripping this test.
   const all = [
@@ -51,11 +54,12 @@ test("no optional permissions are declared", () => {
   );
 });
 
-test("background service worker is background.js (classic, not module)", () => {
+test("background service worker is background.js as an ES module", () => {
   assert.equal(manifest.background.service_worker, "background.js");
-  // Pin the absence of `type: "module"` — the worker uses importScripts, which
-  // would break under module type. Catches an accidental migration.
-  assert.ok(manifest.background.type === undefined, "background.type must remain unset (classic worker)");
+  // ES-module SW so background.js can `import` shared logic from lib/.
+  // Pinned to "module" deliberately — flipping back to classic loses the import
+  // and would force duplicating the revoke logic across files.
+  assert.equal(manifest.background.type, "module");
 });
 
 test("minimum_chrome_version is pinned", () => {
