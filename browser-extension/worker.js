@@ -20,84 +20,84 @@
 const PYODIDE_VERSION = "0.29.4";
 const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 
-// Bundled wheels live under browser-extension/wheels/. Order matters for
+// Bundled wheels live under browser-extension/wheels/. The list is read from
+// wheels/index.json at runtime so a wheel rebuild (which may change minor
+// versions) does not require editing this file. Order in the JSON matters for
 // micropip resolution: deps before dependents.
-const BUNDLED_WHEELS = [
-  "pyparsing-3.3.2-py3-none-any.whl",
-  "bibtexparser-1.4.4-py3-none-any.whl",
-  "latex2arxiv-1.2.2-py3-none-any.whl",
-];
+const WHEELS_INDEX = "/wheels/index.json";
 
 let pyodide = null;
 
-async function fetchWheel(filename) {
-  const url = `${self.location.origin}/wheels/${filename}`;
+async function fetchExtensionResource(pathFromRoot) {
+  const url = `${self.location.origin}${pathFromRoot}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`fetch ${filename}: HTTP ${res.status}`);
-  return new Uint8Array(await res.arrayBuffer());
+  if (!res.ok) throw new Error(`fetch ${pathFromRoot}: HTTP ${res.status}`);
+  return res;
 }
 
 async function init() {
   importScripts(`${PYODIDE_CDN}pyodide.js`);
   pyodide = await self.loadPyodide({ indexURL: PYODIDE_CDN });
 
-  for (const f of BUNDLED_WHEELS) {
-    pyodide.FS.writeFile(`/tmp/${f}`, await fetchWheel(f));
+  const index = await (await fetchExtensionResource(WHEELS_INDEX)).json();
+  const wheels = index.wheels;
+  if (!Array.isArray(wheels) || wheels.length === 0) {
+    throw new Error("wheels/index.json is empty or malformed");
+  }
+
+  for (const f of wheels) {
+    const bytes = new Uint8Array(await (await fetchExtensionResource(`/wheels/${f}`)).arrayBuffer());
+    pyodide.FS.writeFile(`/tmp/${f}`, bytes);
   }
 
   await pyodide.loadPackage("micropip");
   const micropip = pyodide.pyimport("micropip");
-  await micropip.install(pyodide.toPy(BUNDLED_WHEELS.map((f) => `emfs:/tmp/${f}`)));
+  await micropip.install(pyodide.toPy(wheels.map((f) => `emfs:/tmp/${f}`)));
 
   self.postMessage({ type: "ready" });
 }
+
+// The Python-side conversion + JSON marshalling. Keep this string in lock-
+// step with browser-extension/tests/pyodide-smoke.mjs so the smoke test
+// exercises the same code path the worker runs in production.
+const PY_RUN = `
+import json
+from pathlib import Path
+from converter import convert
+
+issues = convert(
+    input_zip=Path("/tmp/input.zip"),
+    output_zip=Path("/tmp/output.zip"),
+    dry_run=(_l2a_mode == "validate"),
+    flatten=bool(_l2a_opts.get("flatten")),
+    resize=1600 if _l2a_opts.get("resize") else None,
+    guide=bool(_l2a_opts.get("guide")),
+)
+
+# Issues.errors and .warnings are list[str] — the values themselves are the
+# user-visible messages. No object wrappers.
+json.dumps({
+    "main_tex": issues.main_tex,
+    "errors": list(issues.errors),
+    "warnings": list(issues.warnings),
+})
+`;
 
 async function runPipeline({ requestId, mode, options, zipBytes }) {
   if (!pyodide) throw new Error("worker not initialized");
 
   pyodide.FS.writeFile("/tmp/input.zip", zipBytes);
 
-  // Pin the conversion call + JSON marshalling on the Python side so we keep
-  // a single source of truth for which Issues fields cross the boundary.
   pyodide.globals.set("_l2a_mode", mode);
+  // toPy converts the JS object into a Python dict so `.get()` works in PY_RUN.
   pyodide.globals.set("_l2a_opts", pyodide.toPy(options || {}));
 
-  const payloadJson = pyodide.runPython(`
-import json
-from pathlib import Path
-from converter import convert
-
-opts = _l2a_opts if hasattr(_l2a_opts, "to_py") is False else _l2a_opts.to_py()
-if hasattr(opts, "to_py"):
-    opts = opts.to_py()
-
-issues = convert(
-    input_zip=Path("/tmp/input.zip"),
-    output_zip=Path("/tmp/output.zip"),
-    dry_run=(_l2a_mode == "validate"),
-    flatten=bool(opts.get("flatten")),
-    resize=1600 if opts.get("resize") else None,
-    guide=bool(opts.get("guide")),
-)
-
-def _to_dict(i):
-    return {
-        "severity": getattr(i, "severity", None),
-        "message": getattr(i, "message", str(i)),
-        "location": getattr(i, "location", None),
-    }
-
-json.dumps({
-    "main_tex": issues.main_tex,
-    "errors": [_to_dict(i) for i in issues.errors],
-    "warnings": [_to_dict(i) for i in issues.warnings],
-})
-  `);
+  const payloadJson = pyodide.runPython(PY_RUN);
 
   const parsed = JSON.parse(payloadJson);
   const diagnostics = [
-    ...parsed.errors.map((e) => ({ ...e, severity: "error" })),
-    ...parsed.warnings.map((e) => ({ ...e, severity: "warn" })),
+    ...parsed.errors.map((m) => ({ severity: "error", message: m, location: null })),
+    ...parsed.warnings.map((m) => ({ severity: "warn", message: m, location: null })),
   ];
 
   let outputZip = null;
