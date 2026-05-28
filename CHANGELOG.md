@@ -14,6 +14,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 ### Added
 - Browser extension: SHA-256 verification of bundled wheels at install time
 - Browser extension: manifest snapshot test pins permission and host_permissions shape
+- Browser extension: project zip download is capped at 200 MB to fail fast on outsized projects
+- Browser extension: `minimum_chrome_version` pinned at 120
+
+### Fixed
+- Browser extension: copy the Pyodide output zip before posting so a transferred WASM-heap buffer cannot detach Pyodide memory between runs
+- Browser extension: terminate the worker when init fails so a half-booted Pyodide is not left running
+- Browser extension: prevent a listener leak in the content script when the worker posts an untagged error
 
 ## [1.2.3] - 2026-05-28
 

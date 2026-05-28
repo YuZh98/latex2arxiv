@@ -17,12 +17,16 @@ import json
 from pathlib import Path
 from converter import convert
 
+# Longest-side pixel target when the user enables the "resize images" toggle.
+# Matches the value the CLI surfaces via `--resize` without an argument.
+RESIZE_LONGEST_SIDE_PX = 1600
+
 issues = convert(
     input_zip=Path("/tmp/input.zip"),
     output_zip=Path("/tmp/output.zip"),
     dry_run=(_l2a_mode == "validate"),
     flatten=bool(_l2a_opts.get("flatten")),
-    resize=1600 if _l2a_opts.get("resize") else None,
+    resize=RESIZE_LONGEST_SIDE_PX if _l2a_opts.get("resize") else None,
     guide=bool(_l2a_opts.get("guide")),
 )
 
