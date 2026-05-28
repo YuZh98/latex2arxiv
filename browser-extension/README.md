@@ -41,7 +41,7 @@ No build step in v0.1. Source files and bundled wheels are loaded as-is.
 
 | Wheel | Why bundled |
 |---|---|
-| `latex2arxiv-*.whl` | This project's own pipeline. Built from local source on this branch; version label matches the most recent PyPI release but the code is ahead by any unreleased changes on `main` until the next PyPI cut |
+| `latex2arxiv-*.whl` | This project's own pipeline |
 | `bibtexparser-*.whl` | Used by `pipeline/bibtex.py`; PyPI ships sdist only, and micropip cannot build sdists in-browser |
 | `pyparsing-*.whl` | Transitive dep of `bibtexparser` |
 
