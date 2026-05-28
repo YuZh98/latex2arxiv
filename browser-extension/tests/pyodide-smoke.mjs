@@ -18,10 +18,22 @@ if (!WHEELS_DIR || !FIXTURE_PATH) {
   process.exit(1);
 }
 
-const wheelFiles = fs.readdirSync(WHEELS_DIR).filter((f) => f.endsWith(".whl"));
-if (wheelFiles.length === 0) {
-  console.error(`no wheels in ${WHEELS_DIR}`);
+// Read the same index.json the worker reads in production. Going through
+// the index — not fs.readdirSync — is what makes the smoke a faithful
+// rehearsal of init(): an index entry that does not exist on disk fails
+// here the same way it would fail in the browser.
+const indexJsonPath = path.join(WHEELS_DIR, "index.json");
+const wheelIndex = JSON.parse(fs.readFileSync(indexJsonPath, "utf-8"));
+const wheelFiles = wheelIndex.wheels;
+if (!Array.isArray(wheelFiles) || wheelFiles.length === 0) {
+  console.error(`${indexJsonPath} has no 'wheels' array`);
   process.exit(1);
+}
+for (const f of wheelFiles) {
+  if (!fs.existsSync(path.join(WHEELS_DIR, f))) {
+    console.error(`index.json lists ${f} but the file does not exist in ${WHEELS_DIR}`);
+    process.exit(1);
+  }
 }
 
 function readFixtureZip(fixturePath) {
@@ -50,11 +62,10 @@ await pyodide.loadPackage("micropip");
 const micropip = pyodide.pyimport("micropip");
 
 const tInstall = Date.now();
-// Install the bundled wheels in dependency order — latex2arxiv last so its
-// transitive deps are already satisfied by the bundled bibtexparser/pyparsing.
-const installList = wheelFiles
-  .sort((a, b) => (a.startsWith("latex2arxiv") ? 1 : -1) - (b.startsWith("latex2arxiv") ? 1 : -1))
-  .map((f) => `emfs:/tmp/${f}`);
+// Honour the order from index.json — deps before dependents — instead of
+// re-sorting here. If the index ordering is wrong, the smoke fails the way
+// the worker would.
+const installList = wheelFiles.map((f) => `emfs:/tmp/${f}`);
 await micropip.install(pyodide.toPy(installList));
 console.log(`bundled wheels installed in ${Date.now() - tInstall}ms`);
 

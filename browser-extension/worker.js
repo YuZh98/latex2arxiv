@@ -57,9 +57,10 @@ async function init() {
   self.postMessage({ type: "ready" });
 }
 
-// The Python-side conversion + JSON marshalling. Keep this string in lock-
-// step with browser-extension/tests/pyodide-smoke.mjs so the smoke test
-// exercises the same code path the worker runs in production.
+// Python-side conversion + JSON marshalling. Kept byte-identical to
+// browser-extension/tests/pyodide-smoke.mjs so the smoke test rehearses the
+// same code path the worker runs in production. Issues.errors / .warnings
+// are list[str]; iteration yields the user-visible messages directly.
 const PY_RUN = `
 import json
 from pathlib import Path
@@ -74,8 +75,6 @@ issues = convert(
     guide=bool(_l2a_opts.get("guide")),
 )
 
-# Issues.errors and .warnings are list[str] — the values themselves are the
-# user-visible messages. No object wrappers.
 json.dumps({
     "main_tex": issues.main_tex,
     "errors": list(issues.errors),
