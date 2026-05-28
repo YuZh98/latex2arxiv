@@ -200,8 +200,11 @@ jobs:
         with:
           node-version: '20'
       - name: Install browser-extension test deps
+        # `npm install` rather than `npm ci` because tests/package-lock.json is
+        # intentionally gitignored. The unit tests use the bundled node:test
+        # runner only; the `pyodide` dep is for the smoke (not run in CI).
         working-directory: browser-extension/tests
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Run node:test suites
         working-directory: browser-extension/tests
         run: npm test
