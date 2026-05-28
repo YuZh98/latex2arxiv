@@ -3,6 +3,6 @@
   "wheels": [
     "pyparsing-3.3.2-py3-none-any.whl",
     "bibtexparser-1.4.4-py3-none-any.whl",
-    "latex2arxiv-1.2.2-py3-none-any.whl"
+    "latex2arxiv-1.2.3-py3-none-any.whl"
   ]
 }
