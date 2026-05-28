@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.2] - 2026-05-28
+
+### Fixed
+- The Pyodide worker could not be spawned from an Overleaf page — Overleaf's CSP refuses chrome-extension:// worker URLs. The worker now lives in a `chrome.offscreen` document, which owns its own CSP and is unaffected by the host page
+
+### Changed
+- Content script reduces to a UI shim; project zip fetch and Pyodide worker spawn move into the offscreen document
+- Drop the last `web_accessible_resources` entry — no extension file is loaded from a page anymore, so the page-facing surface area is zero
+
+### Added
+- `offscreen` permission required by `chrome.offscreen.createDocument`
+
 ## [1.2.4] - 2026-05-28
 
 ### Changed

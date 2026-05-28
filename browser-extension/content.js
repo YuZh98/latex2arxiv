@@ -1,20 +1,14 @@
-// Content script. Runs in the Overleaf project page's isolated world.
+// Content script. Pure UI shim — no fetch, no Worker, no blob URLs.
 // Responsibilities:
 //   - Detect the project id from the URL.
 //   - Inject the panel UI.
-//   - On user action: fetch the project zip (same-origin), hand it to the
-//     worker, render diagnostics, and route the output zip to the background
-//     service worker for download.
-//   - Revoke blob URLs once the service worker confirms the download landed.
-
-// Registered at top-level so SPA navigation in the same tab cannot spawn
-// duplicate listeners. The SW posts {type:"revoke", url} from the
-// downloads.onChanged handler once the file is on disk.
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg && msg.type === "revoke" && typeof msg.url === "string") {
-    URL.revokeObjectURL(msg.url);
-  }
-});
+//   - On user action: send {type:"l2a-run-request", payload:{...}} to the
+//     service worker, render the diagnostics it returns, and update status.
+//
+// The actual fetch + Pyodide + blob handling all live in the offscreen
+// document because overleaf.com's CSP refuses workers spawned from a
+// chrome-extension:// URL inside the page. See docs/browser-extension-design.md
+// for the architecture rationale.
 
 const PROJECT_ID_RE = /^\/project\/([0-9a-f]{24})(?:\/|$)/;
 
@@ -52,88 +46,6 @@ function setStatus(panel, text, kind = "info") {
   s.dataset.kind = kind;
 }
 
-// Cap to a sane upper bound so a runaway Overleaf zip cannot OOM the worker
-// mid-Pyodide-boot with an opaque crash. 200 MB matches the CLI's friendly
-// pre-zip-bomb cap (the CLI's hard cap is 500 MB uncompressed; this is the
-// compressed-zip side of the same idea).
-const MAX_PROJECT_ZIP_BYTES = 200 * 1024 * 1024;
-
-async function fetchProjectZip(projectId) {
-  const url = `/project/${projectId}/download/zip`;
-  const res = await fetch(url, { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`Overleaf returned ${res.status} fetching project zip`);
-  const contentLength = Number(res.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_PROJECT_ZIP_BYTES) {
-    throw new Error(
-      `Overleaf project zip is ${(contentLength / (1024 * 1024)).toFixed(0)} MB; ` +
-        `latex2arxiv refuses to load projects over ${MAX_PROJECT_ZIP_BYTES / (1024 * 1024)} MB`,
-    );
-  }
-  return new Uint8Array(await res.arrayBuffer());
-}
-
-function spawnWorker() {
-  const url = chrome.runtime.getURL("worker.js");
-  // Classic worker; worker.js uses importScripts to load Pyodide.
-  return new Worker(url);
-}
-
-let workerPromise = null;
-function getWorker() {
-  if (!workerPromise) {
-    const worker = spawnWorker();
-    workerPromise = new Promise((resolve, reject) => {
-      const onMsg = (ev) => {
-        if (!ev.data) return;
-        if (ev.data.type === "ready") {
-          worker.removeEventListener("message", onMsg);
-          resolve(worker);
-        } else if (ev.data.type === "error") {
-          worker.removeEventListener("message", onMsg);
-          reject(new Error(ev.data.error));
-        }
-      };
-      worker.addEventListener("message", onMsg);
-      worker.postMessage({ type: "init" });
-    }).catch((err) => {
-      // Init failed: tear the worker down so the half-booted Pyodide instance
-      // does not linger. Reset workerPromise so a retry spawns a fresh worker.
-      worker.terminate();
-      workerPromise = null;
-      throw err;
-    });
-  }
-  return workerPromise;
-}
-
-function runInWorker(worker, msg) {
-  return new Promise((resolve, reject) => {
-    const onMsg = (ev) => {
-      if (!ev.data) return;
-      // Resolve/reject on a matching requestId, OR on a global worker error
-      // posted with `type: "error"`. The latter happens when the worker's
-      // message handler catches an exception that has no requestId attached
-      // — without this branch the per-call listener would leak.
-      if (ev.data.requestId === msg.requestId) {
-        worker.removeEventListener("message", onMsg);
-        if (ev.data.error) reject(new Error(ev.data.error));
-        else resolve(ev.data.result);
-      } else if (ev.data.type === "error") {
-        worker.removeEventListener("message", onMsg);
-        reject(new Error(ev.data.error || "worker error"));
-      }
-    };
-    worker.addEventListener("message", onMsg);
-    worker.postMessage(msg);
-  });
-}
-
-function sanitizeFilename(name) {
-  // Drop path separators so a malicious filename cannot escape the user's
-  // default download directory. Final folder choice is the user's via saveAs.
-  return name.replace(/[\\/]/g, "_");
-}
-
 async function run({ mode, options, panel }) {
   try {
     // Read projectId at call time, not at panel-build time, so SPA navigation
@@ -144,33 +56,25 @@ async function run({ mode, options, panel }) {
       return;
     }
 
-    setStatus(panel, "Loading engine…", "info");
-    const worker = await getWorker();
-
-    setStatus(panel, "Fetching project from Overleaf…", "info");
-    const zipBytes = await fetchProjectZip(projectId);
-
     setStatus(panel, mode === "validate" ? "Validating…" : "Cleaning…", "info");
-    const result = await runInWorker(worker, {
-      type: "run",
-      requestId: crypto.randomUUID(),
-      mode,
-      options,
-      zipBytes,
+
+    // The offscreen document is spun up on demand by the service worker;
+    // the round-trip below covers spawn (first run only, ~10-30s while Pyodide
+    // cold-loads), fetch, conversion, and — in clean mode — the save dialog.
+    const suggestedFilename = (panel.querySelector(".l2a-filename").value || "paper-arxiv.zip").trim();
+    const result = await chrome.runtime.sendMessage({
+      type: "l2a-run-request",
+      payload: { projectId, mode, options, suggestedFilename },
     });
+    if (!result) {
+      throw new Error("no response from background worker");
+    }
+    if (result.error) {
+      throw new Error(result.error);
+    }
 
     renderDiagnostics(panel, result.diagnostics);
-
-    if (mode === "clean" && result.outputZip) {
-      // Build the Blob URL here in the content script — chrome.runtime
-      // .sendMessage uses JSON serialization, which would corrupt a
-      // Uint8Array. The service worker only needs the URL string.
-      const suggestedFilename = sanitizeFilename(
-        (panel.querySelector(".l2a-filename").value || "paper-arxiv.zip").trim(),
-      );
-      const blob = new Blob([result.outputZip], { type: "application/zip" });
-      const url = URL.createObjectURL(blob);
-      chrome.runtime.sendMessage({ type: "download", url, suggestedFilename });
+    if (mode === "clean" && result.downloadDispatched) {
       setStatus(panel, "Done. Choose where to save…", "ok");
     } else {
       setStatus(panel, "Done.", "ok");

@@ -1,6 +1,6 @@
 # Browser extension design — `latex2arxiv-overleaf`
 
-Status: **partially implemented**. v0.1 ships the wired Pyodide pipeline (`browser-extension/`) for unpacked-dev install; v0.1.1 will vendor the Pyodide runtime and pin SHA-256s on bundled wheels for Chrome Web Store submission. Target: a Chrome extension that runs `latex2arxiv` against an open Overleaf project, surfaces diagnostics in-page, and produces an arXiv-ready zip with one click — no local install.
+Status: **v0.1.1 ships the formal Web Store gates in code but does not run against the live overleaf.com domain.** Manual smoke on 2026-05-28 surfaced that Overleaf's project-page CSP refuses workers from `chrome-extension://` — see §CSP blocker below. v0.1.2 moves the Worker into an offscreen document to bypass the page CSP. Target: a Chrome extension that runs `latex2arxiv` against an open Overleaf project, surfaces diagnostics in-page, and produces an arXiv-ready zip with one click — no local install.
 
 ## Goal
 
@@ -17,32 +17,66 @@ Bring the full `latex2arxiv` flow (validate + clean + zip) into the Overleaf UI,
 
 Overleaf users overlap minimally with local-CLI users: people on Overleaf deliberately chose a hosted editor to avoid a local TeX install. Designing as if they will `pip install latex2arxiv` to use the extension defeats the value proposition. The extension must work standalone, with no user-side install beyond the extension itself.
 
+## CSP blocker
+
+Overleaf's project-page CSP has no `worker-src` and no `child-src` — only `script-src 'nonce-…' 'unsafe-inline' 'strict-dynamic' https: 'report-sample' …`. Per CSP Level 3 the effective `worker-src` falls back through `child-src` → `script-src`; `default-src` is not in this chain. `https:` matches https URLs only; `chrome-extension://` is not https. `strict-dynamic` further restricts to nonce-tagged sources.
+
+A content script that calls `new Worker(chrome.runtime.getURL("worker.js"))` therefore fails with `Failed to construct 'Worker': Script at '…/worker.js' cannot be accessed from origin 'https://www.overleaf.com'`. `web_accessible_resources` makes the file fetchable but cannot override the page's CSP for Worker construction.
+
+The MV3-official answer to this pattern is `chrome.offscreen.createDocument`: the offscreen document is at `chrome-extension://` origin and owns its own CSP. A Worker spawned by the offscreen document inherits the offscreen CSP and is unaffected by overleaf.com's policy. This is the architecture v0.1.2 adopts.
+
 ## Architecture
 
-Three execution contexts, each picked for a hard constraint:
+Four execution contexts, each picked for a hard constraint:
 
 | Context | Lives in | Responsibility | Why here |
 |---|---|---|---|
-| Content script | `*://*.overleaf.com/project/*` | Inject UI panel, same-origin fetch of project zip, message passing | Same-origin access to Overleaf endpoints; DOM injection |
-| Web Worker | Spawned by content script | Run Pyodide, execute `latex2arxiv` pipeline on the zip bytes | Pyodide load + long-running CPU work; cannot live in service worker (MV3 service workers terminate aggressively) |
-| Background service worker | Extension background | Call `chrome.downloads.download` for the output zip | `chrome.downloads.*` is unavailable to content scripts |
+| Content script | `*://*.overleaf.com/project/*` | Inject UI panel; render diagnostics; route user actions to the service worker. **Stays in the page DOM only — no fetch, no Worker, no zip bytes.** | DOM injection |
+| Service worker | Extension background | Lifecycle (`chrome.offscreen.createDocument` / `hasDocument`); relay messages between content script and offscreen; dispatch `chrome.downloads.download`; handle the revoke handshake | `chrome.downloads.*` + `chrome.offscreen.*` are only callable from extension contexts |
+| Offscreen document | `offscreen.html` | Fetch the Overleaf project zip (cross-origin via `host_permissions` cookies); spawn the Worker; build the output blob URL | Same chrome-extension:// origin as the rest of the extension; not subject to overleaf.com's CSP; can host long-lived Workers that the SW cannot |
+| Web Worker | Spawned by the offscreen document | Run Pyodide; execute the `latex2arxiv` pipeline on the zip bytes | Pyodide load + long-running CPU work; cannot live in the SW (MV3 SW terminates aggressively); cannot be spawned from the content script because of overleaf.com's CSP |
 
 Data flow per run:
 
 ```
-[content script] ──fetch /project/{id}/download/zip (same-origin)──▶ Overleaf
-       │
-       ├──postMessage(zipBytes)──▶ [web worker (Pyodide + latex2arxiv)]
-       │                                  │
-       │                                  └──postMessage({outputZip, diagnostics})──┐
-       │                                                                            │
-       ◀────────────────────────────────────────────────────────────────────────────┘
-       │
-       ├── render diagnostics in-page panel
-       └──sendMessage(outputZip)──▶ [service worker]
-                                          │
-                                          └── chrome.downloads.download({ blob, suggestedFilename, saveAs: true })
+[content script]
+       │ "Validate" / "Clean" click
+       └──chrome.runtime.sendMessage({type:"run", projectId, mode, options, suggestedFilename})──▶
+                                                                                                  │
+                                              [service worker]                                    │
+                                                  │                                               │
+                                                  ├── ensure offscreen document exists            │
+                                                  │   (hasDocument → createDocument if not)       │
+                                                  │                                               │
+                                                  └──chrome.runtime.sendMessage(...)──▶ [offscreen document]
+                                                                                              │
+                                                       fetch /project/{id}/download/zip ◀──┤
+                                                       (chrome-extension:// origin, cookies via host_permissions)
+                                                                                              │
+                                                       new Worker(chrome-extension://…/worker.js)
+                                                                                              │
+                                                                                ┌─────────────┘
+                                                                                ▼
+                                                                       [web worker (Pyodide)]
+                                                                                │ runs pipeline
+                                                                                ▼
+                                                                       result {diagnostics, outputZip Uint8Array, mainTex}
+                                                                                │
+                                                                                ▼ (postMessage back to offscreen)
+                                                                       offscreen builds Blob URL from outputZip
+                                                                                │
+                                                  ◀──{diagnostics, blobUrl?, mainTex}── │
+       ◀──{diagnostics}── │                                                             │
+                          │                                                             │
+   render diagnostics     │                                                             │
+                          │                                                             │
+                          └─── (clean mode) ──── chrome.downloads.download({url: blobUrl, …}) ───▶
+                                                                                              │
+                                                          chrome.downloads.onChanged ◀────────┘
+                                                          (terminal → ask offscreen to revoke the URL)
 ```
+
+The output zip bytes never cross a `chrome.runtime` message boundary — chrome.runtime serializes with JSON, which corrupts `Uint8Array`. Keeping the zip in the offscreen document and passing only the blob URL string sidesteps that trap.
 
 ## Engine choice: Pyodide
 
@@ -88,8 +122,8 @@ Bundle cost: CPython + stdlib ~7 MB gzipped, Pillow ~2-3 MB, `latex2arxiv` wheel
 
 Primary endpoint: `GET https://www.overleaf.com/project/{projectId}/download/zip`.
 
-- Same-origin from a content script injected on `https://www.overleaf.com/project/{projectId}` — no CORS workaround needed.
-- Authenticated automatically by the user's existing `overleaf_session2` cookie (browser sends it on the same-origin request).
+- Called from the offscreen document (chrome-extension:// origin). Cross-origin, but allowed because `host_permissions` covers `https://www.overleaf.com/*`. Cookies (`overleaf_session2`) flow with `credentials: "include"` because host permissions grant cookie access to that origin.
+- The earlier v0.1 design fetched from the content script for same-origin convenience; that path stopped working once the Worker had to move to offscreen (the bytes never need to cross back into the content-script context).
 - No CSRF token required for the download endpoint (read-only).
 - Confirmed by third-party tooling (`kdevo/overleaf-sync`, `iamhyc/Overleaf-Workshop`).
 
@@ -107,24 +141,25 @@ Manifest V3.
 {
   "manifest_version": 3,
   "name": "latex2arxiv for Overleaf",
-  "host_permissions": ["*://*.overleaf.com/*"],
-  "permissions": ["downloads"],
+  "host_permissions": ["https://www.overleaf.com/*"],
+  "permissions": ["downloads", "storage", "offscreen"],
   "content_scripts": [{
-    "matches": ["*://*.overleaf.com/project/*"],
+    "matches": ["https://www.overleaf.com/project/*"],
     "js": ["content.js"]
   }],
-  "background": { "service_worker": "background.js" },
-  "web_accessible_resources": [{
-    "resources": ["pyodide/*", "worker.js"],
-    "matches": ["*://*.overleaf.com/*"]
-  }]
+  "background": { "service_worker": "background.js", "type": "module" }
+  // v0.1.2 removed web_accessible_resources entirely. The offscreen-spawned
+  // worker loads same-origin from the offscreen's chrome-extension:// document
+  // and needs no WAR; nothing else is loaded from a page context.
 }
 ```
 
 Permission rationale:
-- `host_permissions` scoped to Overleaf only — required for same-origin fetch of the project zip and for content-script injection.
+- `host_permissions` scoped to Overleaf only — required for cross-origin fetch of the project zip from the offscreen document (cookies follow `host_permissions`) and for content-script injection.
 - `downloads` — required for `chrome.downloads.download`. No `downloads.open`, no `downloads.shelf`.
-- No `tabs`, `storage`, `webRequest`, `cookies`, `nativeMessaging`, no `<all_urls>`. Narrowness matters for Chrome Web Store review velocity.
+- `storage` — `chrome.storage.session` only, used to track `downloadId → blob URL` so the SW can route the revoke handshake to the correct offscreen instance.
+- `offscreen` — required to call `chrome.offscreen.createDocument`, the MV3-official way to host a Worker that bypasses the host page's CSP.
+- No `tabs`, `webRequest`, `cookies`, `nativeMessaging`, no `<all_urls>`. Narrowness matters for Chrome Web Store review velocity.
 
 ## UI
 
@@ -161,8 +196,9 @@ Advanced row reveals a textarea that accepts the YAML contents of an `arxiv_conf
 4. **Overleaf content script.** Same-origin fetch, project-id detection, message channel to worker, message channel to background. — **shipped (#192).**
 5. **Background download handler.** `chrome.downloads.download` with `saveAs: true`. — **shipped (#192).**
 6. **UI panel + diagnostics renderer.** Inject into Overleaf; aria-label-targeted host. — **shipped (#192).**
-7. **v0.1.1 store-readiness work:** vendor the Pyodide runtime under `browser-extension/pyodide/` (drop CDN load); pin SHA-256 per entry in `wheels/index.json` and verify on install; `chrome.downloads.onChanged` listener to revoke blob URLs after completion; extract `PY_RUN` to a shared `.py` file loaded by both worker and smoke; real-Chrome smoke test of cross-process blob-URL resolve.
-8. **End-to-end on a real Overleaf project** before opening Chrome Web Store submission.
+7. **v0.1.1 store-readiness work:** vendor the Pyodide runtime under `browser-extension/pyodide/` (drop CDN load); pin SHA-256 per entry in `wheels/index.json` and verify on install; `chrome.downloads.onChanged` listener to revoke blob URLs after completion; extract `PY_RUN` to a shared `.py` file loaded by both worker and smoke. — **shipped (#196 → #199).**
+8. **v0.1.2 CSP bypass — offscreen refactor:** discovered in the 2026-05-28 manual smoke that Overleaf's CSP refuses workers spawned from the content script. Move the project-zip fetch and Worker spawn into a `chrome.offscreen` document (chrome-extension:// origin, not subject to the host page's CSP); content script becomes a thin UI shim that messages the SW; SW relays to offscreen; offscreen owns the Worker; output zip never crosses a `chrome.runtime` boundary (blob URL string only).
+9. **End-to-end on a real Overleaf project** before opening Chrome Web Store submission.
 
 ## Testing strategy
 

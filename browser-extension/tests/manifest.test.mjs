@@ -17,11 +17,14 @@ test("manifest_version is 3", () => {
   assert.equal(manifest.manifest_version, 3);
 });
 
-test("permissions are exactly ['downloads', 'storage']", () => {
+test("permissions are exactly ['downloads', 'storage', 'offscreen']", () => {
   // `storage` is only used for chrome.storage.session, which tracks
   // (downloadId → blob URL) so onChanged can revoke after the file lands.
+  // `offscreen` is required to call chrome.offscreen.createDocument; the
+  // offscreen document hosts the Pyodide worker because overleaf.com's CSP
+  // refuses chrome-extension:// workers spawned from the content script.
   // No persistent storage; cleared on browser session end.
-  assert.deepEqual(manifest.permissions, ["downloads", "storage"]);
+  assert.deepEqual(manifest.permissions, ["downloads", "storage", "offscreen"]);
 });
 
 test("host_permissions are exactly ['https://www.overleaf.com/*']", () => {
@@ -74,19 +77,18 @@ test("content script only injects on Overleaf project pages", () => {
   assert.deepEqual(manifest.content_scripts[0].matches, ["https://www.overleaf.com/project/*"]);
 });
 
-test("web_accessible_resources expose only worker.js to Overleaf", () => {
-  // worker.js is the only WAR-required entry: it is loaded via
-  // `new Worker(chrome.runtime.getURL("worker.js"))` from the content script,
-  // which crosses page-origin → extension-origin. Everything the worker
-  // itself fetches afterwards (py/run.py, wheels/*, pyodide/*) is
-  // same-origin from chrome-extension:// and needs no WAR. Keeping the WAR
-  // narrow tightens the page's view of the extension's filesystem.
-  assert.equal(manifest.web_accessible_resources.length, 1);
-  const war = manifest.web_accessible_resources[0];
-  assert.deepEqual(war.matches, ["https://www.overleaf.com/*"]);
-  assert.deepEqual(war.resources, ["worker.js"]);
+test("web_accessible_resources is absent (no page-facing surface)", () => {
+  // v0.1.2 retires the last WAR entry. The worker is now spawned from the
+  // offscreen document (chrome-extension:// origin), which loads worker.js
+  // same-origin — no WAR needed. Keeping web_accessible_resources empty (or
+  // absent) removes the page's view of every extension file and tightens the
+  // Chrome Web Store review surface.
+  assert.ok(
+    !manifest.web_accessible_resources || manifest.web_accessible_resources.length === 0,
+    "web_accessible_resources must be empty in v0.1.2; pages no longer load extension files directly",
+  );
 });
 
-test("manifest version is 0.1.1", () => {
-  assert.equal(manifest.version, "0.1.1");
+test("manifest version is 0.1.2", () => {
+  assert.equal(manifest.version, "0.1.2");
 });
