@@ -12,11 +12,12 @@
 // reads the output zip back, marshals the Issues object to a serializable
 // shape, and posts back.
 
-// chrome.runtime.getURL is the only way to resolve extension assets to a URL
-// the worker can fetch. self.location.origin is the same chrome-extension://
-// origin, but going through chrome.runtime keeps the call site explicit and
-// matches Chrome's documented pattern.
-const PYODIDE_BASE = chrome.runtime.getURL("pyodide/");
+// Dedicated Workers do not have `chrome.runtime` — that API is reserved for
+// extension contexts (service worker, offscreen document, content script).
+// `self.location.href` here is the chrome-extension://<id>/worker.js URL the
+// worker was loaded from, so resolving "pyodide/" relative to it produces the
+// same base URL the offscreen would get from chrome.runtime.getURL.
+const PYODIDE_BASE = new URL("pyodide/", self.location.href).href;
 
 // Bundled wheels live under browser-extension/wheels/. The list is read from
 // wheels/index.json at runtime so a wheel rebuild (which may change minor
