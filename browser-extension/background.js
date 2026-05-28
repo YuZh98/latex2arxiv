@@ -1,18 +1,35 @@
-// Service worker. Two responsibilities:
-//   1. Dispatch chrome.downloads.download for the output zip that the content
-//      script built as a blob URL. (chrome.runtime.sendMessage uses JSON
-//      serialization, which would corrupt a Uint8Array, so the content script
-//      builds the Blob URL on its side and passes only the URL string here.)
-//   2. After the download lands, route a "revoke" message back to the
-//      originating tab so it can release the blob URL. Without this the
-//      content script accumulates one multi-MB blob per "Clean" press.
+// Service worker. Three responsibilities:
+//   1. Spawn and manage the offscreen document that hosts the Pyodide worker.
+//      Worker cannot live in the content script (overleaf.com's CSP refuses
+//      chrome-extension:// workers) and cannot live in the SW (MV3 SW
+//      lifecycle is too aggressive). Offscreen is the MV3-official answer.
+//   2. Relay run requests from the content script to the offscreen document,
+//      then forward the result (or any error) back to the originating tab.
+//   3. Dispatch chrome.downloads.download for the output blob URL the
+//      offscreen produced, and route the revoke handshake back through the
+//      offscreen after the download lands.
 //
-// MV3 SW lifecycle note: this worker terminates after ~30s idle. The
-// (downloadId → {tabId, url}) bookkeeping lives in chrome.storage.session so
-// it survives restarts within the browser session. The onChanged listener
-// re-registers automatically when the SW wakes.
+// Singleton offscreen. Chrome allows only one offscreen document per
+// extension; `creatingOffscreen` is a module-level Promise that all
+// concurrent ensureOffscreen() callers await so a SW eviction + re-wake
+// race cannot trigger "Only a single offscreen document may be created."
 
 import { dispatchRevoke } from "./lib/revoke.mjs";
+import { makeOffscreenManager } from "./lib/offscreen-lifecycle.mjs";
+
+const OFFSCREEN_PATH = "offscreen.html";
+const OFFSCREEN_REASONS = ["WORKERS"];
+const OFFSCREEN_JUSTIFICATION = "Host the Pyodide worker that runs the latex2arxiv pipeline.";
+
+const ensureOffscreen = makeOffscreenManager({
+  hasDocument: () => chrome.offscreen.hasDocument(),
+  createDocument: () =>
+    chrome.offscreen.createDocument({
+      url: OFFSCREEN_PATH,
+      reasons: OFFSCREEN_REASONS,
+      justification: OFFSCREEN_JUSTIFICATION,
+    }),
+});
 
 const sessionStore = {
   get: (key) => chrome.storage.session.get(key),
@@ -20,49 +37,77 @@ const sessionStore = {
   remove: (key) => chrome.storage.session.remove(key),
 };
 
-const messageTab = (tabId, msg) => chrome.tabs.sendMessage(tabId, msg);
-
-function revokeNow(tabId, url) {
-  // User dismissed the saveAs dialog: the download never started, no onChanged
-  // will ever fire, so revoke immediately or the URL leaks for the page's life.
-  chrome.tabs.sendMessage(tabId, { type: "revoke", url }).catch(() => {});
-}
+// dispatchRevoke's callback shape takes (tabId, msg). The offscreen has no
+// tabId, so this adapter ignores the first argument and broadcasts via
+// chrome.runtime.sendMessage — the offscreen picks it up by message type.
+const messageOffscreen = (_tabId, msg) =>
+  chrome.runtime.sendMessage({ type: "l2a-revoke", url: msg.url });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (!msg || msg.type !== "download" || typeof msg.url !== "string") return false;
-  const tabId = sender.tab && sender.tab.id;
-  chrome.downloads.download(
-    {
-      url: msg.url,
-      filename: msg.suggestedFilename || "paper-arxiv.zip",
-      saveAs: true,
-    },
-    (downloadId) => {
-      const err = chrome.runtime.lastError;
-      if (downloadId === undefined) {
-        // saveAs dialog dismissed or download refused. Revoke and bail.
-        if (tabId !== undefined) revokeNow(tabId, msg.url);
-        sendResponse({ downloadId: null, error: err && err.message });
+  if (!msg || msg.type !== "l2a-run-request") return false;
+  (async () => {
+    try {
+      await ensureOffscreen();
+      const result = await chrome.runtime.sendMessage({ type: "l2a-run", payload: msg.payload });
+      if (result && result.error) {
+        sendResponse({ error: result.error });
         return;
       }
-      if (tabId !== undefined) {
-        sessionStore.set({ [String(downloadId)]: { tabId, url: msg.url } });
+      if (result && result.blobUrl) {
+        // Clean mode produced an output. Hand the blob URL to chrome.downloads.
+        chrome.downloads.download(
+          {
+            url: result.blobUrl,
+            filename: result.filename || "paper-arxiv.zip",
+            saveAs: true,
+          },
+          (downloadId) => {
+            const lastError = chrome.runtime.lastError;
+            if (downloadId === undefined) {
+              // saveAs dismissed — revoke the URL immediately so the offscreen
+              // does not pin the bytes for the rest of the session.
+              chrome.runtime.sendMessage({ type: "l2a-revoke", url: result.blobUrl }).catch(() => {});
+              sendResponse({
+                diagnostics: result.diagnostics,
+                mainTex: result.mainTex,
+                downloadDispatched: false,
+                error: lastError && lastError.message,
+              });
+              return;
+            }
+            sessionStore.set({ [String(downloadId)]: { url: result.blobUrl } });
+            sendResponse({
+              diagnostics: result.diagnostics,
+              mainTex: result.mainTex,
+              downloadDispatched: true,
+            });
+          },
+        );
+        return;
       }
-      sendResponse({ downloadId, error: err && err.message });
-    },
-  );
+      // Validate mode (no output zip) — just relay diagnostics.
+      sendResponse({
+        diagnostics: result.diagnostics,
+        mainTex: result.mainTex,
+        downloadDispatched: false,
+      });
+    } catch (err) {
+      sendResponse({ error: err && err.message ? String(err.message) : String(err) });
+    }
+  })();
   return true;
 });
 
 chrome.downloads.onChanged.addListener((change) => {
   // Best-effort: downloads.onChanged has no waitUntil API, so an in-flight
   // dispatchRevoke can be cut short if the SW is evicted between the storage
-  // read and the tab message. Unlikely in practice — the SW just handled the
-  // download and is still warm — and a missed revoke only re-leaks one blob.
+  // read and the offscreen message. Unlikely in practice — the SW just
+  // handled the download and is still warm — and a missed revoke only
+  // re-leaks one blob.
   dispatchRevoke({
     downloadId: change.id,
     change,
     sessionStore,
-    messageTab,
+    messageTab: messageOffscreen,
   });
 });

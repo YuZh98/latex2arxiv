@@ -2,13 +2,13 @@
   "manifest_version": 3,
   "name": "latex2arxiv for Overleaf",
   "description": "arXiv pre-flight validation and one-click zip cleaning, in the Overleaf editor.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minimum_chrome_version": "120",
   "icons": {
     "128": "icon.png"
   },
   "host_permissions": ["https://www.overleaf.com/*"],
-  "permissions": ["downloads", "storage"],
+  "permissions": ["downloads", "storage", "offscreen"],
   "content_scripts": [
     {
       "matches": ["https://www.overleaf.com/project/*"],
@@ -20,11 +20,5 @@
   "background": {
     "service_worker": "background.js",
     "type": "module"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["worker.js"],
-      "matches": ["https://www.overleaf.com/*"]
-    }
-  ]
+  }
 }

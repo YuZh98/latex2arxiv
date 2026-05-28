@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>latex2arxiv offscreen worker host</title>
+  </head>
+  <body>
+    <!-- The page is never shown. chrome.offscreen.createDocument loads it in
+         the background. Its job is to host the Pyodide Worker, which cannot
+         live in the content script (overleaf.com's CSP refuses chrome-extension://
+         workers) or in the service worker (MV3 SW lifecycle is too aggressive). -->
+    <script src="offscreen.js"></script>
+  </body>
+</html>

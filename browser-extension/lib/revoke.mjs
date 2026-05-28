@@ -11,10 +11,13 @@ export function planRevoke(change) {
   return current === "complete" || current === "interrupted";
 }
 
-// Orchestrator. Looks up the (tabId, url) recorded when the download was
-// started, messages the originating tab to revoke the URL, and clears the
-// session entry. Side effects are routed through injected callbacks so a
-// node:test can verify behavior with in-memory stubs.
+// Orchestrator. Looks up the session entry recorded when the download was
+// started, calls `messageTab(entry.tabId, msg)` to route a revoke request to
+// whichever extension document owns the blob URL, and clears the session
+// entry. The entry shape is opaque to the lib — `tabId` may be a real tab id
+// (early architecture) or `null` (offscreen-document architecture in v0.1.2+
+// where there is no tab). Side effects are routed through injected callbacks
+// so a node:test can verify behavior with in-memory stubs.
 export async function dispatchRevoke({ downloadId, change, sessionStore, messageTab }) {
   if (!planRevoke(change)) return;
   const key = String(downloadId);
