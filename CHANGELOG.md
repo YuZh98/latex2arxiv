@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - Browser extension: copy the Pyodide output zip before posting so a transferred WASM-heap buffer cannot detach Pyodide memory between runs
 - Browser extension: terminate the worker when init fails so a half-booted Pyodide is not left running
 - Browser extension: prevent a listener leak in the content script when the worker posts an untagged error
+- Browser extension: revoke the download blob URL after the file lands so a session of clean presses no longer accumulates memory
 
 ## [1.2.3] - 2026-05-28
 
