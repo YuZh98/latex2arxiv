@@ -25,8 +25,12 @@ const PYODIDE_CDN = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
 // versions) does not require editing this file. Order in the JSON matters for
 // micropip resolution: deps before dependents.
 const WHEELS_INDEX = "/wheels/index.json";
+const PY_RUN_PATH = "/py/run.py";
 
 let pyodide = null;
+// Source of the Python entrypoint, fetched once at init() and reused on every
+// runPipeline() call. Mirrored by tests/pyodide-smoke.mjs via fs.readFileSync.
+let PY_RUN = null;
 
 async function fetchExtensionResource(pathFromRoot) {
   const url = `${self.location.origin}${pathFromRoot}`;
@@ -35,9 +39,16 @@ async function fetchExtensionResource(pathFromRoot) {
   return res;
 }
 
+async function sha256Hex(bytes) {
+  const buf = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function init() {
   importScripts(`${PYODIDE_CDN}pyodide.js`);
   pyodide = await self.loadPyodide({ indexURL: PYODIDE_CDN });
+
+  PY_RUN = await (await fetchExtensionResource(PY_RUN_PATH)).text();
 
   const index = await (await fetchExtensionResource(WHEELS_INDEX)).json();
   const wheels = index.wheels;
@@ -45,45 +56,27 @@ async function init() {
     throw new Error("wheels/index.json is empty or malformed");
   }
 
-  for (const f of wheels) {
-    const bytes = new Uint8Array(await (await fetchExtensionResource(`/wheels/${f}`)).arrayBuffer());
-    pyodide.FS.writeFile(`/tmp/${f}`, bytes);
+  for (const entry of wheels) {
+    if (!entry || typeof entry.name !== "string" || typeof entry.sha256 !== "string") {
+      throw new Error(`wheels/index.json entry missing name or sha256: ${JSON.stringify(entry)}`);
+    }
+    const bytes = new Uint8Array(await (await fetchExtensionResource(`/wheels/${entry.name}`)).arrayBuffer());
+    const actual = await sha256Hex(bytes);
+    if (actual !== entry.sha256.toLowerCase()) {
+      throw new Error(`sha256 mismatch for ${entry.name}: expected ${entry.sha256}, got ${actual}`);
+    }
+    pyodide.FS.writeFile(`/tmp/${entry.name}`, bytes);
   }
 
   await pyodide.loadPackage("micropip");
   const micropip = pyodide.pyimport("micropip");
-  await micropip.install(pyodide.toPy(wheels.map((f) => `emfs:/tmp/${f}`)));
+  await micropip.install(pyodide.toPy(wheels.map((entry) => `emfs:/tmp/${entry.name}`)));
 
   self.postMessage({ type: "ready" });
 }
 
-// Python-side conversion + JSON marshalling. Kept byte-identical to
-// browser-extension/tests/pyodide-smoke.mjs so the smoke test rehearses the
-// same code path the worker runs in production. Issues.errors / .warnings
-// are list[str]; iteration yields the user-visible messages directly.
-const PY_RUN = `
-import json
-from pathlib import Path
-from converter import convert
-
-issues = convert(
-    input_zip=Path("/tmp/input.zip"),
-    output_zip=Path("/tmp/output.zip"),
-    dry_run=(_l2a_mode == "validate"),
-    flatten=bool(_l2a_opts.get("flatten")),
-    resize=1600 if _l2a_opts.get("resize") else None,
-    guide=bool(_l2a_opts.get("guide")),
-)
-
-json.dumps({
-    "main_tex": issues.main_tex,
-    "errors": list(issues.errors),
-    "warnings": list(issues.warnings),
-})
-`;
-
 async function runPipeline({ requestId, mode, options, zipBytes }) {
-  if (!pyodide) throw new Error("worker not initialized");
+  if (!pyodide || !PY_RUN) throw new Error("worker not initialized");
 
   pyodide.FS.writeFile("/tmp/input.zip", zipBytes);
   pyodide.globals.set("_l2a_mode", mode);

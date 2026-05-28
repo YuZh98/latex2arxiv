@@ -1,8 +1,17 @@
 {
-  "_comment": "Generated index of bundled wheels for the Pyodide worker. Order matters: micropip resolves deps in order, so list transitive dependencies before their dependents (pyparsing → bibtexparser; latex2arxiv last). Regenerate via scripts/build-wheels.sh.",
+  "_comment": "Generated index of bundled wheels for the Pyodide worker. Order matters: micropip resolves deps in order, so list transitive dependencies before their dependents (pyparsing → bibtexparser; latex2arxiv last). Each entry pins sha256(file) so the worker and smoke can verify integrity before micropip.install — protects against tampered cached wheels at Web Store review and against silent rebuild drift.",
   "wheels": [
-    "pyparsing-3.3.2-py3-none-any.whl",
-    "bibtexparser-1.4.4-py3-none-any.whl",
-    "latex2arxiv-1.2.3-py3-none-any.whl"
+    {
+      "name": "pyparsing-3.3.2-py3-none-any.whl",
+      "sha256": "850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d"
+    },
+    {
+      "name": "bibtexparser-1.4.4-py3-none-any.whl",
+      "sha256": "dd117c29762003bb0713f3eb6adc7458b0b53c4132e75a57a35ad18d95cde760"
+    },
+    {
+      "name": "latex2arxiv-1.2.3-py3-none-any.whl",
+      "sha256": "f8984122c7afac5daa68235b3b047f71068b84e099f4409b7e565c828f994c2f"
+    }
   ]
 }

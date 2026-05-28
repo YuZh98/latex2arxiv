@@ -9,6 +9,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 ### Changed
 - GitHub Action: drop redundant dir-zip shell wrap; CLI handles dir input natively since v0.10
 - CLI: exclude `.github/` when zipping a directory input
+- Browser extension: deduplicate Pyodide Python entrypoint into a single canonical file shared by the worker and the Node smoke
+
+### Added
+- Browser extension: SHA-256 verification of bundled wheels at install time
+- Browser extension: manifest snapshot test pins permission and host_permissions shape
 
 ## [1.2.3] - 2026-05-28
 

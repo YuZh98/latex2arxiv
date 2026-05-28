@@ -81,10 +81,11 @@ filterwarnings = [
 
 [tool.pyright]
 pythonVersion = "3.10"
+exclude = ["browser-extension/py"]
 
 [tool.ruff]
 line-length = 120
-exclude = ["tests/test_bugs.py"]
+exclude = ["tests/test_bugs.py", "browser-extension/py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
