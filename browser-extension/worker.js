@@ -86,35 +86,45 @@ async function runPipeline({ requestId, mode, options, zipBytes }) {
   if (!pyodide) throw new Error("worker not initialized");
 
   pyodide.FS.writeFile("/tmp/input.zip", zipBytes);
-
   pyodide.globals.set("_l2a_mode", mode);
   // toPy converts the JS object into a Python dict so `.get()` works in PY_RUN.
   pyodide.globals.set("_l2a_opts", pyodide.toPy(options || {}));
 
-  const payloadJson = pyodide.runPython(PY_RUN);
+  let parsed;
+  let outputZip = null;
+  try {
+    const payloadJson = pyodide.runPython(PY_RUN);
+    parsed = JSON.parse(payloadJson);
 
-  const parsed = JSON.parse(payloadJson);
+    if (mode === "clean") {
+      try {
+        outputZip = pyodide.FS.readFile("/tmp/output.zip");
+      } catch (_) {
+        // convert() aborted before writing the zip; diagnostics already explain.
+        outputZip = null;
+      }
+    }
+  } finally {
+    // Run cleanup whether convert() threw or returned, so a second click
+    // starts from a known state. (Only clears the two paths we wrote;
+    // converter.convert() uses tempfile.TemporaryDirectory internally for
+    // anything else, which it cleans up itself.)
+    for (const p of ["/tmp/input.zip", "/tmp/output.zip"]) {
+      try {
+        pyodide.FS.unlink(p);
+      } catch (_) {}
+    }
+    for (const name of ["_l2a_mode", "_l2a_opts"]) {
+      try {
+        pyodide.globals.delete(name);
+      } catch (_) {}
+    }
+  }
+
   const diagnostics = [
     ...parsed.errors.map((m) => ({ severity: "error", message: m, location: null })),
     ...parsed.warnings.map((m) => ({ severity: "warn", message: m, location: null })),
   ];
-
-  let outputZip = null;
-  if (mode === "clean") {
-    try {
-      outputZip = pyodide.FS.readFile("/tmp/output.zip");
-    } catch (_) {
-      // convert() aborted before writing the zip; diagnostics already explain.
-      outputZip = null;
-    }
-  }
-
-  // Clear MEMFS between runs so a second click starts from a known state.
-  for (const p of ["/tmp/input.zip", "/tmp/output.zip"]) {
-    try {
-      pyodide.FS.unlink(p);
-    } catch (_) {}
-  }
 
   const transfer = outputZip ? [outputZip.buffer] : [];
   self.postMessage(

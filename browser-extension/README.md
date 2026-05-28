@@ -6,7 +6,9 @@ Chrome extension that runs [`latex2arxiv`](https://github.com/YuZh98/latex2arxiv
 
 **v0.1 — working end-to-end in unpacked-dev mode, not yet store-ready.** The UI, content script, service worker, and Web Worker run the full `latex2arxiv` pipeline via Pyodide against an open Overleaf project. One gate remains before Chrome Web Store submission:
 
-- Pyodide itself still loads from the jsDelivr CDN. MV3 prohibits remotely-hosted code from extension contexts at Web Store review. Production v0.1.1 must vendor the Pyodide runtime (`pyodide.js`, `pyodide.asm.*`, the built-in package set) into the extension package and point `indexURL` at `chrome.runtime.getURL("pyodide/")`. The application wheels (`latex2arxiv`, `bibtexparser`, `pyparsing`) are already bundled under `wheels/`.
+- Pyodide itself still loads from the jsDelivr CDN, with no SRI on the fetched assets. MV3 prohibits remotely-hosted code from extension contexts at Web Store review. Production v0.1.1 must vendor the Pyodide runtime (`pyodide.js`, `pyodide.asm.*`, the built-in package set) into the extension package and point `indexURL` at `chrome.runtime.getURL("pyodide/")`. The application wheels (`latex2arxiv`, `bibtexparser`, `pyparsing`) are already bundled under `wheels/`.
+
+> **Dev-only warning:** because v0.1 loads Pyodide and its package wheels from a third-party CDN, every "Clean for arXiv" run depends on the integrity of that supply chain. Do not load this extension against sensitive or pre-publication Overleaf projects until v0.1.1 vendors Pyodide locally and pins SHA-256 hashes for every bundled wheel.
 
 Design rationale, dismissed alternatives, and the full build plan: `docs/browser-extension-design.md`.
 
