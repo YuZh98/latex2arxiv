@@ -92,3 +92,16 @@ test("web_accessible_resources is absent (no page-facing surface)", () => {
 test("manifest version is 0.1.2", () => {
   assert.equal(manifest.version, "0.1.2");
 });
+
+test("extension_pages CSP allows WebAssembly via 'wasm-unsafe-eval'", () => {
+  // Pyodide compiles WebAssembly at runtime; the default extension-pages CSP
+  // (`script-src 'self'`) refuses WASM compilation. 'wasm-unsafe-eval' is the
+  // narrowest CSP3 keyword that re-enables WASM without re-enabling general
+  // eval. Required for the offscreen document to host the Pyodide worker.
+  const csp = manifest.content_security_policy && manifest.content_security_policy.extension_pages;
+  assert.ok(typeof csp === "string", "content_security_policy.extension_pages must be a string");
+  assert.match(csp, /'wasm-unsafe-eval'/, "extension_pages CSP must include 'wasm-unsafe-eval'");
+  assert.match(csp, /script-src 'self'/, "extension_pages CSP must keep script-src anchored on 'self'");
+  // Defensive: refuse to ship a CSP that opens broader eval.
+  assert.ok(!/'unsafe-eval'(?!-)/.test(csp), "extension_pages CSP must not include the broad 'unsafe-eval'");
+});
