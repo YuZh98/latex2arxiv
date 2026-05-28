@@ -21,7 +21,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["worker.js"],
+      "resources": ["worker.js", "wheels/*.whl"],
       "matches": ["https://www.overleaf.com/*"]
     }
   ]
