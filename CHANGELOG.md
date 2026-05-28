@@ -6,23 +6,31 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-05-28
+
 ### Changed
 - GitHub Action: drop redundant dir-zip shell wrap; CLI handles dir input natively since v0.10
 - CLI: exclude `.github/` when zipping a directory input
-- Browser extension: deduplicate Pyodide Python entrypoint into a single canonical file shared by the worker and the Node smoke
+
+## [browser-extension 0.1.1] - 2026-05-28
+
+The browser extension is versioned independently from the CLI tool. v0.1.1 closes the Chrome Web Store gates surfaced in v0.1.
+
+### Changed
+- Deduplicate the Pyodide Python entrypoint into a single canonical file shared by the worker and the Node smoke
 
 ### Added
-- Browser extension: SHA-256 verification of bundled wheels at install time
-- Browser extension: manifest snapshot test pins permission and host_permissions shape
-- Browser extension: project zip download is capped at 200 MB to fail fast on outsized projects
-- Browser extension: `minimum_chrome_version` pinned at 120
-- Browser extension: vendor the Pyodide runtime alongside the extension so the package satisfies the Chrome Web Store remote-code policy
+- SHA-256 verification of bundled wheels at install time
+- Manifest snapshot test pins permission and host_permissions shape
+- Project zip download is capped at 200 MB to fail fast on outsized projects
+- `minimum_chrome_version` pinned at 120
+- Vendor the Pyodide runtime alongside the extension so the package satisfies the Chrome Web Store remote-code policy
 
 ### Fixed
-- Browser extension: copy the Pyodide output zip before posting so a transferred WASM-heap buffer cannot detach Pyodide memory between runs
-- Browser extension: terminate the worker when init fails so a half-booted Pyodide is not left running
-- Browser extension: prevent a listener leak in the content script when the worker posts an untagged error
-- Browser extension: revoke the download blob URL after the file lands so a session of clean presses no longer accumulates memory
+- Copy the Pyodide output zip before posting so a transferred WASM-heap buffer cannot detach Pyodide memory between runs
+- Terminate the worker when init fails so a half-booted Pyodide is not left running
+- Prevent a listener leak in the content script when the worker posts an untagged error
+- Revoke the download blob URL after the file lands so a session of clean presses no longer accumulates memory
 
 ## [1.2.3] - 2026-05-28
 
@@ -376,7 +384,10 @@ Initial release. One command converts a LaTeX zip to an arXiv-ready submission.
 - Compliance warnings: referee/double-space mode, custom style files, `\today` in `\date`, `.eps` images
 
 
-[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.4...HEAD
+[1.2.4]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.3...v1.2.4
+[1.2.3]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.2...v1.2.3
+[1.2.2]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/YuZh98/latex2arxiv/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/YuZh98/latex2arxiv/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/YuZh98/latex2arxiv/compare/v1.0.1...v1.1.0
