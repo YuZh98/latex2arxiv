@@ -15,10 +15,17 @@ export function verifyWheels(wheelsDir) {
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error(`${indexJsonPath} has no 'wheels' array`);
   }
+  // Reject duplicate names — a later entry that shadows an earlier one would
+  // hide a wheel-bump bug and pass micropip.install silently.
+  const seen = new Set();
   for (const entry of entries) {
     if (!entry || typeof entry.name !== "string" || typeof entry.sha256 !== "string") {
       throw new Error(`index.json entry missing name or sha256: ${JSON.stringify(entry)}`);
     }
+    if (seen.has(entry.name)) {
+      throw new Error(`index.json has duplicate wheel name: ${entry.name}`);
+    }
+    seen.add(entry.name);
     const wheelPath = path.join(wheelsDir, entry.name);
     if (!fs.existsSync(wheelPath)) {
       throw new Error(`index.json lists ${entry.name} but the file does not exist in ${wheelsDir}`);

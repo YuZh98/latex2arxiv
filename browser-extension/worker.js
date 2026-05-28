@@ -83,15 +83,25 @@ async function runPipeline({ requestId, mode, options, zipBytes }) {
   // toPy converts the JS object into a Python dict so `.get()` works in PY_RUN.
   pyodide.globals.set("_l2a_opts", pyodide.toPy(options || {}));
 
-  let parsed;
+  let diagnostics;
+  let mainTex = null;
   let outputZip = null;
   try {
     const payloadJson = pyodide.runPython(PY_RUN);
-    parsed = JSON.parse(payloadJson);
+    const parsed = JSON.parse(payloadJson);
+    mainTex = parsed.main_tex;
+    diagnostics = [
+      ...parsed.errors.map((m) => ({ severity: "error", message: m, location: null })),
+      ...parsed.warnings.map((m) => ({ severity: "warn", message: m, location: null })),
+    ];
 
     if (mode === "clean") {
       try {
-        outputZip = pyodide.FS.readFile("/tmp/output.zip");
+        // FS.readFile returns a Uint8Array whose buffer may be a view onto the
+        // WASM heap. Copying through `new Uint8Array(...)` lifts the bytes onto
+        // a fresh ArrayBuffer so transferring it does not detach Pyodide memory
+        // and crash the next runPipeline call.
+        outputZip = new Uint8Array(pyodide.FS.readFile("/tmp/output.zip"));
       } catch (_) {
         // convert() aborted before writing the zip; diagnostics already explain.
         outputZip = null;
@@ -114,14 +124,9 @@ async function runPipeline({ requestId, mode, options, zipBytes }) {
     }
   }
 
-  const diagnostics = [
-    ...parsed.errors.map((m) => ({ severity: "error", message: m, location: null })),
-    ...parsed.warnings.map((m) => ({ severity: "warn", message: m, location: null })),
-  ];
-
   const transfer = outputZip ? [outputZip.buffer] : [];
   self.postMessage(
-    { requestId, result: { diagnostics, outputZip, mainTex: parsed.main_tex } },
+    { requestId, result: { diagnostics, outputZip, mainTex } },
     transfer,
   );
 }

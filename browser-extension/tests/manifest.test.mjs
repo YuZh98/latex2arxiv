@@ -51,8 +51,18 @@ test("no optional permissions are declared", () => {
   );
 });
 
-test("background service worker is background.js", () => {
+test("background service worker is background.js (classic, not module)", () => {
   assert.equal(manifest.background.service_worker, "background.js");
+  // Pin the absence of `type: "module"` — the worker uses importScripts, which
+  // would break under module type. Catches an accidental migration.
+  assert.ok(manifest.background.type === undefined, "background.type must remain unset (classic worker)");
+});
+
+test("minimum_chrome_version is pinned", () => {
+  // Pyodide 0.29 + crypto.subtle in workers + modern ES syntax need a recent
+  // Chrome floor. Bumping this is a deliberate change that should be visible
+  // in PR review.
+  assert.equal(manifest.minimum_chrome_version, "120");
 });
 
 test("content script only injects on Overleaf project pages", () => {

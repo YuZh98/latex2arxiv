@@ -30,12 +30,22 @@ if (!WHEELS_DIR || !FIXTURE_PATH) {
 // sha256 so the smoke catches the same tampering the worker would.
 const wheelEntries = verifyWheels(WHEELS_DIR);
 
+const cleanupDirs = [];
+process.on("exit", () => {
+  for (const d of cleanupDirs) {
+    try {
+      fs.rmSync(d, { recursive: true, force: true });
+    } catch (_) {}
+  }
+});
+
 function readFixtureZip(fixturePath) {
   // Accept a .zip directly or a directory we zip with the system `zip`
   // binary (Overleaf-style: files at top level, no wrapper directory).
   const stat = fs.statSync(fixturePath);
   if (stat.isFile()) return fs.readFileSync(fixturePath);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "l2a-smoke-"));
+  cleanupDirs.push(tmp);
   const zipPath = path.join(tmp, "fixture.zip");
   execFileSync("zip", ["-rq", zipPath, "."], { cwd: fixturePath });
   return fs.readFileSync(zipPath);

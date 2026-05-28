@@ -42,10 +42,23 @@ function setStatus(panel, text, kind = "info") {
   s.dataset.kind = kind;
 }
 
+// Cap to a sane upper bound so a runaway Overleaf zip cannot OOM the worker
+// mid-Pyodide-boot with an opaque crash. 200 MB matches the CLI's friendly
+// pre-zip-bomb cap (the CLI's hard cap is 500 MB uncompressed; this is the
+// compressed-zip side of the same idea).
+const MAX_PROJECT_ZIP_BYTES = 200 * 1024 * 1024;
+
 async function fetchProjectZip(projectId) {
   const url = `/project/${projectId}/download/zip`;
   const res = await fetch(url, { credentials: "same-origin" });
   if (!res.ok) throw new Error(`Overleaf returned ${res.status} fetching project zip`);
+  const contentLength = Number(res.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_PROJECT_ZIP_BYTES) {
+    throw new Error(
+      `Overleaf project zip is ${(contentLength / (1024 * 1024)).toFixed(0)} MB; ` +
+        `latex2arxiv refuses to load projects over ${MAX_PROJECT_ZIP_BYTES / (1024 * 1024)} MB`,
+    );
+  }
   return new Uint8Array(await res.arrayBuffer());
 }
 
@@ -58,24 +71,24 @@ function spawnWorker() {
 let workerPromise = null;
 function getWorker() {
   if (!workerPromise) {
-    workerPromise = (async () => {
-      const worker = spawnWorker();
-      await new Promise((resolve, reject) => {
-        const onMsg = (ev) => {
-          if (!ev.data) return;
-          if (ev.data.type === "ready") {
-            worker.removeEventListener("message", onMsg);
-            resolve();
-          } else if (ev.data.type === "error") {
-            worker.removeEventListener("message", onMsg);
-            reject(new Error(ev.data.error));
-          }
-        };
-        worker.addEventListener("message", onMsg);
-        worker.postMessage({ type: "init" });
-      });
-      return worker;
-    })().catch((err) => {
+    const worker = spawnWorker();
+    workerPromise = new Promise((resolve, reject) => {
+      const onMsg = (ev) => {
+        if (!ev.data) return;
+        if (ev.data.type === "ready") {
+          worker.removeEventListener("message", onMsg);
+          resolve(worker);
+        } else if (ev.data.type === "error") {
+          worker.removeEventListener("message", onMsg);
+          reject(new Error(ev.data.error));
+        }
+      };
+      worker.addEventListener("message", onMsg);
+      worker.postMessage({ type: "init" });
+    }).catch((err) => {
+      // Init failed: tear the worker down so the half-booted Pyodide instance
+      // does not linger. Reset workerPromise so a retry spawns a fresh worker.
+      worker.terminate();
       workerPromise = null;
       throw err;
     });
@@ -86,10 +99,18 @@ function getWorker() {
 function runInWorker(worker, msg) {
   return new Promise((resolve, reject) => {
     const onMsg = (ev) => {
-      if (ev.data && ev.data.requestId === msg.requestId) {
+      if (!ev.data) return;
+      // Resolve/reject on a matching requestId, OR on a global worker error
+      // posted with `type: "error"`. The latter happens when the worker's
+      // message handler catches an exception that has no requestId attached
+      // — without this branch the per-call listener would leak.
+      if (ev.data.requestId === msg.requestId) {
         worker.removeEventListener("message", onMsg);
         if (ev.data.error) reject(new Error(ev.data.error));
         else resolve(ev.data.result);
+      } else if (ev.data.type === "error") {
+        worker.removeEventListener("message", onMsg);
+        reject(new Error(ev.data.error || "worker error"));
       }
     };
     worker.addEventListener("message", onMsg);
@@ -145,7 +166,12 @@ async function run({ mode, options, panel }) {
       setStatus(panel, "Done.", "ok");
     }
   } catch (err) {
-    setStatus(panel, `Failed: ${err.message}`, "err");
+    // Surface a short message to the page; log the full exception (which may
+    // include Pyodide tracebacks with /tmp/... paths) to the extension console
+    // so a developer can still diagnose.
+    console.error("latex2arxiv run failed:", err);
+    const shortMsg = (err && err.message ? String(err.message) : String(err)).split("\n")[0].slice(0, 200);
+    setStatus(panel, `Failed: ${shortMsg}`, "err");
   }
 }
 
