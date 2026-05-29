@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "latex2arxiv for Overleaf",
   "description": "arXiv pre-flight validation and one-click zip cleaning, in the Overleaf editor.",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "minimum_chrome_version": "120",
   "icons": {
     "128": "icon.png"

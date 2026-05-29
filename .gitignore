@@ -28,3 +28,4 @@ docs/vscode-extension-handoff.md
 .superpowers/
 docs/superpowers/
 vscode-extension/.vscode/
+browser-extension/dist/
