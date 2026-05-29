@@ -89,8 +89,8 @@ test("web_accessible_resources is absent (no page-facing surface)", () => {
   );
 });
 
-test("manifest version is 0.1.2", () => {
-  assert.equal(manifest.version, "0.1.2");
+test("manifest version is 0.1.3", () => {
+  assert.equal(manifest.version, "0.1.3");
 });
 
 test("extension_pages CSP allows WebAssembly via 'wasm-unsafe-eval'", () => {
