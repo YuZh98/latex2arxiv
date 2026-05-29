@@ -120,11 +120,31 @@ function renderSummary(panel, mode, summary, mainTex) {
   box.append(el("div", { class: "l2a-summary-line" }, line));
 }
 
+// chrome.runtime.id returns undefined once the extension context has been
+// invalidated (extension reloaded, updated, or disabled while the page kept
+// its already-injected content script). Sending a message in that state
+// throws "Extension context invalidated", which is opaque to users.
+function isExtensionContextAlive() {
+  try {
+    return !!(chrome && chrome.runtime && chrome.runtime.id);
+  } catch (_) {
+    return false;
+  }
+}
+
 async function run({ mode, options, panel }) {
   try {
     const projectId = getProjectId();
     if (!projectId) {
       setStatus(panel, "Not on an Overleaf project page.", "err");
+      return;
+    }
+    if (!isExtensionContextAlive()) {
+      setStatus(
+        panel,
+        "Extension was updated or reloaded — please refresh this Overleaf tab to continue.",
+        "err",
+      );
       return;
     }
 
@@ -165,6 +185,17 @@ async function run({ mode, options, panel }) {
   } catch (err) {
     console.error("latex2arxiv run failed:", err);
     const rawMsg = err && err.message ? String(err.message) : String(err);
+    // Race: the context was alive at the pre-check above but died mid-flight
+    // (extension auto-update finished between the two calls). Catch the exact
+    // Chrome error text here as a backstop.
+    if (/Extension context invalidated/i.test(rawMsg)) {
+      setStatus(
+        panel,
+        "Extension was updated or reloaded — please refresh this Overleaf tab to continue.",
+        "err",
+      );
+      return;
+    }
     const mainMissing = rawMsg.match(/--main '([^']+)' not found in archive/);
     if (mainMissing) {
       setStatus(
