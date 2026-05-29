@@ -113,6 +113,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           diagnostics: result.diagnostics,
           mainTex: result.mainTex,
           summary: result.summary,
+          guideText: result.guideText,
           blobUrl,
           filename,
         });

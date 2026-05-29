@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.4] - 2026-05-28
+
+### Fixed
+- "Write arXiv upload guide" toggle shows the guide in the panel after Clean for arXiv and offers a "Save as .txt" button
+
 ## [browser-extension 0.1.3] - 2026-05-28
 
 ### Added

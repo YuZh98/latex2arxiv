@@ -53,6 +53,42 @@ function formatBytes(n) {
   return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function renderGuide(panel, guideText, suggestedFilename) {
+  const box = panel.querySelector(".l2a-guide");
+  box.innerHTML = "";
+  if (!guideText) return;
+  const details = el("details", { class: "l2a-guide-details" });
+  details.append(el("summary", {}, "arXiv upload guide"));
+  details.append(el("pre", { class: "l2a-guide-pre" }, guideText));
+  const saveBtn = el(
+    "button",
+    {
+      class: "l2a-btn l2a-guide-save",
+      title: "Save this guide as a .txt file alongside your downloads.",
+      onclick: () => {
+        // Build a one-shot blob URL in the content-script context. Page CSP
+        // does not block <a download> for blob: URLs (we already verified
+        // worker spawn was the only blocked path). Revoke immediately after
+        // the click so the URL does not pin the bytes for the page lifetime.
+        const blob = new Blob([guideText], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const stem = (suggestedFilename || "paper-arxiv.zip").replace(/\.zip$/i, "");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${stem}_UPLOAD_GUIDE.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        // Revoke after a tick so Chrome has resolved the download from the URL.
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+    },
+    "Save as .txt",
+  );
+  details.append(saveBtn);
+  box.append(details);
+}
+
 function renderSummary(panel, mode, summary, mainTex) {
   const box = panel.querySelector(".l2a-summary");
   box.innerHTML = "";
@@ -86,6 +122,7 @@ async function run({ mode, options, panel }) {
 
     setStatus(panel, mode === "validate" ? "Validating…" : "Cleaning…", "info");
     panel.querySelector(".l2a-summary").innerHTML = "";
+    panel.querySelector(".l2a-guide").innerHTML = "";
 
     // The offscreen document is spun up on demand by the service worker;
     // the round-trip below covers spawn (first run only, ~10-30s while Pyodide
@@ -104,6 +141,7 @@ async function run({ mode, options, panel }) {
 
     renderDiagnostics(panel, result.diagnostics);
     renderSummary(panel, mode, result.summary, result.mainTex);
+    renderGuide(panel, result.guideText, suggestedFilename);
     if (mode === "clean" && result.downloadDispatched) {
       setStatus(panel, "Done. Choose where to save…", "ok");
     } else {
@@ -116,6 +154,7 @@ async function run({ mode, options, panel }) {
     // not match any .tex in the archive. Point the user back to the field
     // they just typed rather than surfacing a generic failure.
     panel.querySelector(".l2a-summary").innerHTML = "";
+    panel.querySelector(".l2a-guide").innerHTML = "";
     const mainMissing = rawMsg.match(/--main '([^']+)' not found in archive/);
     if (mainMissing) {
       setStatus(
@@ -149,7 +188,7 @@ function buildPanel() {
   const checkboxes = [
     ["flatten", "Flatten \\input / \\subfile into one .tex", "Inline every \\input/\\include/\\subfile into the main .tex so the submission ships a single source file."],
     ["resize", "Resize images (longest side ≤ 1600 px)", "Downscale every raster image so its longest side is at most 1600 px. Skips already-small images."],
-    ["guide", "Write arXiv upload guide (.txt)", "Generate a short text guide summarising what to expect on arXiv."],
+    ["guide", "Write arXiv upload guide (.txt)", "Show a short text guide in this panel after Clean for arXiv. The guide can be saved as a .txt file."],
   ];
   for (const [name, label, hint] of checkboxes) {
     const lab = el("label", { class: "l2a-check", title: hint });
@@ -221,6 +260,7 @@ function buildPanel() {
 
   panel.append(el("div", { class: "l2a-status" }, "Ready."));
   panel.append(el("div", { class: "l2a-summary" }));
+  panel.append(el("div", { class: "l2a-guide" }));
   panel.append(el("div", { class: "l2a-diagnostics" }));
 
   return panel;
