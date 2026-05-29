@@ -8,6 +8,16 @@
 
 **Submit to arXiv without the headache. One command cleans your project, catches rejection-causing errors, and walks you through the upload.**
 
+## Pick your surface
+
+| You want to… | Install | Status |
+|---|---|---|
+| Run the full pipeline in your terminal | `pip install latex2arxiv` · or `brew tap YuZh98/latex2arxiv && brew install latex2arxiv` | Available |
+| Drive it from Claude / Cursor / Copilot / Windsurf / Zed | `pip install "latex2arxiv[mcp]"` · MCP server · [setup](docs/mcp.md) | Available |
+| Gate a paper repo in CI | `pip install latex2arxiv && latex2arxiv paper.zip --dry-run` · [`action.yml`](docs/ci.md) · `pre-commit` hook | Available |
+| One-click from VS Code | [`ext install YuZh98.latex2arxiv`](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv) | Available |
+| Clean and submit from inside Overleaf | Chrome extension · [source](browser-extension/) | <!-- UPDATE on CWS approval -->In Chrome Web Store review |
+
 ```bash
 latex2arxiv paper.zip --compile          # clean + verify PDF
 latex2arxiv paper.zip --compile --guide  # + step-by-step upload instructions
@@ -50,9 +60,11 @@ On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)
 
 ## Who is this for?
 
-**You've never submitted to arXiv before.** Your project compiles locally. arXiv might still reject it for reasons nobody warned you about. `latex2arxiv paper.zip --compile --guide` flags the rejection-causing issues and writes you a copy-paste-ready upload walkthrough.
+**You write in Overleaf.** Two paths:
+- **Zero install** — the Chrome extension adds a "Clean for arXiv" button right in the editor. Project never leaves your browser.
+- **Already have Python?** `pip install latex2arxiv`, then `latex2arxiv project.zip --compile --guide`. [Overleaf → arXiv quickstart →](docs/overleaf.md)
 
-**You wrote it in Overleaf.** Overleaf gave you hundreds of files and messy tex files. You need to tidy up everything safely.  [Overleaf → arXiv quickstart →](docs/overleaf.md)
+**You've never submitted to arXiv before.** Your project compiles locally. arXiv might still reject it for reasons nobody warned you about. `latex2arxiv paper.zip --compile --guide` flags the rejection-causing issues and writes you a copy-paste-ready upload walkthrough.
 
 **You're CI-gating a paper repo.** `latex2arxiv paper.zip --dry-run` exits non-zero on rejection-causing errors. Drop it into your build matrix.
 
@@ -111,31 +123,33 @@ Pass `--guide` and latex2arxiv writes a plain-text file alongside your output zi
 
 No more guessing what goes where.
 
-## Works everywhere
+## Same engine, five surfaces
 
-**Terminal** — one command, full pipeline:
+The same Python pipeline runs in all five. Pick what fits.
 
-```bash
-latex2arxiv paper.zip --compile --guide
-```
+### Terminal — `latex2arxiv`
+Full flag surface, fastest path. `latex2arxiv paper.zip --compile --guide`. Installs via `pip` or `brew` ([details below](#installation)).
 
-**CI** — gate your paper repo on arXiv compliance:
+### Chrome extension — Overleaf
+"Clean for arXiv" button inside the editor. Runs in an offscreen Pyodide worker; project bytes never leave your browser. <!-- UPDATE on CWS approval -->In Chrome Web Store review. Source: [`browser-extension/`](browser-extension/).
 
-```yaml
-- run: pip install latex2arxiv && latex2arxiv paper.zip --dry-run
-```
-
-**AI editors** — works with any MCP-compatible client (Claude Desktop, Cursor, VS Code Copilot, Windsurf, Zed, etc.):
-
+### MCP — Claude, Cursor, Copilot, Windsurf, Zed
 ```bash
 pip install "latex2arxiv[mcp]"
 ```
-
 ```json
 {"mcpServers": {"latex2arxiv": {"command": "latex2arxiv-mcp"}}}
 ```
+Per-editor paths: [docs/mcp.md](docs/mcp.md).
 
-> Add the JSON above to your editor's MCP config. See [MCP setup guide →](docs/mcp.md) for per-editor paths.
+### GitHub Action — CI gate
+```yaml
+- run: pip install latex2arxiv && latex2arxiv paper.zip --dry-run
+```
+Fails the build on `[error]` issues. Also ships as a [`pre-commit` hook](docs/ci.md) (`latex2arxiv-dryrun`). [Action details](docs/ci.md).
+
+### VS Code
+[`ext install YuZh98.latex2arxiv`](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv). Status-bar action on the active `.tex` file.
 
 ## Installation
 
@@ -288,23 +302,6 @@ If you need image transcoding for size, run `arxiv_latex_cleaner` first, or use 
 ### Both do
 
 BibTeX normalization · image resizing (Pillow).
-
-### Maturity
-
-| | `latex2arxiv` | `arxiv_latex_cleaner` |
-|---|---|---|
-|  | v1.0 production-stable · 380 tests · Python 3.10–3.13 matrix · live `pdflatex`+`biber` end-to-end CI · 10 regression fixtures | ~5k★, years in production |
-
-## Integrations
-
-| Surface | Status | Details |
-|---|---|---|
-| CLI | ✅ | `pip install latex2arxiv` |
-| GitHub Action | ✅ | [`action.yml`](docs/ci.md) |
-| `pre-commit` hook | ✅ | [`latex2arxiv-dryrun`](docs/ci.md) |
-| MCP server (Claude, Cursor, Copilot, Windsurf, Zed) | ✅ | `pip install "latex2arxiv[mcp]"` — [setup](docs/mcp.md) |
-| VS Code extension | ✅ | [Marketplace](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv) — `ext install YuZh98.latex2arxiv` |
-| Homebrew formula | ✅ | `brew tap YuZh98/latex2arxiv && brew install latex2arxiv` |
 
 ## Known limitations
 
