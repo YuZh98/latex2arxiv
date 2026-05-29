@@ -148,18 +148,15 @@ async function run({ mode, options, panel }) {
       return;
     }
 
-    // Normalize + validate the main override. Pipeline matches p.name exactly,
-    // so a path separator is unreachable and a non-.tex extension fails
-    // confusingly. Bail with a clear panel error instead.
-    if (options.main) {
-      if (/[\\/]/.test(options.main)) {
-        setStatus(panel, "Main .tex must be a filename only, not a path.", "err");
-        return;
-      }
-      // Auto-append `.tex` only when the value has no other extension.
-      if (!/\.[^./\\]+$/.test(options.main)) {
-        options.main = options.main + ".tex";
-      }
+    // Path-separator check is a cheap UX pre-flight: a value with `/` or `\\`
+    // is unambiguously wrong and we can surface the panel error before paying
+    // the ~10s Pyodide round-trip. The canonical normalization (whitespace
+    // strip, trailing-dot strip, `.tex` auto-append) lives in the pipeline
+    // (pipeline/resolve.py::normalize_main_hint) so the CLI, MCP, and browser
+    // all share one rule.
+    if (options.main && /[\\/]/.test(options.main)) {
+      setStatus(panel, "Main .tex must be a filename only, not a path.", "err");
+      return;
     }
 
     setStatus(panel, mode === "validate" ? "Validating…" : "Cleaning…", "info");
