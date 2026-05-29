@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.11] - 2026-05-29
+
+### Changed
+- Bundle the v1.2.5 `latex2arxiv` wheel so the Pyodide pipeline picks up the new main-file hint normalization; `main_bj` (and other bare stems) now resolve correctly inside the extension after the content-script `.tex` auto-append was retired in v1.2.5
+
+### Added
+- `PRIVACY.md`, `STORE_LISTING.md`, and `scripts/build-store-zip.sh` for Chrome Web Store submission — the privacy policy is publicly reachable via the repository so it can be linked directly from the Web Store listing
+
 ## [1.2.5] - 2026-05-29
 
 ### Changed

@@ -91,8 +91,8 @@ test("web_accessible_resources is absent (no page-facing surface)", () => {
   );
 });
 
-test("manifest version is 0.1.10", () => {
-  assert.equal(manifest.version, "0.1.10");
+test("manifest version is 0.1.11", () => {
+  assert.equal(manifest.version, "0.1.11");
 });
 
 test("content script loads pure helpers before content.js", () => {
