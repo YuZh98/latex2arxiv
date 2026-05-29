@@ -18,12 +18,14 @@ test("manifest_version is 3", () => {
 });
 
 test("permissions are exactly ['downloads', 'storage', 'offscreen']", () => {
-  // `storage` is only used for chrome.storage.session, which tracks
-  // (downloadId → blob URL) so onChanged can revoke after the file lands.
+  // `storage` covers two distinct stores: (a) chrome.storage.session in the
+  // service worker for the download-revoke handshake (downloadId → blob URL,
+  // cleared on browser session end), and (b) chrome.storage.local in the
+  // content script for the panel layout state (cross-browser-session). Both
+  // share one permission grant.
   // `offscreen` is required to call chrome.offscreen.createDocument; the
   // offscreen document hosts the Pyodide worker because overleaf.com's CSP
   // refuses chrome-extension:// workers spawned from the content script.
-  // No persistent storage; cleared on browser session end.
   assert.deepEqual(manifest.permissions, ["downloads", "storage", "offscreen"]);
 });
 
@@ -89,8 +91,8 @@ test("web_accessible_resources is absent (no page-facing surface)", () => {
   );
 });
 
-test("manifest version is 0.1.9", () => {
-  assert.equal(manifest.version, "0.1.9");
+test("manifest version is 0.1.10", () => {
+  assert.equal(manifest.version, "0.1.10");
 });
 
 test("content script loads pure helpers before content.js", () => {

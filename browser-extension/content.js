@@ -219,7 +219,12 @@ async function run({ mode, options, panel }) {
 // Vertical position is shared between the two (closing the panel leaves the
 // pill at the same Y; expanding from the pill restores the panel there).
 // Height is panel-only (the pill is a fixed size). State persists in
-// chrome.storage.session so a hard refresh restores the user's last layout.
+// chrome.storage.local (cross-browser-session) so a hard refresh — even a
+// browser restart — restores the user's last layout. local is used rather
+// than session because chrome.storage.session defaults to TRUSTED_CONTEXTS
+// which excludes content scripts; the previous setAccessLevel workaround
+// failed silently on any cold-SW path (no Validate/Clean click before the
+// first save).
 
 const uiState = {
   mode: "expanded", // "expanded" | "collapsed"
@@ -229,7 +234,7 @@ const uiState = {
 
 async function loadUiState() {
   try {
-    const s = await chrome.storage.session.get(UI_STATE_KEY);
+    const s = await chrome.storage.local.get(UI_STATE_KEY);
     if (s && s[UI_STATE_KEY]) {
       const stored = s[UI_STATE_KEY];
       if (stored.mode === "expanded" || stored.mode === "collapsed") uiState.mode = stored.mode;
@@ -237,7 +242,8 @@ async function loadUiState() {
       if (typeof stored.height === "number") uiState.height = stored.height;
     }
   } catch (_) {
-    // chrome.storage may be unavailable in early page lifecycle; fall back to defaults.
+    // chrome.storage.local may throw if the extension context is dead
+    // (post-reload, pre-tab-refresh); fall back to defaults silently.
   }
 }
 
@@ -250,7 +256,7 @@ function saveUiStateDebounced() {
       // Promise-returning; bare try/catch only catches sync throws, so chain
       // .catch as well. Saving the UI layout is best-effort by design — a
       // dropped write just means the next reload starts from defaults.
-      chrome.storage.session.set({ [UI_STATE_KEY]: { ...uiState } }).catch(() => {});
+      chrome.storage.local.set({ [UI_STATE_KEY]: { ...uiState } }).catch(() => {});
     } catch (_) {}
   }, 200);
 }
