@@ -193,10 +193,11 @@ function saveUiStateDebounced() {
   saveTimer = setTimeout(() => {
     saveTimer = null;
     try {
-      chrome.storage.session.set({ [UI_STATE_KEY]: { ...uiState } });
-    } catch (_) {
-      // Best-effort.
-    }
+      // Promise-returning; bare try/catch only catches sync throws, so chain
+      // .catch as well. Saving the UI layout is best-effort by design — a
+      // dropped write just means the next reload starts from defaults.
+      chrome.storage.session.set({ [UI_STATE_KEY]: { ...uiState } }).catch(() => {});
+    } catch (_) {}
   }, 200);
 }
 

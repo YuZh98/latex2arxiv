@@ -21,6 +21,16 @@ const OFFSCREEN_PATH = "offscreen.html";
 const OFFSCREEN_REASONS = ["WORKERS"];
 const OFFSCREEN_JUSTIFICATION = "Host the Pyodide worker that runs the latex2arxiv pipeline.";
 
+// chrome.storage.session defaults to TRUSTED_CONTEXTS, which excludes
+// content scripts. The content script reads/writes l2a-ui-state (pill vs
+// expanded, top, height) so the panel layout survives a hard refresh.
+// Without this opt-in those calls silently no-op. Top-level so it runs on
+// every SW wake; rejection is swallowed because there is no recovery and
+// the content script falls back to defaults if the read returns empty.
+chrome.storage.session
+  .setAccessLevel({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" })
+  .catch(() => {});
+
 const ensureOffscreen = makeOffscreenManager({
   hasDocument: () => chrome.offscreen.hasDocument(),
   createDocument: () =>
