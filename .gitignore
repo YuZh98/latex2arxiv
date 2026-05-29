@@ -29,3 +29,5 @@ docs/vscode-extension-handoff.md
 docs/superpowers/
 vscode-extension/.vscode/
 browser-extension/dist/
+.DS_Store
+browser-extension/screenshots/setup*-screenshot.png
