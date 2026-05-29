@@ -68,6 +68,32 @@ class TestValidateSubmission:
         result = validate_submission(str(z), main_tex="paper.tex")
         assert result["success"] is True
 
+    def test_main_tex_hint_accepts_bare_stem(self, tmp_path, monkeypatch):
+        """`main_tex='paper'` should normalize to `paper.tex` at the pipeline
+        boundary — same lenience as the browser. Without normalization, the
+        exact-match `p.name == main_hint` would never find `paper.tex`."""
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        z = tmp_path / "paper.zip"
+        _make_zip(
+            {"paper.tex": r"\documentclass{article}\begin{document}hi\end{document}"},
+            z,
+        )
+        result = validate_submission(str(z), main_tex="paper")
+        assert result["success"] is True
+
+    def test_main_tex_hint_rejects_path_separator(self, tmp_path, monkeypatch):
+        """Path separators in `main_tex` are a user error caught at the pipeline
+        boundary. The MCP surface should report the clean ConverterError text
+        rather than letting the unreachable exact-match `p.name == 'src/main.tex'`
+        silently fail with a less informative 'not found in archive'."""
+        monkeypatch.setenv("LATEX2ARXIV_MCP_BASE_DIR", str(tmp_path))
+        z = tmp_path / "paper.zip"
+        _make_zip({"paper.tex": r"\documentclass{article}\begin{document}hi\end{document}"}, z)
+        result = validate_submission(str(z), main_tex="src/main.tex")
+        assert result["success"] is False
+        # MCP envelope: errors are surfaced in result["errors"] as a list.
+        assert any("filename only, not a path" in e for e in result.get("errors", []))
+
 
 class TestCleanSubmission:
     def test_produces_output_zip(self, tmp_path, monkeypatch):

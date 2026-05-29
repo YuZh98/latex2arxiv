@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-05-29
+
+### Changed
+- `--main`, the MCP `main_tex` parameter, and the `convert(main_hint=...)` library entry-point all accept a bare filename without the `.tex` suffix (`--main paper` works the same as `--main paper.tex`); they also reject values containing path separators with a clear error rather than the previous "not found in archive". The browser extension already had this behavior; the rule now lives at the pipeline boundary so every front-end shares one normalization
+
 ## [browser-extension 0.1.10] - 2026-05-29
 
 ### Fixed

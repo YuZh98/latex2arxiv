@@ -45,6 +45,7 @@ from pipeline.build import _compile
 
 from pipeline.resolve import (
     find_main_tex,
+    normalize_main_hint,
     _is_git_url,
     _resolve_input,
 )
@@ -89,6 +90,11 @@ def convert(
     flatten: bool = False,
     guide: bool = False,
 ) -> Issues:
+    # Normalize the main hint at the pipeline boundary so every front-end
+    # (CLI, MCP, browser, library users) shares one rule: strip whitespace,
+    # drop trailing dots, reject path separators, auto-append `.tex` when
+    # the value carries no extension.
+    main_hint = normalize_main_hint(main_hint)
     issues = Issues()
     issues.flatten = flatten
     with tempfile.TemporaryDirectory() as tmpdir:

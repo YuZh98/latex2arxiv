@@ -11,6 +11,33 @@ from pathlib import Path
 from pipeline.types import ConverterError
 
 
+_MAIN_HAS_EXT = re.compile(r"\.[^./\\]+$")
+
+
+def normalize_main_hint(value: str | None) -> str | None:
+    """Strip + validate + .tex-suffix a user-provided main-file hint.
+
+    Returns None for None and for whitespace-/dot-only input. Path separators
+    raise ConverterError; the hint is a filename, never a path. Auto-appends
+    `.tex` when the input has no extension. Trailing dots are stripped before
+    the extension check, so 'a.' becomes 'a' → 'a.tex'.
+
+    Called at the top of convert() so every front-end (CLI, MCP, browser,
+    library users) gets the same lenient handling: --main 'paper' and --main
+    'paper.tex' resolve identically.
+    """
+    if value is None:
+        return None
+    v = value.strip().rstrip(".")
+    if not v:
+        return None
+    if "/" in v or "\\" in v:
+        raise ConverterError(f"--main '{value}' must be a filename only, not a path")
+    if not _MAIN_HAS_EXT.search(v):
+        v = v + ".tex"
+    return v
+
+
 def find_main_tex(root: Path) -> Path | None:
     """Heuristic: find the .tex file containing \\documentclass.
 
