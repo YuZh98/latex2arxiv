@@ -32,7 +32,11 @@ def normalize_main_hint(value: str | None) -> str | None:
     if not v:
         return None
     if "/" in v or "\\" in v:
-        raise ConverterError(f"--main '{value}' must be a filename only, not a path")
+        # Context-neutral wording: the same helper feeds the CLI (`--main`),
+        # the MCP tool (`main_tex` parameter), the in-process library
+        # (`convert(main_hint=...)`), and the browser. A CLI-flavored prefix
+        # would read confusingly in the other surfaces.
+        raise ConverterError(f"main-file hint '{value}' must be a filename only, not a path")
     if not _MAIN_HAS_EXT.search(v):
         v = v + ".tex"
     return v
