@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.8] - 2026-05-29
+
+### Fixed
+- Pill icon was a blank white block on Overleaf because Manifest V3 refuses `url(icon.png)` from content-script CSS without a `web_accessible_resources` entry; the icon now ships as an inline base64 PNG so no WAR entry is needed
+- After Clean for arXiv, the upload guide is now surfaced with a prominent "Upload guide ready" row and a visible Save button; the full text moves under a "View guide text" disclosure
+- Running Validate with the "Write arXiv upload guide" box checked now shows a hint that the guide is only generated in Clean for arXiv
+
 ## [browser-extension 0.1.7] - 2026-05-29
 
 ### Changed
