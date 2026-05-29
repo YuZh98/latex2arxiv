@@ -1,5 +1,11 @@
 .l2a-panel {
   all: initial;
+  /* `all: initial` resets box-sizing to content-box; override here so the
+     panel itself is border-box. Without this, the ResizeObserver callback
+     reads offsetHeight (border-box) but showActive writes style.height
+     (content-box), so the stored height drifts by +26px (padding 24 +
+     border 2) on every reload until max-height clamps it. */
+  box-sizing: border-box;
   position: fixed;
   /* Anchor to the right edge of the viewport so vertical resize and drag
      never push the panel out of reach. `top` is set inline by content.js;

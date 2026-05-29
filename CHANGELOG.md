@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.10] - 2026-05-29
+
+### Fixed
+- Panel height drifted upward by ~26 px after every hard refresh, eventually snapping to the viewport-height cap; root cause was a `box-sizing` mismatch between the `ResizeObserver` (border-box) and the stored `style.height` (content-box). The panel element now uses `box-sizing: border-box` so the two agree
+- Panel layout state could fail to persist on any cold-service-worker path (drag the panel, refresh the tab, without ever clicking Validate or Clean for arXiv); root cause was that `chrome.storage.session` requires a service-worker-side `setAccessLevel` call, and that call only ran when the service worker woke up. UI state now uses `chrome.storage.local`, which content scripts can read and write without an opt-in
+
+### Changed
+- Panel position and size now persist across browser sessions, not only within the same session — the storage move from `chrome.storage.session` to `chrome.storage.local` is durable rather than ephemeral. The values are still clamped on load so a panel saved off-screen on a different display always lands inside the current viewport
+
+### Security
+- `chrome.storage.session` is once again service-worker-private (the `setAccessLevel(TRUSTED_AND_UNTRUSTED_CONTEXTS)` opt-in is removed); the numeric `String(downloadId)` keys used for the download-revoke handshake are no longer reachable from page-context code
+
 ## [browser-extension 0.1.9] - 2026-05-29
 
 ### Fixed
