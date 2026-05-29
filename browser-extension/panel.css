@@ -1,9 +1,13 @@
 .l2a-panel {
   all: initial;
   position: fixed;
-  right: 12px;
-  bottom: 12px;
+  /* `left` and `top` are set inline by content.js inject() so the
+     panel lands near the bottom-right of the viewport on first render.
+     Anchoring via left/top (instead of right/bottom) lets the
+     bottom-right `resize: both` handle grow the panel rightward and
+     downward, which is the direction the user is already dragging. */
   width: 320px;
+  height: 280px;
   min-width: 280px;
   max-width: 720px;
   max-height: 80vh;

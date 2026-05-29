@@ -159,7 +159,7 @@ async function run({ mode, options, panel }) {
     if (mainMissing) {
       setStatus(
         panel,
-        `Main file '${mainMissing[1]}' not found in your project. Check the Main .tex (override) field under Advanced.`,
+        `Main file '${mainMissing[1]}' not found in your project. Check the Main .tex (override) field.`,
         "err",
       );
       return;
@@ -185,38 +185,50 @@ function buildPanel() {
     }),
   );
 
-  const checkboxes = [
-    ["flatten", "Flatten \\input / \\subfile into one .tex", "Inline every \\input/\\include/\\subfile into the main .tex so the submission ships a single source file."],
-    ["resize", "Resize images (longest side ≤ 1600 px)", "Downscale every raster image so its longest side is at most 1600 px. Skips already-small images."],
-    ["guide", "Write arXiv upload guide (.txt)", "Show a short text guide in this panel after Clean for arXiv. The guide can be saved as a .txt file."],
-  ];
-  for (const [name, label, hint] of checkboxes) {
-    const lab = el("label", { class: "l2a-check", title: hint });
-    lab.append(el("input", { type: "checkbox", "data-opt": name }));
-    lab.append(label);
-    form.append(lab);
-  }
-
-  // Advanced disclosure — discoverable to the user who needs an override,
-  // invisible to the 90% case where auto-detect works.
-  const advanced = el("details", { class: "l2a-advanced" });
-  advanced.append(el("summary", {}, "Advanced"));
-  advanced.append(
-    el(
-      "div",
-      { class: "l2a-hint" },
-      "Override auto-detected main .tex if needed (e.g. when two candidates share the same name pattern).",
-    ),
-  );
-  advanced.append(el("label", {}, "Main .tex (override)"));
-  advanced.append(
+  // Main .tex override lives in the main form — the auto-detect heuristic is
+  // the primary thing a user might want to override, so it should not be
+  // tucked behind a disclosure.
+  form.append(el("label", {}, "Main .tex (override)"));
+  form.append(
     el("input", {
       type: "text",
       class: "l2a-main",
       placeholder: "leave blank to auto-detect",
-      title: "Filename only, no path. Example: main_bj.tex. Leave blank to use the heuristic that picks the .tex file containing \\documentclass.",
+      title: "Filename only, no path. Either 'main_bj' or 'main_bj.tex' works. Leave blank to use the heuristic that picks the .tex file containing \\documentclass.",
     }),
   );
+  form.append(
+    el(
+      "div",
+      { class: "l2a-hint" },
+      "Auto-detect picks the .tex containing \\documentclass. Override here if it picks the wrong one.",
+    ),
+  );
+
+  // Guide stays in the main form: it produces a visible, useful artifact for
+  // every run rather than altering the pipeline shape.
+  const guideLab = el("label", {
+    class: "l2a-check",
+    title: "Show a short text guide in this panel after Clean for arXiv. The guide can be saved as a .txt file.",
+  });
+  guideLab.append(el("input", { type: "checkbox", "data-opt": "guide" }));
+  guideLab.append("Write arXiv upload guide (.txt)");
+  form.append(guideLab);
+
+  // Advanced disclosure houses the structural transforms — flatten and
+  // resize — which most users do not need.
+  const advanced = el("details", { class: "l2a-advanced" });
+  advanced.append(el("summary", {}, "Advanced"));
+  const advancedCheckboxes = [
+    ["flatten", "Flatten \\input / \\subfile into one .tex", "Inline every \\input/\\include/\\subfile into the main .tex so the submission ships a single source file."],
+    ["resize", "Resize images (longest side ≤ 1600 px)", "Downscale every raster image so its longest side is at most 1600 px. Skips already-small images."],
+  ];
+  for (const [name, label, hint] of advancedCheckboxes) {
+    const lab = el("label", { class: "l2a-check", title: hint });
+    lab.append(el("input", { type: "checkbox", "data-opt": name }));
+    lab.append(label);
+    advanced.append(lab);
+  }
   form.append(advanced);
 
   panel.append(form);
@@ -229,8 +241,16 @@ function buildPanel() {
       opts[cb.getAttribute("data-opt")] = cb.checked;
     }
     const mainInput = panel.querySelector(".l2a-main");
-    const mainValue = mainInput ? mainInput.value.trim() : "";
-    if (mainValue) opts.main = mainValue;
+    let mainValue = mainInput ? mainInput.value.trim() : "";
+    if (mainValue) {
+      // The pipeline matches main_hint against p.name exactly. Users who type
+      // 'main_bj' almost certainly mean 'main_bj.tex'; appending the suffix
+      // when missing turns a friction-y typo into the intended behavior.
+      // Case stays as the user typed it — the pipeline is case-sensitive and
+      // we preserve parity with the CLI's --main flag.
+      if (!/\.tex$/i.test(mainValue)) mainValue += ".tex";
+      opts.main = mainValue;
+    }
     return opts;
   }
 
@@ -266,12 +286,28 @@ function buildPanel() {
   return panel;
 }
 
+// Initial panel size used to compute the bottom-right landing position.
+// Kept in sync with the width/height declared in panel.css; if those change,
+// update here too so the first-paint position is right.
+const PANEL_INIT_WIDTH = 320;
+const PANEL_INIT_HEIGHT = 280;
+const PANEL_VIEWPORT_MARGIN = 12;
+
 function inject() {
   if (!getProjectId()) return;
   if (document.querySelector(".l2a-panel")) return;
   const host = document.body;
   if (!host) return;
-  host.append(buildPanel());
+  const panel = buildPanel();
+  // Anchor by left/top instead of right/bottom so the bottom-right
+  // `resize: both` handle pulls those edges outward in the natural
+  // direction. The panel still lands near the bottom-right corner of the
+  // viewport on first render.
+  const left = Math.max(PANEL_VIEWPORT_MARGIN, window.innerWidth - PANEL_INIT_WIDTH - PANEL_VIEWPORT_MARGIN);
+  const top = Math.max(PANEL_VIEWPORT_MARGIN, window.innerHeight - PANEL_INIT_HEIGHT - PANEL_VIEWPORT_MARGIN);
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+  host.append(panel);
 }
 
 if (document.readyState === "complete" || document.readyState === "interactive") {
