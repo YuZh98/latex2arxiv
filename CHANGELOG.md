@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.7] - 2026-05-29
+
+### Changed
+- Validate button reframed: renamed from "Just validate" to "Validate"; status line now reads "Validation complete — no zip produced" and the summary line uses "would keep / would remove" to match the dry-run nature
+- Panel docks to the right edge of the viewport: a small pill on the right minimizes the panel; clicking the pill expands it back; the expanded panel resizes vertically only and drags vertically only via the header
+- Panel and pill position persist across reloads within the same browser session
+
 ## [browser-extension 0.1.6] - 2026-05-29
 
 ### Fixed
