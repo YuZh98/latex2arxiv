@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.5] - 2026-05-28
+
+### Changed
+- Main .tex (override) moves out of Advanced into the main form
+- Flatten and Resize move into Advanced
+- Panel grows toward the bottom-right corner when resized instead of into the page
+
+### Fixed
+- Main .tex (override) accepts the stem without a `.tex` suffix (`main_bj` works the same as `main_bj.tex`)
+
 ## [browser-extension 0.1.4] - 2026-05-28
 
 ### Fixed
