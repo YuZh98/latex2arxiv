@@ -1,18 +1,18 @@
 .l2a-panel {
   all: initial;
   position: fixed;
-  /* `left` and `top` are set inline by content.js inject() so the
-     panel lands near the bottom-right of the viewport on first render.
-     Anchoring via left/top (instead of right/bottom) lets the
-     bottom-right `resize: both` handle grow the panel rightward and
-     downward, which is the direction the user is already dragging. */
+  /* Anchor to the right edge of the viewport so vertical resize and drag
+     never push the panel out of reach. `top` is set inline by content.js;
+     `right` is fixed so the resize handle (bottom edge only) stays
+     reachable regardless of viewport width changes. */
+  right: 12px;
   width: 320px;
   height: 280px;
-  min-width: 280px;
-  max-width: 720px;
+  min-height: 200px;
   max-height: 80vh;
   overflow: auto;
-  resize: both;
+  /* Vertical resize only — the dock-and-expand design fixes the X axis. */
+  resize: vertical;
   z-index: 2147483647;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
@@ -29,9 +29,37 @@
 }
 
 .l2a-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-weight: 600;
   font-size: 14px;
   margin-bottom: 8px;
+  color: #111827;
+  cursor: grab;
+  user-select: none;
+}
+
+.l2a-header:active {
+  cursor: grabbing;
+}
+
+.l2a-header-title {
+  flex: 1;
+}
+
+.l2a-close {
+  all: unset;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 6px;
+  color: #6b7280;
+  border-radius: 4px;
+}
+
+.l2a-close:hover {
+  background: #f3f4f6;
   color: #111827;
 }
 
@@ -203,4 +231,33 @@
   font-size: 11px;
   padding: 4px 8px;
   flex: initial;
+}
+
+/* ---------- Pill (collapsed state) ----------
+   Docked flush on the right edge of the viewport. `top` is set inline by
+   content.js and shares the same vertical position as the panel. The
+   left side is rounded so the pill reads as a tab pulled out from the
+   edge; the right side is square so it sits flush with the viewport. */
+.l2a-pill {
+  all: initial;
+  position: fixed;
+  right: 0;
+  width: 32px;
+  height: 56px;
+  z-index: 2147483647;
+  background-color: #ffffff;
+  background-image: url(icon.png);
+  background-size: 22px 22px;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 1px solid #d1d5db;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -2px 2px 8px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: transform 80ms ease-out;
+}
+
+.l2a-pill:hover {
+  transform: translateX(-2px);
 }

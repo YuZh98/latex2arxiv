@@ -89,8 +89,15 @@ test("web_accessible_resources is absent (no page-facing surface)", () => {
   );
 });
 
-test("manifest version is 0.1.6", () => {
-  assert.equal(manifest.version, "0.1.6");
+test("manifest version is 0.1.7", () => {
+  assert.equal(manifest.version, "0.1.7");
+});
+
+test("content script loads pure helpers before content.js", () => {
+  // lib/ui-pure.js defines globalThis.l2aPure used by content.js. Order
+  // matters: ui-pure.js must come first so the helpers exist when
+  // content.js runs at document_idle.
+  assert.deepEqual(manifest.content_scripts[0].js, ["lib/ui-pure.js", "content.js"]);
 });
 
 test("extension_pages CSP allows WebAssembly via 'wasm-unsafe-eval'", () => {
