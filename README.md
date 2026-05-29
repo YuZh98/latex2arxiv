@@ -7,7 +7,7 @@
 [![Tests](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml/badge.svg)](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml)
 
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew&logoColor=white)](https://github.com/YuZh98/homebrew-latex2arxiv)
-[![VS Code](https://img.shields.io/visual-studio-marketplace/v/YuZh98.latex2arxiv?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
+[![VS Code](https://vsmarketplacebadges.dev/version-short/YuZh98.latex2arxiv.svg?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
 [![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](docs/mcp.md)
 <!-- UPDATE on CWS approval: replace with the Chrome Web Store badge -->
 [![Chrome extension](https://img.shields.io/badge/Chrome%20extension-in%20review-orange?logo=googlechrome&logoColor=white)](browser-extension/)
