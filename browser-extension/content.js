@@ -58,13 +58,32 @@ function setStatus(panel, text, kind = "info") {
   s.dataset.kind = kind;
 }
 
-function renderGuide(panel, guideText, suggestedFilename) {
+function renderGuide(panel, mode, guideText, suggestedFilename, guideRequested) {
   const box = panel.querySelector(".l2a-guide");
   box.innerHTML = "";
-  if (!guideText) return;
-  const details = el("details", { class: "l2a-guide-details" });
-  details.append(el("summary", {}, "arXiv upload guide"));
-  details.append(el("pre", { class: "l2a-guide-pre" }, guideText));
+  // Validate is a dry run; the guide is only written in Clean. Surface the
+  // mismatch directly so a user who checked the box does not silently get
+  // nothing back.
+  if (mode === "validate" && guideRequested) {
+    box.append(
+      el(
+        "div",
+        { class: "l2a-guide-note" },
+        "Upload guide is only generated in Clean for arXiv — run that to produce it.",
+      ),
+    );
+    return;
+  }
+  // Local guard: render the ready row only when the user actually asked
+  // for the guide. Today guideText is null when guideRequested is false
+  // (the worker gates the MEMFS read on options.guide), but this keeps the
+  // UI correct even if that gate is loosened elsewhere.
+  if (!guideText || !guideRequested) return;
+  // Prominent ready row so the guide is not missed below the summary line.
+  // The Save button is the primary affordance; "View" expands the text for
+  // users who want to read before saving.
+  const ready = el("div", { class: "l2a-guide-ready" });
+  ready.append(el("span", { class: "l2a-guide-ready-label" }, "✓ Upload guide ready"));
   const saveBtn = el(
     "button",
     {
@@ -85,7 +104,11 @@ function renderGuide(panel, guideText, suggestedFilename) {
     },
     "Save as .txt",
   );
-  details.append(saveBtn);
+  ready.append(saveBtn);
+  box.append(ready);
+  const details = el("details", { class: "l2a-guide-details" });
+  details.append(el("summary", {}, "View guide text"));
+  details.append(el("pre", { class: "l2a-guide-pre" }, guideText));
   box.append(details);
 }
 
@@ -137,7 +160,7 @@ async function run({ mode, options, panel }) {
 
     renderDiagnostics(panel, result.diagnostics);
     renderSummary(panel, mode, result.summary, result.mainTex);
-    renderGuide(panel, result.guideText, suggestedFilename);
+    renderGuide(panel, mode, result.guideText, suggestedFilename, !!options.guide);
     setStatus(panel, pure.statusLineDone(mode, !!result.downloadDispatched), "ok");
   } catch (err) {
     console.error("latex2arxiv run failed:", err);
