@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BG_SRC = fs.readFileSync(path.resolve(__dirname, "..", "background.js"), "utf-8");
 const CS_SRC = fs.readFileSync(path.resolve(__dirname, "..", "content.js"), "utf-8");
+const CSS_SRC = fs.readFileSync(path.resolve(__dirname, "..", "panel.css"), "utf-8");
 
 test("background.js does NOT call chrome.storage.session.setAccessLevel", () => {
   assert.doesNotMatch(
@@ -56,13 +57,33 @@ test("content.js writes UI_STATE_KEY to chrome.storage.local (not session)", () 
   );
 });
 
-test("background.js still references chrome.storage.session for the revoke handshake", () => {
+test(".l2a-panel declares box-sizing: border-box AFTER all: initial", () => {
+  // `all: initial` resets box-sizing to its initial value (content-box). A
+  // subsequent `box-sizing: border-box` in the same rule overrides the
+  // reset. If `box-sizing` is removed or reordered above `all: initial`,
+  // the panel reverts to content-box; ResizeObserver reads offsetHeight
+  // (border-box) and showActive writes style.height (content-box), and
+  // the stored uiState.height drifts +26px (padding 24 + border 2) per
+  // reload until max-height clamps it.
+  const panelRule = CSS_SRC.match(/\.l2a-panel\s*\{([^}]*)\}/);
+  assert.ok(panelRule, ".l2a-panel rule must exist in panel.css");
+  const body = panelRule[1];
+  const idxAll = body.indexOf("all: initial");
+  const idxBB = body.indexOf("box-sizing: border-box");
+  assert.ok(idxAll !== -1, ".l2a-panel must declare `all: initial`");
+  assert.ok(idxBB !== -1, ".l2a-panel must declare `box-sizing: border-box`");
+  assert.ok(idxBB > idxAll, "`box-sizing: border-box` must come AFTER `all: initial` in .l2a-panel");
+});
+
+test("background.js still calls chrome.storage.session for the revoke handshake", () => {
   // Sanity: removing setAccessLevel must not accidentally also remove the
   // SW-internal revoke storage; that still lives in chrome.storage.session
-  // (now SW-private at default TRUSTED_CONTEXTS).
+  // (now SW-private at default TRUSTED_CONTEXTS). The pattern requires a
+  // functional call (`.get`/`.set`/`.remove(`) — a bare reference like a
+  // comment would otherwise satisfy the assertion.
   assert.match(
     BG_SRC,
-    /chrome\.storage\.session/,
-    "background.js still owns chrome.storage.session for the download-revoke handshake.",
+    /chrome\.storage\.session\.(get|set|remove)\s*[:(]/,
+    "background.js must still call chrome.storage.session.{get,set,remove} for the download-revoke handshake.",
   );
 });
