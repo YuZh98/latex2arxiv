@@ -70,6 +70,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
               sendResponse({
                 diagnostics: result.diagnostics,
                 mainTex: result.mainTex,
+              summary: result.summary,
                 downloadDispatched: false,
                 error: lastError && lastError.message,
               });
@@ -79,6 +80,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             sendResponse({
               diagnostics: result.diagnostics,
               mainTex: result.mainTex,
+              summary: result.summary,
               downloadDispatched: true,
             });
           },
@@ -89,6 +91,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({
         diagnostics: result.diagnostics,
         mainTex: result.mainTex,
+        summary: result.summary,
         downloadDispatched: false,
       });
     } catch (err) {

@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.3] - 2026-05-28
+
+### Added
+- Main .tex (override) field under Advanced — for projects where the auto-detect heuristic picks the wrong candidate
+- Cleanup summary line under each run: main file, kept count, removed count, and (after Clean) input → output size
+- Hover tooltips on every panel control
+
+### Changed
+- Panel is resizable by the bottom-right corner (with sane min and max bounds)
+- A "main not found" error from the pipeline now points the user back to the Main .tex (override) field instead of surfacing as a generic failure
+
 ## [browser-extension 0.1.2] - 2026-05-28
 
 ### Fixed

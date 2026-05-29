@@ -85,6 +85,7 @@ async function runPipeline({ requestId, mode, options, zipBytes }) {
   let diagnostics;
   let mainTex = null;
   let outputZip = null;
+  let summary = null;
   try {
     const payloadJson = pyodide.runPython(PY_RUN);
     const parsed = JSON.parse(payloadJson);
@@ -93,6 +94,13 @@ async function runPipeline({ requestId, mode, options, zipBytes }) {
       ...parsed.errors.map((m) => ({ severity: "error", message: m, location: null })),
       ...parsed.warnings.map((m) => ({ severity: "warn", message: m, location: null })),
     ];
+    summary = {
+      keptCount: parsed.kept_count,
+      removedCount: parsed.removed_count,
+      sizesInputBytes: parsed.sizes_input_bytes,
+      sizesOutputBytes: parsed.sizes_output_bytes,
+      sizesUncompressedBytes: parsed.sizes_uncompressed_bytes,
+    };
 
     if (mode === "clean") {
       try {
@@ -125,7 +133,7 @@ async function runPipeline({ requestId, mode, options, zipBytes }) {
 
   const transfer = outputZip ? [outputZip.buffer] : [];
   self.postMessage(
-    { requestId, result: { diagnostics, outputZip, mainTex } },
+    { requestId, result: { diagnostics, outputZip, mainTex, summary } },
     transfer,
   );
 }

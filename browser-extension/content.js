@@ -46,6 +46,34 @@ function setStatus(panel, text, kind = "info") {
   s.dataset.kind = kind;
 }
 
+function formatBytes(n) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return null;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function renderSummary(panel, mode, summary, mainTex) {
+  const box = panel.querySelector(".l2a-summary");
+  box.innerHTML = "";
+  if (!summary) return;
+  const parts = [];
+  if (mainTex) parts.push(`main: ${mainTex}`);
+  if (typeof summary.keptCount === "number") parts.push(`${summary.keptCount} kept`);
+  if (typeof summary.removedCount === "number") parts.push(`${summary.removedCount} removed`);
+  // In validate mode sizes_output_bytes is undefined; only the input + the
+  // uncompressed total are meaningful. Skip any undefined / NaN values so the
+  // panel never shows "NaN MB".
+  const inSize = formatBytes(summary.sizesInputBytes);
+  const outSize = formatBytes(summary.sizesOutputBytes);
+  if (mode === "clean" && inSize && outSize) {
+    parts.push(`${inSize} → ${outSize}`);
+  } else if (inSize) {
+    parts.push(`input ${inSize}`);
+  }
+  box.append(el("div", { class: "l2a-summary-line" }, parts.join(" · ")));
+}
+
 async function run({ mode, options, panel }) {
   try {
     // Read projectId at call time, not at panel-build time, so SPA navigation
@@ -57,6 +85,7 @@ async function run({ mode, options, panel }) {
     }
 
     setStatus(panel, mode === "validate" ? "Validating…" : "Cleaning…", "info");
+    panel.querySelector(".l2a-summary").innerHTML = "";
 
     // The offscreen document is spun up on demand by the service worker;
     // the round-trip below covers spawn (first run only, ~10-30s while Pyodide
@@ -74,17 +103,29 @@ async function run({ mode, options, panel }) {
     }
 
     renderDiagnostics(panel, result.diagnostics);
+    renderSummary(panel, mode, result.summary, result.mainTex);
     if (mode === "clean" && result.downloadDispatched) {
       setStatus(panel, "Done. Choose where to save…", "ok");
     } else {
       setStatus(panel, "Done.", "ok");
     }
   } catch (err) {
-    // Surface a short message to the page; log the full exception (which may
-    // include Pyodide tracebacks with /tmp/... paths) to the extension console
-    // so a developer can still diagnose.
     console.error("latex2arxiv run failed:", err);
-    const shortMsg = (err && err.message ? String(err.message) : String(err)).split("\n")[0].slice(0, 200);
+    const rawMsg = err && err.message ? String(err.message) : String(err);
+    // Typed branch: the pipeline raises this exact message when --main does
+    // not match any .tex in the archive. Point the user back to the field
+    // they just typed rather than surfacing a generic failure.
+    panel.querySelector(".l2a-summary").innerHTML = "";
+    const mainMissing = rawMsg.match(/--main '([^']+)' not found in archive/);
+    if (mainMissing) {
+      setStatus(
+        panel,
+        `Main file '${mainMissing[1]}' not found in your project. Check the Main .tex (override) field under Advanced.`,
+        "err",
+      );
+      return;
+    }
+    const shortMsg = rawMsg.split("\n")[0].slice(0, 200);
     setStatus(panel, `Failed: ${shortMsg}`, "err");
   }
 }
@@ -96,18 +137,48 @@ function buildPanel() {
 
   const form = el("div", { class: "l2a-form" });
   form.append(el("label", {}, "Output filename"));
-  form.append(el("input", { type: "text", class: "l2a-filename", value: "paper-arxiv.zip" }));
+  form.append(
+    el("input", {
+      type: "text",
+      class: "l2a-filename",
+      value: "paper-arxiv.zip",
+      title: "Suggested filename for the cleaned output. Chrome will still show a Save As dialog.",
+    }),
+  );
 
-  for (const [name, label] of [
-    ["flatten", "Flatten \\input / \\subfile into one .tex"],
-    ["resize", "Resize images (longest side ≤ 1600 px)"],
-    ["guide", "Write arXiv upload guide (.txt)"],
-  ]) {
-    const lab = el("label", { class: "l2a-check" });
+  const checkboxes = [
+    ["flatten", "Flatten \\input / \\subfile into one .tex", "Inline every \\input/\\include/\\subfile into the main .tex so the submission ships a single source file."],
+    ["resize", "Resize images (longest side ≤ 1600 px)", "Downscale every raster image so its longest side is at most 1600 px. Skips already-small images."],
+    ["guide", "Write arXiv upload guide (.txt)", "Generate a short text guide summarising what to expect on arXiv."],
+  ];
+  for (const [name, label, hint] of checkboxes) {
+    const lab = el("label", { class: "l2a-check", title: hint });
     lab.append(el("input", { type: "checkbox", "data-opt": name }));
     lab.append(label);
     form.append(lab);
   }
+
+  // Advanced disclosure — discoverable to the user who needs an override,
+  // invisible to the 90% case where auto-detect works.
+  const advanced = el("details", { class: "l2a-advanced" });
+  advanced.append(el("summary", {}, "Advanced"));
+  advanced.append(
+    el(
+      "div",
+      { class: "l2a-hint" },
+      "Override auto-detected main .tex if needed (e.g. when two candidates share the same name pattern).",
+    ),
+  );
+  advanced.append(el("label", {}, "Main .tex (override)"));
+  advanced.append(
+    el("input", {
+      type: "text",
+      class: "l2a-main",
+      placeholder: "leave blank to auto-detect",
+      title: "Filename only, no path. Example: main_bj.tex. Leave blank to use the heuristic that picks the .tex file containing \\documentclass.",
+    }),
+  );
+  form.append(advanced);
 
   panel.append(form);
 
@@ -118,6 +189,9 @@ function buildPanel() {
     for (const cb of panel.querySelectorAll(".l2a-check input")) {
       opts[cb.getAttribute("data-opt")] = cb.checked;
     }
+    const mainInput = panel.querySelector(".l2a-main");
+    const mainValue = mainInput ? mainInput.value.trim() : "";
+    if (mainValue) opts.main = mainValue;
     return opts;
   }
 
@@ -126,6 +200,7 @@ function buildPanel() {
       "button",
       {
         class: "l2a-btn l2a-btn-primary",
+        title: "Run the full pipeline, then download the cleaned, arXiv-ready zip.",
         onclick: () => run({ mode: "clean", options: collectOptions(), panel }),
       },
       "Clean for arXiv",
@@ -136,6 +211,7 @@ function buildPanel() {
       "button",
       {
         class: "l2a-btn",
+        title: "Dry-run: show diagnostics without producing or downloading any output.",
         onclick: () => run({ mode: "validate", options: collectOptions(), panel }),
       },
       "Just validate",
@@ -144,6 +220,7 @@ function buildPanel() {
   panel.append(buttons);
 
   panel.append(el("div", { class: "l2a-status" }, "Ready."));
+  panel.append(el("div", { class: "l2a-summary" }));
   panel.append(el("div", { class: "l2a-diagnostics" }));
 
   return panel;
