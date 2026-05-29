@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.9] - 2026-05-29
+
+### Fixed
+- A click after an extension reload or auto-update no longer surfaces the opaque "Extension context invalidated" error; the panel now shows a clear instruction to refresh the Overleaf tab, both pre-flight (when `chrome.runtime.id` is missing) and as a catch-block backstop for the race where the context dies mid-flight
+
 ## [browser-extension 0.1.8] - 2026-05-29
 
 ### Fixed
