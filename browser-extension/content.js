@@ -120,6 +120,24 @@ async function run({ mode, options, panel }) {
       return;
     }
 
+    // Normalize + validate the main override. Pipeline matches p.name exactly,
+    // so a path separator is unreachable and a non-.tex extension fails
+    // confusingly. Bail with a clear panel error instead.
+    if (options.main) {
+      if (/[\\/]/.test(options.main)) {
+        setStatus(panel, "Main .tex must be a filename only, not a path.", "err");
+        return;
+      }
+      // Auto-append `.tex` only when the value has no other extension.
+      // `/\.[^./\\]+$/` matches "dot followed by at least one non-dot
+      // non-slash character at end of string" — covers `.tex`, `.bak`,
+      // `O'Brien.tex`. The path-separator check above guarantees we never
+      // see a `/` or `\` in the trailing position here.
+      if (!/\.[^./\\]+$/.test(options.main)) {
+        options.main = options.main + ".tex";
+      }
+    }
+
     setStatus(panel, mode === "validate" ? "Validating…" : "Cleaning…", "info");
     panel.querySelector(".l2a-summary").innerHTML = "";
     panel.querySelector(".l2a-guide").innerHTML = "";
@@ -153,8 +171,6 @@ async function run({ mode, options, panel }) {
     // Typed branch: the pipeline raises this exact message when --main does
     // not match any .tex in the archive. Point the user back to the field
     // they just typed rather than surfacing a generic failure.
-    panel.querySelector(".l2a-summary").innerHTML = "";
-    panel.querySelector(".l2a-guide").innerHTML = "";
     const mainMissing = rawMsg.match(/--main '([^']+)' not found in archive/);
     if (mainMissing) {
       setStatus(
@@ -241,16 +257,8 @@ function buildPanel() {
       opts[cb.getAttribute("data-opt")] = cb.checked;
     }
     const mainInput = panel.querySelector(".l2a-main");
-    let mainValue = mainInput ? mainInput.value.trim() : "";
-    if (mainValue) {
-      // The pipeline matches main_hint against p.name exactly. Users who type
-      // 'main_bj' almost certainly mean 'main_bj.tex'; appending the suffix
-      // when missing turns a friction-y typo into the intended behavior.
-      // Case stays as the user typed it — the pipeline is case-sensitive and
-      // we preserve parity with the CLI's --main flag.
-      if (!/\.tex$/i.test(mainValue)) mainValue += ".tex";
-      opts.main = mainValue;
-    }
+    const mainValue = mainInput ? mainInput.value.trim() : "";
+    if (mainValue) opts.main = mainValue;
     return opts;
   }
 
@@ -286,11 +294,6 @@ function buildPanel() {
   return panel;
 }
 
-// Initial panel size used to compute the bottom-right landing position.
-// Kept in sync with the width/height declared in panel.css; if those change,
-// update here too so the first-paint position is right.
-const PANEL_INIT_WIDTH = 320;
-const PANEL_INIT_HEIGHT = 280;
 const PANEL_VIEWPORT_MARGIN = 12;
 
 function inject() {
@@ -299,16 +302,37 @@ function inject() {
   const host = document.body;
   if (!host) return;
   const panel = buildPanel();
-  // Anchor by left/top instead of right/bottom so the bottom-right
-  // `resize: both` handle pulls those edges outward in the natural
-  // direction. The panel still lands near the bottom-right corner of the
-  // viewport on first render.
-  const left = Math.max(PANEL_VIEWPORT_MARGIN, window.innerWidth - PANEL_INIT_WIDTH - PANEL_VIEWPORT_MARGIN);
-  const top = Math.max(PANEL_VIEWPORT_MARGIN, window.innerHeight - PANEL_INIT_HEIGHT - PANEL_VIEWPORT_MARGIN);
-  panel.style.left = `${left}px`;
-  panel.style.top = `${top}px`;
+  // Park off-screen before append to prevent a one-frame flash at the
+  // document-flow position; position is corrected via getBoundingClientRect below.
+  panel.style.left = "-10000px";
+  panel.style.top = "0";
   host.append(panel);
+  // Read the real rendered size (includes padding + border) after append.
+  // Anchor by left/top so the bottom-right `resize: both` handle pulls
+  // those edges outward in the natural direction.
+  const rect = panel.getBoundingClientRect();
+  const left = Math.max(PANEL_VIEWPORT_MARGIN, window.innerWidth - rect.width - PANEL_VIEWPORT_MARGIN);
+  const top = Math.max(PANEL_VIEWPORT_MARGIN, window.innerHeight - rect.height - PANEL_VIEWPORT_MARGIN);
+  panel.style.left = left + "px";
+  panel.style.top = top + "px";
 }
+
+function clampPanelToViewport() {
+  const panel = document.querySelector(".l2a-panel");
+  if (!panel) return;
+  const rect = panel.getBoundingClientRect();
+  // Prefer shifting inward over shrinking; only shrink if panel is larger than viewport.
+  if (rect.right > window.innerWidth - PANEL_VIEWPORT_MARGIN) {
+    panel.style.left = Math.max(PANEL_VIEWPORT_MARGIN, window.innerWidth - rect.width - PANEL_VIEWPORT_MARGIN) + "px";
+  }
+  if (rect.bottom > window.innerHeight - PANEL_VIEWPORT_MARGIN) {
+    panel.style.top = Math.max(PANEL_VIEWPORT_MARGIN, window.innerHeight - rect.height - PANEL_VIEWPORT_MARGIN) + "px";
+  }
+}
+
+// Register once at module load — one content-script load per tab means
+// exactly one resize listener per tab, no once-flag needed.
+window.addEventListener("resize", clampPanelToViewport);
 
 if (document.readyState === "complete" || document.readyState === "interactive") {
   inject();

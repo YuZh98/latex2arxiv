@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.6] - 2026-05-29
+
+### Fixed
+- Panel landed 14px past the bottom of the viewport on first render; position now computed from the real rendered size including padding and border
+- Panel could stay outside the viewport after a window resize; it now clamps back inside
+- Main override accepted path separators that the pipeline can never match; reject with a clear in-panel error
+- `.tex` auto-append no longer mangles values that already carry a different extension (e.g. `main.tex.bak` now passes through unchanged)
+
 ## [browser-extension 0.1.5] - 2026-05-28
 
 ### Changed
