@@ -74,7 +74,11 @@ function renderGuide(panel, mode, guideText, suggestedFilename, guideRequested) 
     );
     return;
   }
-  if (!guideText) return;
+  // Local guard: render the ready row only when the user actually asked
+  // for the guide. Today guideText is null when guideRequested is false
+  // (the worker gates the MEMFS read on options.guide), but this keeps the
+  // UI correct even if that gate is loosened elsewhere.
+  if (!guideText || !guideRequested) return;
   // Prominent ready row so the guide is not missed below the summary line.
   // The Save button is the primary affordance; "View" expands the text for
   // users who want to read before saving.
