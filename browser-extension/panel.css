@@ -166,3 +166,37 @@
   background: #f3f4f6;
   border-radius: 3px;
 }
+
+.l2a-guide {
+  margin-top: 8px;
+}
+
+.l2a-guide-details summary {
+  font-size: 12px;
+  color: #4b5563;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.l2a-guide-pre {
+  margin: 6px 0;
+  padding: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #111827;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.l2a-guide-save {
+  margin-top: 4px;
+  font-size: 11px;
+  padding: 4px 8px;
+  flex: initial;
+}

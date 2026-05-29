@@ -86,6 +86,7 @@ async function runPipeline({ requestId, mode, options, zipBytes }) {
   let mainTex = null;
   let outputZip = null;
   let summary = null;
+  let guideText = null;
   try {
     const payloadJson = pyodide.runPython(PY_RUN);
     const parsed = JSON.parse(payloadJson);
@@ -113,13 +114,25 @@ async function runPipeline({ requestId, mode, options, zipBytes }) {
         // convert() aborted before writing the zip; diagnostics already explain.
         outputZip = null;
       }
+      if (options && options.guide) {
+        try {
+          // The converter writes the guide alongside the output zip at
+          // <stem>_UPLOAD_GUIDE.txt; with our fixed output path that is
+          // /tmp/output_UPLOAD_GUIDE.txt. Read as UTF-8 text — the file is
+          // small (a few KB), so passing the string through chrome.runtime
+          // is cheaper than dispatching a second download.
+          guideText = pyodide.FS.readFile("/tmp/output_UPLOAD_GUIDE.txt", { encoding: "utf8" });
+        } catch (_) {
+          guideText = null;
+        }
+      }
     }
   } finally {
     // Run cleanup whether convert() threw or returned, so a second click
     // starts from a known state. (Only clears the two paths we wrote;
     // converter.convert() uses tempfile.TemporaryDirectory internally for
     // anything else, which it cleans up itself.)
-    for (const p of ["/tmp/input.zip", "/tmp/output.zip"]) {
+    for (const p of ["/tmp/input.zip", "/tmp/output.zip", "/tmp/output_UPLOAD_GUIDE.txt"]) {
       try {
         pyodide.FS.unlink(p);
       } catch (_) {}
@@ -133,7 +146,7 @@ async function runPipeline({ requestId, mode, options, zipBytes }) {
 
   const transfer = outputZip ? [outputZip.buffer] : [];
   self.postMessage(
-    { requestId, result: { diagnostics, outputZip, mainTex, summary } },
+    { requestId, result: { diagnostics, outputZip, mainTex, summary, guideText } },
     transfer,
   );
 }
