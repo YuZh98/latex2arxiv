@@ -6,8 +6,7 @@
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew&logoColor=white)](https://github.com/YuZh98/homebrew-latex2arxiv)
 [![VS Code](https://vsmarketplacebadges.dev/version-short/YuZh98.latex2arxiv.svg?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
 [![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](docs/mcp.md)
-<!-- UPDATE on CWS approval: replace with the Chrome Web Store badge -->
-[![Chrome extension](https://img.shields.io/badge/Chrome%20extension-in%20review-orange?logo=googlechrome&logoColor=white)](browser-extension/)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/oeaoajmhcmlgdbeacnpkcofodekkpeab?label=Chrome&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab)
 
 **Submit to arXiv without the headache. One command cleans your project, catches rejection-causing errors, and walks you through the upload.**
 
@@ -19,7 +18,7 @@
 | Drive it from Claude / Cursor / Copilot / Windsurf / Zed | `pip install "latex2arxiv[mcp]"` · MCP server · [setup](docs/mcp.md) | Available |
 | Gate a paper repo in CI | `pip install latex2arxiv && latex2arxiv paper.zip --dry-run` · [`action.yml`](docs/ci.md) · `pre-commit` hook | Available |
 | One-click from VS Code | [`ext install YuZh98.latex2arxiv`](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv) | Available |
-| Clean and submit from inside Overleaf | Chrome extension · [source](browser-extension/) | <!-- UPDATE on CWS approval -->In Chrome Web Store review |
+| Clean and submit from inside Overleaf | [Chrome Web Store](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab) · [source](browser-extension/) | Available |
 
 ```bash
 latex2arxiv paper.zip --compile          # clean + verify PDF
@@ -134,7 +133,7 @@ The same Python pipeline runs in all five. Pick what fits.
 Full flag surface, fastest path. `latex2arxiv paper.zip --compile --guide`. Installs via `pip` or `brew` ([details below](#installation)).
 
 ### Chrome extension — Overleaf
-"Clean for arXiv" button inside the editor. Runs in an offscreen Pyodide worker; project bytes never leave your browser. <!-- UPDATE on CWS approval -->In Chrome Web Store review. Source: [`browser-extension/`](browser-extension/).
+"Clean for arXiv" button inside the editor. Runs in an offscreen Pyodide worker; project bytes never leave your browser. Get it on the [Chrome Web Store](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab). Source: [`browser-extension/`](browser-extension/).
 
 ### MCP — Claude, Cursor, Copilot, Windsurf, Zed
 ```bash
