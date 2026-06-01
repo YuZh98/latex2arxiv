@@ -12,16 +12,16 @@
 
 ## Who is this for?
 
-**You write in Overleaf and you're heading to arXiv.** Two ways in:
+**You have a LaTeX paper heading to arXiv.** Two ways in:
 
-- **No install — clean it in the browser.** The [Chrome extension](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab) adds a "Clean for arXiv" button right inside the Overleaf editor. Your project never leaves your browser ([how privacy works](browser-extension/PRIVACY.md)).
 - **Comfortable in a terminal?** `pip install latex2arxiv` — one command cleans, checks, and packages your paper.
+- **Use Overleaf?** The [Chrome extension](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab) adds a "Clean for arXiv" button right inside the editor — zero install, project never leaves your browser ([how privacy works](browser-extension/PRIVACY.md)).
 
 **First time submitting to arXiv?** Your paper compiles fine locally, yet arXiv can still reject it for reasons nobody warned you about — shell-escape packages, a missing `.bbl`, oversized figures. latex2arxiv catches those *before* you upload and writes a copy-paste-ready walkthrough of the submission form.
 
 > Your original project is never modified — all output goes to a new `_arxiv.zip`.
 
-## Quickstart — Overleaf to arXiv in 3 steps
+## Quickstart
 
 1. **In Overleaf:** **Menu → Download → Source** saves `my_project.zip`.
 2. **Clean and verify:**
