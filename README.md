@@ -135,6 +135,10 @@ Full flag surface, fastest path. `latex2arxiv paper.zip --compile --guide`. Inst
 ### Chrome extension — Overleaf
 "Clean for arXiv" button inside the editor. Runs in an offscreen Pyodide worker; project bytes never leave your browser. Get it on the [Chrome Web Store](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab). Source: [`browser-extension/`](browser-extension/).
 
+| Validate | Clean for arXiv | Collapse |
+|---|---|---|
+| ![Validate run listing arXiv diagnostics](browser-extension/screenshots/cws/setup1-1280.png) | ![Clean run with the upload guide ready](browser-extension/screenshots/cws/setup2-1280.png) | ![Panel collapsed to a pill on the editor edge](browser-extension/screenshots/cws/setup3-1280.png) |
+
 ### MCP — Claude, Cursor, Copilot, Windsurf, Zed
 ```bash
 pip install "latex2arxiv[mcp]"
@@ -270,40 +274,9 @@ replacements:
 
 The brace-balanced matcher correctly handles nested commands like `\deleted{see \cite{x}}`. Unknown top-level keys warn — typos like `command_to_delete` (singular) no longer silently no-op.
 
-## `latex2arxiv` vs. `arxiv_latex_cleaner`
+## Image size reduction
 
-[`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner) is the incumbent — Google-backed, mature, cleans well. Here's how the two compare on the things that change your workflow.
-
-### What only `latex2arxiv` does
-
-| | `latex2arxiv` | `arxiv_latex_cleaner` |
-|---|---|---|
-| **Pre-flight `[error]` / `[warn]`** ([details](#pre-flight-checks)) | ✅ | ❌ |
-| **Upload walkthrough** (`--guide`) | ✅ | ❌ |
-| **Non-zero exit on errors** (CI-gateable) | ✅ | ❌ |
-| **Outputs the `.zip` you upload** | ✅ | ❌ |
-| **MCP server** (Claude / Cursor / Copilot / Windsurf / Zed) | ✅ | ❌ |
-| **GitHub Action + `pre-commit` hook** | ✅ | ❌ |
-| **VS Code extension** | ✅ | ❌ |
-| **Multiple input forms** (`.zip` / directory / git URL) | ✅ | ❌ |
-| `--compile` preview | ✅ | ❌ |
-| `--dry-run` | ✅ | ❌ |
-| `--demo` | ✅ | ❌ |
-| Auto-detect main `.tex` | ✅ | ❌ |
-| Brace-balanced config | ✅ | ❌ |
-
-### What only `arxiv_latex_cleaner` does
-
-| | `latex2arxiv` | `arxiv_latex_cleaner` |
-|---|---|---|
-| PDF compression (Ghostscript) | ❌ | ✅ |
-| PNG → JPG conversion | ❌ | ✅ |
-
-If you need image transcoding for size, run `arxiv_latex_cleaner` first, or use `latex2arxiv --resize PX`.
-
-### Both do
-
-BibTeX normalization · image resizing (Pillow).
+latex2arxiv covers cleaning, pre-flight validation, and producing the upload-ready `.zip`. For aggressive image transcoding it pairs cleanly with [`arxiv_latex_cleaner`](https://github.com/google-research/arxiv-latex-cleaner), which adds PDF compression (Ghostscript) and PNG → JPG conversion — run it first, then latex2arxiv. Or stay in one tool with the built-in `latex2arxiv --resize PX`.
 
 ## Known limitations
 
