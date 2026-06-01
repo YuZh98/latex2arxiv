@@ -10,35 +10,30 @@
 
 **Submit to arXiv without the headache. One command cleans your project, catches rejection-causing errors, and walks you through the upload.**
 
-## Pick your surface
+## Who is this for?
 
-| You want to… | Install | Status |
-|---|---|---|
-| Run the full pipeline in your terminal | `pip install latex2arxiv` · or `brew tap YuZh98/latex2arxiv && brew install latex2arxiv` | Available |
-| Drive it from Claude / Cursor / Copilot / Windsurf / Zed | `pip install "latex2arxiv[mcp]"` · MCP server · [setup](docs/mcp.md) | Available |
-| Gate a paper repo in CI | `pip install latex2arxiv && latex2arxiv paper.zip --dry-run` · [`action.yml`](docs/ci.md) · `pre-commit` hook | Available |
-| One-click from VS Code | [`ext install YuZh98.latex2arxiv`](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv) | Available |
-| Clean and submit from inside Overleaf | [Chrome Web Store](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab) · [source](browser-extension/) | Available |
+**You write in Overleaf and you're heading to arXiv.** Two ways in:
 
-```bash
-latex2arxiv paper.zip --compile          # clean + verify PDF
-latex2arxiv paper.zip --compile --guide  # + step-by-step upload instructions
-latex2arxiv paper/ --compile             # directory input
-latex2arxiv https://github.com/u/p.git   # git URL input
-```
+- **No install — clean it in the browser.** The [Chrome extension](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab) adds a "Clean for arXiv" button right inside the Overleaf editor. Your project never leaves your browser ([how privacy works](browser-extension/PRIVACY.md)).
+- **Comfortable in a terminal?** `pip install latex2arxiv` — one command cleans, checks, and packages your paper.
 
-> Your original project is never modified. All output goes to a new `_arxiv.zip` file.
+**First time submitting to arXiv?** Your paper compiles fine locally, yet arXiv can still reject it for reasons nobody warned you about — shell-escape packages, a missing `.bbl`, oversized figures. latex2arxiv catches those *before* you upload and writes a copy-paste-ready walkthrough of the submission form.
 
-Try the built-in demo:
+> Your original project is never modified — all output goes to a new `_arxiv.zip`.
 
-```bash
-pip install latex2arxiv
-latex2arxiv --demo --compile --guide
-```
+## Quickstart — Overleaf to arXiv in 3 steps
 
-Clean up demo output when you're done: `latex2arxiv --clean-demo`
+1. **In Overleaf:** **Menu → Download → Source** saves `my_project.zip`.
+2. **Clean and verify:**
+   ```bash
+   pip install latex2arxiv
+   latex2arxiv my_project.zip --compile --guide
+   ```
+3. **Upload:** a new `my_project_arxiv.zip` appears next to the input — upload it at [arxiv.org/submit](https://arxiv.org/submit). The `--guide` text file walks you through every field on the form.
 
-This processes a bundled self-documenting paper, opens the cleaned PDF, and writes a step-by-step arXiv upload guide with copy-paste-ready metadata. The cleaned demo's PDF is attached to every [GitHub Release](https://github.com/YuZh98/latex2arxiv/releases/latest) as `demo_project_arxiv.pdf`.
+New to the terminal? The [step-by-step Overleaf → arXiv guide](docs/overleaf.md) covers opening a terminal, `PATH` fixes, and git-synced projects. Prefer zero install? The [Chrome extension](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab) does the same from inside Overleaf. Want to see it work first? Try the built-in demo — no file needed: `latex2arxiv --demo --compile --guide`.
+
+**Also useful for:** gating a paper repo in CI (`latex2arxiv paper.zip --dry-run` exits non-zero on errors) and stripping revision markup like `\added{}` / `\textcolor{red}{}` ([custom rules →](#custom-removal-rules---config)).
 
 ## Before / After
 
@@ -59,18 +54,6 @@ On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)
 | 📁 jasa_comments/, jasa_revision/ | |
 | ... (and ~930 more) | |
 | **934 files, 80.6 MB** | **40 files, 3.1 MB** |
-
-## Who is this for?
-
-**You write in Overleaf.** Two paths:
-- **Zero install** — the Chrome extension adds a "Clean for arXiv" button right in the editor. Project never leaves your browser.
-- **Already have Python?** `pip install latex2arxiv`, then `latex2arxiv project.zip --compile --guide`. [Overleaf → arXiv quickstart →](docs/overleaf.md)
-
-**You've never submitted to arXiv before.** Your project compiles locally. arXiv might still reject it for reasons nobody warned you about. `latex2arxiv paper.zip --compile --guide` flags the rejection-causing issues and writes you a copy-paste-ready upload walkthrough.
-
-**You're CI-gating a paper repo.** `latex2arxiv paper.zip --dry-run` exits non-zero on rejection-causing errors. Drop it into your build matrix.
-
-**Your paper has revision tracking.** `\added{}`, `\deleted{}`, `\textcolor{red}{}` — gone, no manual cleanup. [Custom removal rules →](#custom-removal-rules---config)
 
 ## What it does
 
