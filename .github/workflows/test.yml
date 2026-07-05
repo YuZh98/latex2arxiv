@@ -72,7 +72,8 @@ jobs:
           grep -F "08-flatten-basic" /tmp/fixture_out.txt | grep -F "✓ clean"
           grep -F "09-flatten-subfile" /tmp/fixture_out.txt | grep -F "✓ clean"
           grep -F "10-multifile-graphicspath" /tmp/fixture_out.txt | grep -F "✓ clean"
-          grep -F "10 fixtures ran" /tmp/fixture_out.txt
+          grep -F "11-biblatex-bbl" /tmp/fixture_out.txt | grep -F "1 warning"
+          grep -F "11 fixtures ran" /tmp/fixture_out.txt
 
   compile-smoke:
     # Live --compile end-to-end test against real TeX Live + biber. Catches
