@@ -3041,3 +3041,203 @@ class TestPreflightV3:
         bib_warns = [w for w in issues.warnings if "biblatex" in w]
         assert bib_warns
         assert "natively" in bib_warns[0]
+
+
+class TestUsesBiblatex:
+    def test_detects_usepackage_with_options(self):
+        from pipeline.deps import uses_biblatex
+
+        assert uses_biblatex([r"\usepackage[backend=biber,style=authoryear]{biblatex}"])
+
+    def test_detects_bare_usepackage(self):
+        from pipeline.deps import uses_biblatex
+
+        assert uses_biblatex([r"\usepackage{biblatex}"])
+
+    def test_detects_in_package_list(self):
+        from pipeline.deps import uses_biblatex
+
+        assert uses_biblatex([r"\usepackage{a,biblatex,b}"])
+
+    def test_detects_addbibresource(self):
+        from pipeline.deps import uses_biblatex
+
+        assert uses_biblatex([r"\addbibresource{refs.bib}"])
+
+    def test_detects_addbibresource_with_options(self):
+        from pipeline.deps import uses_biblatex
+
+        assert uses_biblatex([r"\addbibresource[location=local]{refs.bib}"])
+
+    def test_negative_plain_bibtex(self):
+        from pipeline.deps import uses_biblatex
+
+        assert not uses_biblatex([r"\bibliographystyle{plain}", r"\bibliography{refs}"])
+
+    def test_negative_biblatex_substring(self):
+        from pipeline.deps import uses_biblatex
+
+        assert not uses_biblatex([r"\usepackage{biblatexish}"])
+
+    def test_addbibresource_optional_args_bib_discovery(self):
+        assert find_used_bib_files([r"\addbibresource[location=local]{bib/refs.bib}"]) == {"refs.bib"}
+
+
+class TestFindCitedKeysBiblatex:
+    def _keys(self, src):
+        from pipeline.deps import find_cited_keys
+
+        return find_cited_keys([src])
+
+    def test_autocite(self):
+        assert self._keys(r"\autocite{einstein1905}") == {"einstein1905"}
+
+    def test_parencite_with_notes(self):
+        assert self._keys(r"\parencite[see][p.~5]{knuth}") == {"knuth"}
+
+    def test_textcite_capitalized(self):
+        assert self._keys(r"\Textcite{doe2024}") == {"doe2024"}
+
+    def test_footcite_smartcite_supercite_fullcite(self):
+        assert self._keys(r"\footcite{a} \smartcite{b} \supercite{c} \fullcite{d}") == {"a", "b", "c", "d"}
+
+    def test_multicite(self):
+        assert self._keys(r"\cites{a}{b}{c}") == {"a", "b", "c"}
+
+    def test_multicite_with_notes(self):
+        assert self._keys(r"\autocites[x][y]{a}[z]{b}") == {"a", "b"}
+
+    def test_multicite_global_affixes(self):
+        assert self._keys(r"\cites(pre)(post){a}{b}") == {"a", "b"}
+
+    def test_nocite_key(self):
+        assert self._keys(r"\nocite{hidden2020}") == {"hidden2020"}
+
+    def test_nocite_star_discarded(self):
+        assert self._keys(r"\nocite{*}") == set()
+
+    def test_comma_split_in_single_group(self):
+        assert self._keys(r"\autocite{a, b,c}") == {"a", "b", "c"}
+
+    def test_natbib_regression(self):
+        assert self._keys(r"\citep[e.g.][]{x} \citet*{y} \cite{z}") == {"x", "y", "z"}
+
+    def test_volcite_out_of_scope_no_crash(self):
+        assert self._keys(r"\volcite{2}{key}") == set()
+
+    def test_starred_with_notes(self):
+        assert self._keys(r"\cite*[p.1]{k}") == {"k"}
+
+    def test_following_brace_group_not_swallowed(self):
+        assert self._keys(r"\cite{a} {\bf note}") == {"a"}
+
+
+class TestBiblatexBblAndPreflight:
+    """biblatex .bbl parsing in the undefined-citation check plus the
+    bbl-format-version / backend-mismatch / bundled-sty pre-flight warns."""
+
+    _BBL_33 = "% $ biblatex auxiliary file $\n% $ biblatex bbl format version 3.3 $\n\\entry{einstein1905}{article}{}\n"
+    _BBL_32 = "% $ biblatex auxiliary file $\n% $ biblatex bbl format version 3.2 $\n\\entry{einstein1905}{article}{}\n"
+    _BBL_28 = "% $ biblatex auxiliary file $\n% $ biblatex bbl format version 2.8 $\n\\entry{einstein1905}{article}{}\n"
+    _BBL_BIBTEX = "\\begin{thebibliography}{9}\n\\bibitem{einstein1905} E.\n\\end{thebibliography}\n"
+
+    def _main_tex(self, cites=r"\autocite{einstein1905}"):
+        return (
+            "\\documentclass{article}\n"
+            "\\usepackage[backend=biber]{biblatex}\n"
+            "\\addbibresource{refs.bib}\n"
+            "\\begin{document}\n"
+            f"{cites}\n"
+            "\\printbibliography\n"
+            "\\end{document}\n"
+        )
+
+    def _run(self, files, tmp_path):
+        from converter import convert
+
+        zp = tmp_path / "in.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            for name, content in files.items():
+                zf.writestr(name, content)
+        out = tmp_path / "out.zip"
+        return convert(zp, out, dry_run=True)
+
+    # ── undefined-citation check reads \entry keys ──
+
+    def test_bbl_entry_keys_count_as_defined(self, tmp_path):
+        files = {
+            "main.tex": self._main_tex(r"\autocite{einstein1905} \autocite{missingkey}"),
+            "main.bbl": self._BBL_33,
+        }
+        issues = self._run(files, tmp_path)
+        undef = [w for w in issues.warnings if "undefined citation" in w]
+        assert undef, "expected an undefined-citation warn for missingkey"
+        assert "missingkey" in undef[0]
+        assert "einstein1905" not in undef[0]
+
+    # ── bbl format version ──
+
+    def test_current_format_silent(self, tmp_path):
+        files = {"main.tex": self._main_tex(), "main.bbl": self._BBL_33}
+        issues = self._run(files, tmp_path)
+        assert not any("bbl format" in w for w in issues.warnings)
+
+    def test_tl2023_format_warns(self, tmp_path):
+        files = {"main.tex": self._main_tex(), "main.bbl": self._BBL_32}
+        issues = self._run(files, tmp_path)
+        assert any("TL2023" in w for w in issues.warnings)
+
+    def test_old_format_warns_regenerate(self, tmp_path):
+        files = {"main.tex": self._main_tex(), "main.bbl": self._BBL_28}
+        issues = self._run(files, tmp_path)
+        assert any("bbl format 2.8" in w and "regenerate" in w for w in issues.warnings)
+
+    def test_bibtex_format_bbl_warns_mismatch(self, tmp_path):
+        files = {"main.tex": self._main_tex(), "main.bbl": self._BBL_BIBTEX}
+        issues = self._run(files, tmp_path)
+        assert any("BibTeX-format" in w for w in issues.warnings)
+
+    def test_headerless_bbl_silent(self, tmp_path):
+        files = {"main.tex": self._main_tex(), "main.bbl": "\\entry{einstein1905}{article}{}\n"}
+        issues = self._run(files, tmp_path)
+        assert not any("bbl format" in w or "BibTeX-format" in w for w in issues.warnings)
+
+    def test_missing_bbl_existing_warn_kept(self, tmp_path):
+        files = {"main.tex": self._main_tex(), "refs.bib": "@article{einstein1905, title={X}}"}
+        issues = self._run(files, tmp_path)
+        assert any("no main.bbl shipped" in w for w in issues.warnings)
+
+    # ── bundled biblatex.sty ──
+
+    def test_bundled_biblatex_sty_warns(self, tmp_path):
+        files = {
+            "main.tex": self._main_tex(),
+            "main.bbl": self._BBL_33,
+            "biblatex.sty": "% outdated bundled copy",
+        }
+        issues = self._run(files, tmp_path)
+        assert any("bundled biblatex.sty" in w for w in issues.warnings)
+
+    def test_no_bundled_sty_silent(self, tmp_path):
+        files = {"main.tex": self._main_tex(), "main.bbl": self._BBL_33}
+        issues = self._run(files, tmp_path)
+        assert not any("bundled biblatex.sty" in w for w in issues.warnings)
+
+
+class TestBiblatexKeywordsGuard:
+    _KEYWORDS_BIB = """@article{k1,
+  author = {A},
+  title = {T},
+  year = {2020},
+  keywords = {physics,primary},
+  abstract = {secret draft notes},
+}"""
+
+    def test_keywords_stripped_for_plain_bibtex(self):
+        result = normalize_bibtex(self._KEYWORDS_BIB)
+        assert "keywords" not in result
+
+    def test_keywords_kept_for_biblatex(self):
+        result = normalize_bibtex(self._KEYWORDS_BIB, is_biblatex=True)
+        assert "keywords" in result
+        assert "abstract" not in result
