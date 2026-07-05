@@ -104,14 +104,42 @@ def find_used_style_files(tex_sources: list[str]) -> set:
     return used
 
 
+BIBLATEX_PACKAGE_RE = re.compile(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}")
+ADDBIBRESOURCE_RE = re.compile(r"\\addbibresource(?:\[[^\]]*\])?\{([^}]+)\}")
+
+
+def uses_biblatex(tex_sources: list[str]) -> bool:
+    """True if any source loads the biblatex package or declares a bib resource."""
+    return any(BIBLATEX_PACKAGE_RE.search(src) or ADDBIBRESOURCE_RE.search(src) for src in tex_sources)
+
+
+_CITE_RE = re.compile(
+    r"\\(?:no|auto|paren|text|smart|super|full|foot(?:full)?)?cite[a-z]*\*?"
+    r"(?:\([^)]*\)){0,2}"
+    r"(?P<args>(?:\s*(?:\[[^\]]*\]\s*){0,2}\{[^}]*\})+)",
+    re.IGNORECASE,
+)
+_CITE_GROUP_RE = re.compile(r"\{([^}]*)\}")
+
+
 def find_cited_keys(tex_sources: list[str]) -> set:
-    """Return set of all citation keys used in \\cite, \\citep, \\citet, etc."""
+    """Return set of citation keys from natbib and biblatex cite commands.
+
+    Covers \\cite/\\citep/\\citet..., biblatex \\autocite/\\parencite/\\textcite/
+    \\footcite/\\smartcite/\\supercite/\\fullcite/\\nocite (any capitalization,
+    starred, pre/post notes, multicite forms). '*' from \\nocite{*} is dropped.
+    """
     keys = set()
     for src in tex_sources:
         src = _strip_comments(src)
-        for m in re.finditer(r"\\cite[a-z]*\*?\{([^}]+)\}", src):
-            for key in m.group(1).split(","):
-                keys.add(key.strip())
+        for m in _CITE_RE.finditer(src):
+            for group in _CITE_GROUP_RE.finditer(m.group("args")):
+                for key in group.group(1).split(","):
+                    key = key.strip()
+                    # '*' is \nocite{*}; backslash/space/brace means the args
+                    # matcher swallowed an adjacent brace group, not a key.
+                    if key and key != "*" and not re.search(r"[\\\s{]", key):
+                        keys.add(key)
     return keys
 
 
@@ -128,7 +156,7 @@ def find_used_bib_files(tex_sources: list[str]) -> set:
             for name in m.group(1).split(","):
                 name = Path(name.strip()).name
                 used.add(name if name.endswith(".bib") else name + ".bib")
-        for m in re.finditer(r"\\addbibresource\{([^}]+)\}", src):
+        for m in ADDBIBRESOURCE_RE.finditer(src):
             name = Path(m.group(1).strip()).name
             used.add(name if name.endswith(".bib") else name + ".bib")
     return used

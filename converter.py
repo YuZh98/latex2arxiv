@@ -25,6 +25,7 @@ from pipeline.deps import (
     find_used_bib_files,
     find_used_style_files,
     find_cited_keys,
+    uses_biblatex,
 )
 from pipeline.config import load_config
 from pipeline.images import DEFAULT_MAX_PX
@@ -197,6 +198,7 @@ def convert(
         used_bib_files = find_used_bib_files(all_sources)
         used_style_files = find_used_style_files(all_sources)
         cited_keys = find_cited_keys(all_sources)
+        is_biblatex = uses_biblatex(all_sources)
 
         # Build whitelist of resolved absolute paths to keep
         whitelist = {p.resolve() for p in all_tex_files if p.exists()}
@@ -252,6 +254,7 @@ def convert(
             used_image_refs=used_image_refs,
             used_bib_files=used_bib_files,
             cited_keys=cited_keys,
+            is_biblatex=is_biblatex,
             resize=resize,
             dry_run=dry_run,
             issues=issues,
@@ -297,6 +300,9 @@ def convert(
                     try:
                         bbl_content = path.read_text(encoding="utf-8", errors="replace")
                         for m in re.finditer(r"\\bibitem(?:\[[^\]]*\])?\{([^}]+)\}", bbl_content):
+                            defined_keys.add(m.group(1).strip())
+                        # biblatex-format .bbl defines entries via \entry{key}{type}{...}
+                        for m in re.finditer(r"\\entry\{([^}]+)\}", bbl_content):
                             defined_keys.add(m.group(1).strip())
                     except Exception:
                         pass
