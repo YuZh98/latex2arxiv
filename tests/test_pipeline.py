@@ -3241,3 +3241,43 @@ class TestBiblatexKeywordsGuard:
         result = normalize_bibtex(self._KEYWORDS_BIB, is_biblatex=True)
         assert "keywords" in result
         assert "abstract" not in result
+
+
+class TestCiteRegexPrecision:
+    """Pinning tests for over-capture fixes: field-accessor commands, adjacent
+    bare brace groups, and braced prenotes must not yield phantom keys."""
+
+    def _keys(self, src):
+        from pipeline.deps import find_cited_keys
+
+        return find_cited_keys([src])
+
+    def test_citefield_second_arg_not_a_key(self):
+        assert self._keys(r"\citefield{key}{title}") == {"key"}
+
+    def test_citename_second_arg_not_a_key(self):
+        assert self._keys(r"\citename{key}{family}") == {"key"}
+
+    def test_adjacent_bare_group_after_singular_cite(self):
+        assert self._keys(r"\citet{smith} {2020}") == {"smith"}
+
+    def test_braced_prenote_contents_not_scanned(self):
+        assert self._keys(r"\autocite[{see, e.g.}][]{key}") == {"key"}
+
+    def test_fullcites_multicite(self):
+        assert self._keys(r"\fullcites{a}{b}") == {"a", "b"}
+
+    def test_multicite_notes_not_scanned(self):
+        assert self._keys(r"\autocites[{cf. x}]{a}[y]{b}") == {"a", "b"}
+
+
+class TestUsesBiblatexComments:
+    def test_commented_out_biblatex_not_detected(self):
+        from pipeline.deps import uses_biblatex
+
+        assert not uses_biblatex(["% \\usepackage[backend=biber]{biblatex}\n\\usepackage{natbib}"])
+
+    def test_commented_addbibresource_not_detected(self):
+        from pipeline.deps import uses_biblatex
+
+        assert not uses_biblatex(["% \\addbibresource{refs.bib}"])

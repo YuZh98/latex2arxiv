@@ -110,16 +110,39 @@ ADDBIBRESOURCE_RE = re.compile(r"\\addbibresource(?:\[[^\]]*\])?\{([^}]+)\}")
 
 def uses_biblatex(tex_sources: list[str]) -> bool:
     """True if any source loads the biblatex package or declares a bib resource."""
-    return any(BIBLATEX_PACKAGE_RE.search(src) or ADDBIBRESOURCE_RE.search(src) for src in tex_sources)
+    return any(
+        BIBLATEX_PACKAGE_RE.search(src) or ADDBIBRESOURCE_RE.search(src)
+        for src in (_strip_comments(s) for s in tex_sources)
+    )
 
 
-_CITE_RE = re.compile(
-    r"\\(?:no|auto|paren|text|smart|super|full|foot(?:full)?)?cite[a-z]*\*?"
+_CITE_PREFIX = r"(?:no|auto|paren|text|smart|super|full|foot(?:full)?)?"
+# Singular cite commands take exactly one key group; commands like \citefield
+# and \citename carry a second mandatory arg that is NOT a key, so only the
+# first brace group is captured. Bracket args are skipped, never scanned.
+_CITE_SINGLE_RE = re.compile(
+    r"\\" + _CITE_PREFIX + r"cite[a-z]*\*?\s*(?:\[[^\]]*\]\s*){0,2}\{([^}]*)\}",
+    re.IGNORECASE,
+)
+# Multicite family (\cites, \autocites, ...) chains {key} groups, each with
+# optional pre/post notes; global affixes come in parentheses.
+_CITE_MULTI_RE = re.compile(
+    r"\\" + _CITE_PREFIX + r"cites\*?"
     r"(?:\([^)]*\)){0,2}"
     r"(?P<args>(?:\s*(?:\[[^\]]*\]\s*){0,2}\{[^}]*\})+)",
     re.IGNORECASE,
 )
-_CITE_GROUP_RE = re.compile(r"\{([^}]*)\}")
+_CITE_MULTI_GROUP_RE = re.compile(r"\{([^}]*)\}")
+_CITE_BRACKET_RE = re.compile(r"\[[^\]]*\]")
+
+
+def _add_keys(raw: str, keys: set) -> None:
+    for key in raw.split(","):
+        key = key.strip()
+        # '*' is \nocite{*}; backslash/space/brace means a matcher swallowed
+        # an adjacent brace group, not a citation key — drop it.
+        if key and key != "*" and not re.search(r"[\\\s{]", key):
+            keys.add(key)
 
 
 def find_cited_keys(tex_sources: list[str]) -> set:
@@ -129,17 +152,15 @@ def find_cited_keys(tex_sources: list[str]) -> set:
     \\footcite/\\smartcite/\\supercite/\\fullcite/\\nocite (any capitalization,
     starred, pre/post notes, multicite forms). '*' from \\nocite{*} is dropped.
     """
-    keys = set()
+    keys: set = set()
     for src in tex_sources:
         src = _strip_comments(src)
-        for m in _CITE_RE.finditer(src):
-            for group in _CITE_GROUP_RE.finditer(m.group("args")):
-                for key in group.group(1).split(","):
-                    key = key.strip()
-                    # '*' is \nocite{*}; backslash/space/brace means the args
-                    # matcher swallowed an adjacent brace group, not a key.
-                    if key and key != "*" and not re.search(r"[\\\s{]", key):
-                        keys.add(key)
+        for m in _CITE_SINGLE_RE.finditer(src):
+            _add_keys(m.group(1), keys)
+        for m in _CITE_MULTI_RE.finditer(src):
+            args = _CITE_BRACKET_RE.sub("", m.group("args"))
+            for group in _CITE_MULTI_GROUP_RE.finditer(args):
+                _add_keys(group.group(1), keys)
     return keys
 
 
