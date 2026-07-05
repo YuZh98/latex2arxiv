@@ -23,6 +23,7 @@ logic.
 | 07 | `07-fontspec-xelatex/` | `\usepackage{fontspec}` + `\usepackage{unicode-math}`. Tests the XeLaTeX/LuaLaTeX pre-flight `[error]` check. |
 | 08 | `08-flatten-basic/` | `main.tex` with `\input{intro}` and `\include{conclusion}`. Run with `--flatten` to exercise inlining + the `\clearpage` wrap around `\include` bodies. |
 | 09 | `09-flatten-subfile/` | `main.tex` with `\subfile{chapters/ch1}` (subdirectory) and `\subfile{ch2}` (peer). Run with `--flatten` to exercise subfile preamble-stripping and the including-file-relative path resolution for `\subfile`. |
+| 11 | `11-biblatex-bbl/` | biblatex with a shipped `.bbl` at bbl format 3.2. Tests the bbl-version pre-flight warn, `\addbibresource[location=local]` parsing, and `\autocite`/`\textcite` key detection. |
 
 ## How to run
 

@@ -212,3 +212,16 @@ Main content here.
         convert(inp, out, guide=True, dry_run=True)
         guide_path = out.with_name("paper_out_UPLOAD_GUIDE.txt")
         assert not guide_path.exists(), "guide must not be written in dry-run mode"
+
+    def test_fixture_11_biblatex_bbl_keeps_bbl_bib_and_keywords(self, tmp_path):
+        """biblatex fixture: .bbl and .bib both survive; 'keywords' stays in the
+        .bib (functional for biblatex); the bbl-format warn fires."""
+        inp = tmp_path / "in.zip"
+        out = tmp_path / "out.zip"
+        inp.write_bytes(_zip_fixture("11-biblatex-bbl"))
+        issues = convert(inp, out)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            assert {"main.tex", "main.bbl", "refs.bib"} <= set(names)
+            assert b"keywords" in zf.read("refs.bib")
+        assert any("bbl format 3.2" in w for w in issues.warnings)
