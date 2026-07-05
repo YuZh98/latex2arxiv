@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Added
+- Pre-flight warns when a shipped `.bbl` has a bbl format version arXiv won't accept (3.2 needs the soon-to-retire TL2023; anything else needs regeneration), when a BibTeX-format `.bbl` is paired with a biblatex document, and when a bundled `biblatex.sty` is included in the submission
+
+### Changed
+- Citation scan now recognizes the biblatex cite families (`\autocite`, `\parencite`, `\textcite`, `\footcite`, `\nocite`, capitalized and multicite forms) and pre/post-note optional arguments; the undefined-citation check reads biblatex-format `.bbl` files (`\entry{...}`) in addition to `\bibitem`
+
+### Fixed
+- `\addbibresource[options]{...}` is now recognized by dependency tracking, pre-flight, and the `--compile` biber dispatch; the functional biblatex `keywords` field is no longer stripped from `.bib` files in biblatex projects
+
 ## [browser-extension 0.1.11] - 2026-05-29
 
 ### Changed
