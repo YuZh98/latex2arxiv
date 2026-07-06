@@ -18,6 +18,10 @@ Before producing the output zip, latex2arxiv validates the project against [arXi
 | ⚠️ warn | Main `.tex` not at the submission root | arXiv compiles from root; subdirectory main files aren't found. |
 | ⚠️ warn | `\printindex` / `\printglossary` / `\printnomenclature` without matching `.ind` / `.gls` / `.nls` | arXiv doesn't run makeindex or glossary processors; the printed section silently disappears. |
 | ⚠️ warn | `\usepackage{biblatex}` (or `\addbibresource`) without `<main>.bbl` shipped | arXiv can run Biber natively (since late 2025), but biblatex/Biber version mismatches (currently TL2025, bbl format 3.3) may break the bibliography; ship the `.bbl` as a fallback. |
+| ⚠️ warn | Shipped `.bbl` has bbl format 3.2 (biblatex 3.17–3.19) | Accepted only when TeX Live 2023 is selected at submission — a choice arXiv plans to retire. Regenerate with biblatex ≥ 3.20 (bbl format 3.3). |
+| ⚠️ warn | Shipped `.bbl` has a bbl format other than 3.3 | arXiv hard-errors on bbl-version mismatches; regenerate under a current TeX Live or let arXiv run Biber from the `.bib`. |
+| ⚠️ warn | BibTeX-format `.bbl` (`\bibitem`) in a biblatex document | Backend and `.bbl` must match ("do not mix"); regenerate with Biber (or the biblatex bibtex backend). |
+| ⚠️ warn | Bundled `biblatex.sty` in the submission | arXiv provides its own biblatex; outdated bundled copies break compilation ("Patching \MakeUppercase failed"). |
 | ⚠️ warn | `\documentclass[referee]` / `[doublespace]` / `\doublespacing` | arXiv requires single-spaced submissions. |
 | ⚠️ warn | `\today` inside `\date{...}` | arXiv may rebuild the PDF; the date will change. |
 | ⚠️ warn | `\includeonly` detected | Restricts which chapters arXiv compiles; remove it so the full paper appears. |

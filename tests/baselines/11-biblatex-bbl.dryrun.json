@@ -1,0 +1,33 @@
+{
+  "compile": null,
+  "counts": {
+    "errors": 0,
+    "kept": 3,
+    "removed": 0,
+    "warnings": 1
+  },
+  "dry_run": true,
+  "errors": [],
+  "flatten": false,
+  "inlined_files": [],
+  "input": null,
+  "kept_files": [
+    "main.bbl",
+    "main.tex",
+    "refs.bib"
+  ],
+  "main_tex": "main.tex",
+  "metadata": null,
+  "output": null,
+  "removed_files": [],
+  "schema_version": 1,
+  "sizes": {
+    "input_bytes": null,
+    "output_bytes": null,
+    "uncompressed_bytes": 980
+  },
+  "version": null,
+  "warnings": [
+    "main.bbl is bbl format 3.2 \u2014 accepted only if you select TeX Live 2023 (TL2023) at submission, which arXiv plans to retire; regenerate with biblatex \u2265 3.20 (bbl format 3.3) to be safe"
+  ]
+}

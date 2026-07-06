@@ -1,0 +1,18 @@
+\documentclass{article}
+\usepackage[backend=biber,style=numeric]{biblatex}
+\addbibresource[location=local]{refs.bib}
+
+\title{biblatex with shipped .bbl (format 3.2)}
+\author{Test Author}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+Ships a pre-built \texttt{main.bbl} whose bbl format version (3.2) trails
+arXiv's default TeX Live, exercising the bbl-version pre-flight warn, the
+optional-argument \texttt{\textbackslash addbibresource} form, and biblatex
+cite commands \autocite{einstein1905} and \textcite{doe2024}.
+
+\printbibliography
+\end{document}

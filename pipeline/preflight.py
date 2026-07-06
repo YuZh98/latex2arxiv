@@ -7,6 +7,7 @@ converter.py and called inline from convert() at their original call sites
 import re
 from pathlib import Path
 
+from pipeline.deps import uses_biblatex
 from pipeline.types import Issues
 
 # Packages that require shell-escape; arXiv compiles without it, so these fail.
@@ -21,6 +22,12 @@ SIZE_WARN_MB = 50
 # arXiv warns for PNG images exceeding this pixel count (since Feb 2026).
 # 34 megapixels ≈ full A4 at 600 dpi.
 _MAX_PNG_PIXELS = 34_000_000
+
+# arXiv TeX Live ladder (July 2026): TL2025 default → biblatex 3.20, bbl 3.3;
+# TL2023 selectable → bbl 3.2, slated for removal when TL2026 lands.
+_ARXIV_BBL_FORMAT_CURRENT = "3.3"
+_ARXIV_BBL_FORMAT_TL2023 = "3.2"
+_BBL_VERSION_RE = re.compile(r"\$\s*biblatex bbl format version\s+([0-9.]+)\s*\$")
 
 
 def _has_latex_dvips_mode(root: Path) -> bool:
@@ -214,28 +221,60 @@ def _check_compliance(
             ".nls will be included automatically)"
         )
 
-    # biblatex detected: arXiv can run Biber natively (since late 2025), but
-    # biblatex/Biber version mismatches between your local TeX Live and arXiv's
-    # can still break the bibliography. Shipping the .bbl avoids this.
-    if re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}", combined_nc) or re.search(
-        r"\\addbibresource\{", combined_nc
-    ):
+    # biblatex: arXiv can run Biber natively (since late 2025), but a shipped
+    # .bbl must match arXiv's bbl format or AutoTeX hard-errors ("bbl version
+    # mismatch"). No .bbl at all is a soft risk (version drift between the
+    # author's biber and arXiv's).
+    is_biblatex = uses_biblatex([combined_nc])
+    if is_biblatex:
         bbl = root / f"{main_stem}.bbl"
         if not bbl.exists():
             issues.warn(
                 f"biblatex detected but no {main_stem}.bbl shipped — "
                 "arXiv can run Biber natively, but version mismatches between "
-                "your TeX Live and arXiv's (currently TL2025, bbl format 3.3) "
-                "may break the bibliography; consider shipping the .bbl as a fallback"
+                "your TeX Live and arXiv's (currently TL2025, bbl format "
+                f"{_ARXIV_BBL_FORMAT_CURRENT}) may break the bibliography; "
+                "consider shipping the .bbl as a fallback"
+            )
+        else:
+            try:
+                bbl_content = bbl.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                bbl_content = ""
+            # biber writes the format header on line 2; bounding the scan keeps
+            # a version-like string deep in entry text from false-matching.
+            m = _BBL_VERSION_RE.search(bbl_content[:2048])
+            if m:
+                ver = m.group(1)
+                if ver == _ARXIV_BBL_FORMAT_TL2023:
+                    issues.warn(
+                        f"{bbl.name} is bbl format {ver} — accepted only if you "
+                        "select TeX Live 2023 (TL2023) at submission, which arXiv "
+                        "plans to retire; regenerate with biblatex ≥ 3.20 "
+                        f"(bbl format {_ARXIV_BBL_FORMAT_CURRENT}) to be safe"
+                    )
+                elif ver != _ARXIV_BBL_FORMAT_CURRENT:
+                    issues.warn(
+                        f"{bbl.name} is bbl format {ver} but arXiv expects "
+                        f"{_ARXIV_BBL_FORMAT_CURRENT} — regenerate the .bbl under "
+                        "a current TeX Live or let arXiv run Biber from the .bib"
+                    )
+            elif r"\bibitem" in bbl_content:
+                issues.warn(
+                    f"{bbl.name} is a BibTeX-format .bbl but the document uses "
+                    "biblatex — backend and .bbl must match; regenerate with "
+                    "Biber (or the biblatex bibtex backend)"
+                )
+        if kept_files and any(p.name == "biblatex.sty" for p in kept_files):
+            issues.warn(
+                "bundled biblatex.sty shipped — arXiv provides its own biblatex, "
+                "and outdated bundled copies break compilation "
+                '("Patching \\MakeUppercase failed"); remove it from the upload'
             )
 
     # Non-biblatex BibTeX: if \bibliography{foo} is used but neither foo.bib nor
     # main.bbl is shipped, arXiv will block the submission.
     if used_bib_files is not None and kept_files is not None:
-        is_biblatex = bool(
-            re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}", combined_nc)
-            or re.search(r"\\addbibresource\{", combined_nc)
-        )
         if not is_biblatex and used_bib_files:
             bbl = root / f"{main_stem}.bbl"
             has_bbl = bbl.exists()

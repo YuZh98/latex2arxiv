@@ -34,7 +34,12 @@ _FIELD_ORDER = [
 _PRIVATE_FIELDS = {"abstract", "file", "keywords", "mendeley-tags", "annote"}
 
 
-def normalize_bibtex(source: str, cited_keys: set | None = None, warn_fn: Callable[[str], None] | None = None) -> str:
+def normalize_bibtex(
+    source: str,
+    cited_keys: set | None = None,
+    warn_fn: Callable[[str], None] | None = None,
+    is_biblatex: bool = False,
+) -> str:
     _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}", file=__import__("sys").stderr))
     if not HAS_BIBTEXPARSER:
         _warn("bibtexparser not installed; skipping BibTeX normalization")
@@ -69,8 +74,10 @@ def normalize_bibtex(source: str, cited_keys: set | None = None, warn_fn: Callab
             for s in skipped:
                 _warn(f"duplicate entry skipped: {s}")
 
-        # Strip private fields
-        for f in _PRIVATE_FIELDS:
+        # Strip private fields. biblatex: 'keywords' is functional
+        # (\printbibliography[keyword=...]) — keep it there.
+        private_fields = _PRIVATE_FIELDS - {"keywords"} if is_biblatex else _PRIVATE_FIELDS
+        for f in private_fields:
             chosen.pop(f, None)
 
         # Reorder fields

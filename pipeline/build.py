@@ -11,6 +11,7 @@ import tempfile
 import subprocess
 from pathlib import Path
 
+from pipeline.deps import uses_biblatex
 from pipeline.types import ConverterError
 
 
@@ -119,11 +120,7 @@ def _compile(output_zip: Path, main_hint: str | None):
         bib_files = list(run_dir.rglob("*.bib"))
         if bib_files:
             main_nc = re.sub(r"(?<!\\)%[^\n]*", "", main_tex.read_text(encoding="utf-8", errors="replace"))
-            uses_biblatex = bool(
-                re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}", main_nc)
-                or re.search(r"\\addbibresource\{", main_nc)
-            )
-            cmd = "biber" if uses_biblatex else "bibtex"
+            cmd = "biber" if uses_biblatex([main_nc]) else "bibtex"
             print(f"  Running {cmd} ...")
             try:
                 result = subprocess.run([cmd, bib_stem], cwd=run_dir, capture_output=True, timeout=300)

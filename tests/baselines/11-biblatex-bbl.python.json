@@ -1,0 +1,6 @@
+{
+  "errors": [],
+  "warnings": [
+    "main.bbl is bbl format 3.2 \u2014 accepted only if you select TeX Live 2023 (TL2023) at submission, which arXiv plans to retire; regenerate with biblatex \u2265 3.20 (bbl format 3.3) to be safe"
+  ]
+}

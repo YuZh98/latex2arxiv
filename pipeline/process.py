@@ -37,6 +37,7 @@ def _process_files(
     used_image_refs: set[str],
     used_bib_files: set[str],
     cited_keys: set[str],
+    is_biblatex: bool,
     resize: int | None,
     dry_run: bool,
     issues: Issues,
@@ -106,7 +107,7 @@ def _process_files(
                 log(f"  would process (bib): {rel}")
             else:
                 src = path.read_text(encoding="utf-8", errors="replace")
-                src = normalize_bibtex(src, cited_keys=cited_keys, warn_fn=issues.warn)
+                src = normalize_bibtex(src, cited_keys=cited_keys, warn_fn=issues.warn, is_biblatex=is_biblatex)
                 path.write_text(src, encoding="utf-8")
 
     return kept_files, removed_names
