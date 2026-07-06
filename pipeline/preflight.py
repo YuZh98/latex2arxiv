@@ -225,7 +225,8 @@ def _check_compliance(
     # .bbl must match arXiv's bbl format or AutoTeX hard-errors ("bbl version
     # mismatch"). No .bbl at all is a soft risk (version drift between the
     # author's biber and arXiv's).
-    if uses_biblatex([combined_nc]):
+    is_biblatex = uses_biblatex([combined_nc])
+    if is_biblatex:
         bbl = root / f"{main_stem}.bbl"
         if not bbl.exists():
             issues.warn(
@@ -240,6 +241,8 @@ def _check_compliance(
                 bbl_content = bbl.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 bbl_content = ""
+            # biber writes the format header on line 2; bounding the scan keeps
+            # a version-like string deep in entry text from false-matching.
             m = _BBL_VERSION_RE.search(bbl_content[:2048])
             if m:
                 ver = m.group(1)
@@ -272,7 +275,6 @@ def _check_compliance(
     # Non-biblatex BibTeX: if \bibliography{foo} is used but neither foo.bib nor
     # main.bbl is shipped, arXiv will block the submission.
     if used_bib_files is not None and kept_files is not None:
-        is_biblatex = uses_biblatex([combined_nc])
         if not is_biblatex and used_bib_files:
             bbl = root / f"{main_stem}.bbl"
             has_bbl = bbl.exists()

@@ -151,6 +151,8 @@ def find_cited_keys(tex_sources: list[str]) -> set:
     Covers \\cite/\\citep/\\citet..., biblatex \\autocite/\\parencite/\\textcite/
     \\footcite/\\smartcite/\\supercite/\\fullcite/\\nocite (any capitalization,
     starred, pre/post notes, multicite forms). '*' from \\nocite{*} is dropped.
+    Not handled: the \\volcite family, whose FIRST mandatory arg is a volume,
+    not a key — supporting it would need per-command argument dispatch.
     """
     keys: set = set()
     for src in tex_sources:
