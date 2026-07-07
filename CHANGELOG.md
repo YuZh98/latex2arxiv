@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ### Fixed
 - `\addbibresource[options]{...}` is now recognized by dependency tracking, pre-flight, and the `--compile` biber dispatch; the functional biblatex `keywords` field is no longer stripped from `.bib` files in biblatex projects
+- VS Code extension (0.1.2): the new biblatex pre-flight warnings are located in the editor — `.bbl` format/backend warns anchor the `.bbl` file itself, the bundled-`biblatex.sty` warn anchors the `.sty`
 
 ## [browser-extension 0.1.11] - 2026-05-29
 
