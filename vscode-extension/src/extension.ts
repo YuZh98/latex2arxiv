@@ -351,6 +351,24 @@ function tryPlace(
         }
     }
 
+    // biblatex .bbl warns name the offending file; anchor it directly.
+    const bblMatch = issue.message.match(/^(\S+\.bbl) is (?:bbl format|a BibTeX-format)/);
+    if (bblMatch) {
+        const target = resolveRel(workspaceRoot, bblMatch[1], sources);
+        if (target) {
+            push(located, target, new vscode.Range(0, 0, 0, 0), issue);
+            return true;
+        }
+    }
+
+    if (issue.message.startsWith('bundled biblatex.sty shipped')) {
+        const target = path.resolve(workspaceRoot, 'biblatex.sty');
+        if (fs.existsSync(target)) {
+            push(located, target, new vscode.Range(0, 0, 0, 0), issue);
+            return true;
+        }
+    }
+
     // 2. Generic content locator: regex-search every .tex source.
     const locator = locatorFor(issue.message);
     if (locator) {

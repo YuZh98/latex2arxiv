@@ -23,6 +23,7 @@ logic.
 | 07 | `07-fontspec-xelatex/` | `\usepackage{fontspec}` + `\usepackage{unicode-math}`. Tests the XeLaTeX/LuaLaTeX pre-flight `[error]` check. |
 | 08 | `08-flatten-basic/` | `main.tex` with `\input{intro}` and `\include{conclusion}`. Run with `--flatten` to exercise inlining + the `\clearpage` wrap around `\include` bodies. |
 | 09 | `09-flatten-subfile/` | `main.tex` with `\subfile{chapters/ch1}` (subdirectory) and `\subfile{ch2}` (peer). Run with `--flatten` to exercise subfile preamble-stripping and the including-file-relative path resolution for `\subfile`. |
+| 10 | `10-multifile-graphicspath/` | `main.tex` with `\input{sections/intro}`, `\graphicspath{{figures/}}`, and an extension-less `\includegraphics{fig1}`. Tests subdirectory image resolution plus pruning of an unused figure and an unreferenced `.tex`. |
 | 11 | `11-biblatex-bbl/` | biblatex with a shipped `.bbl` at bbl format 3.2. Tests the bbl-version pre-flight warn, `\addbibresource[location=local]` parsing, and `\autocite`/`\textcite` key detection. |
 
 ## How to run
@@ -139,6 +140,8 @@ shipped recently:
 - **#03** mirrors the bundled `pipeline/demo_project.zip` at smaller scale, kept here so the demo can evolve without losing the "config UX" canonical example. Uses the `changes` package rather than inline `\newcommand` to avoid the [definition-mangling caveat](../../arxiv_config.yaml).
 - **#04** guards against a regression in the main-tex ranking from PR #42 — without it, `Supplementary_Materials.tex` could win.
 - **#05** is the "can I see what the tool actually surfaces?" demo. Useful for screenshots, README copy, and validating new pre-flight checks don't silently overlap.
+- **#10** guards the `\graphicspath` + extension-less `\includegraphics` resolution path — a subdirectory figure that resolve-failures would silently drop.
+- **#11** locks in the biblatex `.bbl` handling from PR #227: the bbl-format-version pre-flight warn, `\addbibresource[options]{...}` parsing, and `keywords` preservation for biblatex projects.
 
 ## Adding a new fixture
 
@@ -212,3 +215,27 @@ brief note in the "Why" section.
     root. If `chapters/ch1.tex` is not inlined, the
     including-file-relative path semantic for `\subfile` has
     regressed.
+
+### 10-multifile-graphicspath
+
+- **Kept:** `main.tex`, `sections/intro.tex`, `figures/fig1.pdf` (3 files).
+- **Removed:** `spare_notes.tex`, `figures/unused_diagram.pdf` (2 files).
+- **Errors / warnings:** 0 / 0.
+- **Regression anchor:** if `figures/fig1.pdf` is removed, the
+  `\graphicspath` + extension-less `\includegraphics{fig1}` resolution in
+  `pipeline/deps.py:find_used_images` has regressed; if `spare_notes.tex`
+  or `unused_diagram.pdf` survive, pruning has regressed.
+
+### 11-biblatex-bbl
+
+- **Kept:** `main.tex`, `refs.bib`, `main.bbl` (3 files).
+- **Removed:** none.
+- **Errors:** 0. **Warnings:** 1.
+  - `main.bbl is bbl format 3.2 — accepted only if you select TeX Live 2023 (TL2023) at submission ...`
+- **Cleaned-source notes:** `keywords` survives in `refs.bib` (functional
+  for biblatex; stripped only for plain BibTeX projects).
+- **Regression anchor:** if the warning disappears, the bbl-format-version
+  check in `pipeline/preflight.py` has regressed; if `main.bbl` or
+  `refs.bib` is pruned, the biblatex whitelist handling (incl.
+  `\addbibresource[options]{...}` parsing) has regressed. CI pins the
+  1-warning row in `fixtures-smoke` (`.github/workflows/test.yml`).
