@@ -137,3 +137,47 @@ class TestS8ZipBombGuard:
 
     def test_cap_constant_is_reasonable(self):
         assert converter._MAX_UNCOMPRESSED_BYTES == 500 * 1024 * 1024
+
+
+# ── Biber vs bibtex dispatch in _compile ─────────────────────────────────────
+
+
+class TestCompileBibDispatch:
+    """Pin which bibliography backend _compile invokes: biber for biblatex
+    projects (incl. the \\addbibresource[options]{...} form), bibtex otherwise."""
+
+    def _run_and_record(self, tmp_path: Path, main_tex: str) -> list:
+        zp = tmp_path / "proj.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("main.tex", main_tex)
+            zf.writestr("refs.bib", "@article{a,title={T},author={A},year={2020}}")
+
+        commands = []
+
+        def _fake_run(cmd, **_kwargs):
+            commands.append(cmd[0])
+            return type("R", (), {"returncode": 0, "stdout": b"Output written", "stderr": b""})()
+
+        with patch("subprocess.run", side_effect=_fake_run):
+            _compile(zp, None)
+        return commands
+
+    def test_biblatex_project_dispatches_biber(self, tmp_path: Path):
+        commands = self._run_and_record(
+            tmp_path,
+            r"\documentclass{article}"
+            r"\usepackage[backend=biber]{biblatex}"
+            r"\addbibresource[location=local]{refs.bib}"
+            r"\begin{document}\autocite{a}\printbibliography\end{document}",
+        )
+        assert "biber" in commands
+        assert "bibtex" not in commands
+
+    def test_plain_bibtex_project_dispatches_bibtex(self, tmp_path: Path):
+        commands = self._run_and_record(
+            tmp_path,
+            r"\documentclass{article}\begin{document}\cite{a}"
+            r"\bibliographystyle{plain}\bibliography{refs}\end{document}",
+        )
+        assert "bibtex" in commands
+        assert "biber" not in commands
