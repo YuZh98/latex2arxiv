@@ -338,7 +338,7 @@ def _check_archive_layout(root: Path, issues: Issues) -> None:
     the extractor strips those before we reach this point, so they would not
     appear in the kept-files set anyway.
     """
-    flagged_hidden: set[Path] = set()
+    flagged_hidden: set[str] = set()
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
@@ -355,7 +355,7 @@ def _check_archive_layout(root: Path, issues: Issues) -> None:
             dot_anchor = next(part for part in rel.parts if part.startswith("."))
             if dot_anchor in flagged_hidden:
                 continue
-            flagged_hidden.add(Path(dot_anchor))
+            flagged_hidden.add(dot_anchor)
             issues.warn(
                 f"hidden file or directory: {rel} — arXiv deletes paths starting with "
                 "'.' upon announcement; if your build depends on this, rename it"

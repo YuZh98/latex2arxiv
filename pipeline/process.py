@@ -7,8 +7,7 @@ of kept paths plus the list of removed-file display names (used by --json and
 the summary line).
 
 Progress output is emitted via the `log` callable rather than `print` directly
-so the orchestrator can route it (currently `print`; future: logging /
-reporter callback).
+so the orchestrator can route it.
 """
 
 from pathlib import Path

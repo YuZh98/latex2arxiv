@@ -15,6 +15,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 ### Fixed
 - `\addbibresource[options]{...}` is now recognized by dependency tracking, pre-flight, and the `--compile` biber dispatch; the functional biblatex `keywords` field is no longer stripped from `.bib` files in biblatex projects
 - VS Code extension (0.1.2): the new biblatex pre-flight warnings are located in the editor — `.bbl` format/backend warns anchor the `.bbl` file itself, the bundled-`biblatex.sty` warn anchors the `.sty`
+- Dependency tracking resolves `\input`/`\include` in nested files against the compile root (LaTeX semantics) and keeps non-`.tex` targets such as `.pgf` figures; both were previously pruned from the output (#229)
+- Custom config rules no longer match longer commands sharing a prefix (an `hl` rule used to corrupt `\hline`) (#229)
+- The hidden-file pre-flight warning is emitted once per dot-directory instead of once per contained file (#229)
 
 ## [browser-extension 0.1.11] - 2026-05-29
 

@@ -7,26 +7,40 @@ def _strip_comments(source: str) -> str:
     return re.sub(r"(?<!\\)%[^\n]*", "", source)
 
 
-def find_included_tex(source: str, base: Path, root: Path, visited: set) -> set:
-    """Recursively find all .tex files reachable via \\input, \\include, \\subfile.
+def find_included_tex(source: str, base: Path, root: Path, visited: set, compile_base: Path | None = None) -> set:
+    """Recursively find all files reachable via \\input, \\include, \\subfile.
     Comments are stripped first so commented-out includes are not followed.
+
+    Targets resolve against the compile root (`compile_base`, defaulting to
+    the top-level `base`) first, then the including file's own directory.
+    Non-.tex targets (e.g. \\input{fig.pgf}) are collected but not recursed into.
     """
+    if compile_base is None:
+        compile_base = base
     found = set()
+    root_resolved = root.resolve()
     for cmd in re.findall(r"\\(?:input|include|subfile)\{([^}]+)\}", _strip_comments(source)):
-        p = Path(cmd) if cmd.endswith(".tex") else Path(cmd + ".tex")
-        # subfile paths are relative to the including file's directory
-        full = (base / p).resolve()
-        try:
-            full.relative_to(root.resolve())
-        except ValueError:
+        names = [cmd] if cmd.endswith(".tex") else [cmd + ".tex", cmd]
+        candidates: list[Path] = []
+        for name in names:
+            for b in (compile_base, base):
+                full = (b / name).resolve()
+                try:
+                    full.relative_to(root_resolved)
+                except ValueError:
+                    continue
+                if full not in candidates:
+                    candidates.append(full)
+        if not candidates:
             continue
+        full = next((c for c in candidates if c.is_file()), candidates[0])
         if full in visited:
             continue
         visited.add(full)
         found.add(full)
-        if full.exists():
+        if full.is_file() and full.suffix in ("", ".tex"):
             child_source = full.read_text(encoding="utf-8", errors="replace")
-            found |= find_included_tex(child_source, full.parent, root, visited)
+            found |= find_included_tex(child_source, full.parent, root, visited, compile_base)
     return found
 
 
@@ -44,7 +58,6 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
         r"|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}"
     )
 
-    # Extract all \graphicspath directories from all sources
     graphic_dirs: list[Path] = []
     for src in tex_sources:
         for m in re.finditer(r"\\graphicspath\{((?:\{[^}]*\})+)\}", _strip_comments(src)):
