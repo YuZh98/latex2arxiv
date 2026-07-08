@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -75,7 +76,9 @@ def test_output_zip_baseline(fixture, tmp_path):
 
     Full convert (not dry-run); arxiv_config.yaml inside a fixture is picked
     up by auto-detection, matching how run_all.sh exercises the fixtures.
-    Regenerate a stale baseline by deleting it and rerunning this test."""
+    Regenerate a stale baseline by deleting it and rerunning with
+    L2A_REGEN_BASELINES=1; a missing baseline without the flag fails so CI
+    cannot silently regenerate into the throwaway runner."""
     zip_in = tmp_path / "in.zip"
     zip_out = tmp_path / "out.zip"
     _zip_fixture(fixture, zip_in)
@@ -88,11 +91,13 @@ def test_output_zip_baseline(fixture, tmp_path):
         }
     baseline = BASELINE_DIR / f"{fixture.name}.zip.json"
     if not baseline.exists():
-        baseline.write_text(json.dumps(snapshot, indent=1, sort_keys=True) + "\n")
-        pytest.skip(f"baseline regenerated at {baseline}; rerun to assert")
+        if os.environ.get("L2A_REGEN_BASELINES") == "1":
+            baseline.write_text(json.dumps(snapshot, indent=1, sort_keys=True) + "\n")
+            pytest.skip(f"baseline regenerated at {baseline}; rerun to assert")
+        pytest.fail(f"missing baseline {baseline}; regenerate with L2A_REGEN_BASELINES=1 and commit it")
     expected = json.loads(baseline.read_text())
     expected["names"] = sorted(expected["names"])
     assert snapshot == expected, (
         f"Output-zip baseline drifted for {fixture.name}.\n"
-        f"If intentional, regenerate: rm {baseline} && pytest -k {fixture.name}"
+        f"If intentional: rm {baseline} && L2A_REGEN_BASELINES=1 pytest -k {fixture.name}, then commit"
     )
