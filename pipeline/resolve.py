@@ -109,13 +109,11 @@ def _zip_directory(directory: Path, tmp_list: list[str]) -> Path:
         for file in sorted(directory.rglob("*")):
             if not file.is_file():
                 continue
-            # Skip symlinks that point outside the project
             if file.is_symlink():
                 try:
                     file.resolve().relative_to(root_resolved)
                 except ValueError:
                     continue
-            # Skip junk directories and files
             if _ZIP_EXCLUDE_DIRS & set(file.parts):
                 continue
             if file.suffix in _ZIP_EXCLUDE_SUFFIXES:
