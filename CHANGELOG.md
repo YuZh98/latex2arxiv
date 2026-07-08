@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-08
+
 ### Added
 - Pre-flight warns when a shipped `.bbl` has a bbl format version arXiv won't accept (3.2 needs the soon-to-retire TL2023; anything else needs regeneration), when a BibTeX-format `.bbl` is paired with a biblatex document, and when a bundled `biblatex.sty` is included in the submission
 
