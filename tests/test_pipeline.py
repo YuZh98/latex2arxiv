@@ -373,6 +373,22 @@ class TestApplyConfig:
         assert "second" not in result
         assert "middle" in result
 
+    def test_commands_to_delete_does_not_match_longer_command(self):
+        result = apply_config(r"\notes{stay} \note{go}", {"commands_to_delete": ["note"]})
+        assert r"\notes{stay}" in result
+        assert "go" not in result
+
+    def test_commands_to_unwrap_does_not_match_longer_command(self):
+        result = apply_config(r"\hline stays \hl{keep}", {"commands_to_unwrap": ["hl"]})
+        assert r"\hline stays" in result
+        assert "keep" in result
+        assert r"\hl{" not in result
+
+    def test_commands_to_unwrap_brace_embedded_no_space(self):
+        result = apply_config(r"{\color{red}important}", {"commands_to_unwrap": ["color{red}"]})
+        assert "important" in result
+        assert r"\color" not in result
+
     def test_commands_to_unwrap(self):
         result = apply_config(r"{\color{red} keep this}", {"commands_to_unwrap": ["color{red}"]})
         assert "keep this" in result
@@ -652,6 +668,32 @@ class TestFullPipeline:
         assert "main.tex" in names
         assert "fig.png" in names
         assert "unused.png" not in names
+
+    def test_keeps_nested_input_referenced_from_subdirectory_file(self):
+        files = {
+            "main.tex": r"\documentclass{article}\begin{document}\input{sections/a}\end{document}",
+            "sections/a.tex": r"A\input{sections/b}",
+            "sections/b.tex": "B",
+        }
+        names = self._run(files)
+        assert "sections/b.tex" in names
+
+    def test_keeps_subfile_target_relative_to_including_file(self):
+        files = {
+            "main.tex": r"\documentclass{article}\usepackage{subfiles}\begin{document}\input{parts/outer}\end{document}",
+            "parts/outer.tex": r"\subfile{inner}",
+            "parts/inner.tex": r"\documentclass[../main]{subfiles}\begin{document}inner\end{document}",
+        }
+        names = self._run(files)
+        assert "parts/inner.tex" in names
+
+    def test_keeps_non_tex_input_target(self):
+        files = {
+            "main.tex": r"\documentclass{article}\begin{document}\input{fig.pgf}\end{document}",
+            "fig.pgf": r"\pgfimage{embedded}",
+        }
+        names = self._run(files)
+        assert "fig.pgf" in names
 
     def test_removes_unused_tex(self):
         files = {
@@ -2808,6 +2850,17 @@ class TestPreflightV3:
         }
         issues = self._run(files, tmp_path)
         assert any("hidden file" in w for w in issues.warnings)
+
+    def test_hidden_dir_warns_once_for_many_files(self, tmp_path):
+        files = {
+            "main.tex": r"\documentclass{article}\begin{document}hi\end{document}",
+            ".cache/a.txt": "A",
+            ".cache/b.txt": "B",
+            ".cache/deep/c.txt": "C",
+        }
+        issues = self._run(files, tmp_path)
+        hidden = [w for w in issues.warnings if "hidden file" in w]
+        assert len(hidden) == 1
 
     def test_no_hidden_file_no_warn(self, tmp_path):
         """Normal files should not trigger hidden-file warning."""

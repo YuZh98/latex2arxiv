@@ -105,7 +105,8 @@ def load_config(config_path: Path, warn_fn: Callable[[str], None] | None = None)
 def _make_cmd_pattern(cmd: str) -> str:
     """Build a regex that matches \\cmd or \\cmd{arg} as written in the config."""
     cmd = cmd.lstrip("\\")
-    return "\\\\" + re.escape(cmd)
+    tail = r"(?![a-zA-Z])" if cmd[-1:].isascii() and cmd[-1:].isalpha() else ""
+    return "\\\\" + re.escape(cmd) + tail
 
 
 def apply_config(source: str, config: dict, warn_fn: Callable[[str], None] | None = None) -> str:
