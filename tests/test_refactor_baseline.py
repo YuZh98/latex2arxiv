@@ -16,6 +16,7 @@ this test only asserts equality, it does not auto-regenerate.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import zipfile
@@ -64,5 +65,34 @@ def test_convert_issues_baseline(fixture, tmp_path):
     expected = json.loads(baseline.read_text())
     assert snapshot == expected, (
         f"Python-level Issues baseline drifted for {fixture.name}.\n"
+        f"If intentional, regenerate: rm {baseline} && pytest -k {fixture.name}"
+    )
+
+
+@pytest.mark.parametrize("fixture", FIXTURES, ids=lambda p: p.name)
+def test_output_zip_baseline(fixture, tmp_path):
+    """Output-zip snapshot per fixture: member names + content SHA256.
+
+    Full convert (not dry-run); arxiv_config.yaml inside a fixture is picked
+    up by auto-detection, matching how run_all.sh exercises the fixtures.
+    Regenerate a stale baseline by deleting it and rerunning this test."""
+    zip_in = tmp_path / "in.zip"
+    zip_out = tmp_path / "out.zip"
+    _zip_fixture(fixture, zip_in)
+    convert(zip_in, zip_out)
+    with zipfile.ZipFile(zip_out) as zf:
+        names = sorted(n for n in zf.namelist() if not n.endswith("/"))
+        snapshot = {
+            "content_hashes": {n: hashlib.sha256(zf.read(n)).hexdigest() for n in names},
+            "names": names,
+        }
+    baseline = BASELINE_DIR / f"{fixture.name}.zip.json"
+    if not baseline.exists():
+        baseline.write_text(json.dumps(snapshot, indent=1, sort_keys=True) + "\n")
+        pytest.skip(f"baseline regenerated at {baseline}; rerun to assert")
+    expected = json.loads(baseline.read_text())
+    expected["names"] = sorted(expected["names"])
+    assert snapshot == expected, (
+        f"Output-zip baseline drifted for {fixture.name}.\n"
         f"If intentional, regenerate: rm {baseline} && pytest -k {fixture.name}"
     )
