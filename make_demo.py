@@ -34,7 +34,7 @@ files["main.tex"] = r"""\documentclass[12pt]{article}
 \begin{abstract}
 \texttt{latex2arxiv} converts a LaTeX \texttt{.zip} project into an arXiv-ready
 \texttt{.zip} in one command. On a real statistics paper it took
-\textbf{950 files / 82\,MB} down to \textbf{40 files / 3\,MB} in seconds.
+\textbf{934 files / 80.6\,MB} down to \textbf{40 files / 3.1\,MB} in seconds.
 This document is the bundled demo. Run it with:
 \begin{verbatim}
 latex2arxiv --demo --compile --guide
@@ -86,7 +86,8 @@ Table~\ref{tab:pruned} lists what was removed from this demo zip.
 \end{table}
 
 Dependency tracking respects \verb|\input|, \verb|\include|, \verb|\subfile|,
-\verb|\includegraphics|, \verb|\graphicspath|, and \verb|\bibliography|.
+\verb|\includegraphics|, \verb|\graphicspath|, \verb|\bibliography|, and
+biblatex's \verb|\addbibresource|.
 Commented-out commands are ignored, so a stray
 \texttt{\% \textbackslash input\{old\_draft\}} will not pull in dead code.
 The used figure (Figure~\ref{fig:example}) is kept because it is referenced.
@@ -259,7 +260,8 @@ files["sections/bibtex.tex"] = r"""
 
 The \texttt{refs.bib} file in this demo contains:
 \begin{itemize}
-  \item A duplicate entry (same DOI) — one copy is removed~\cite{arxiv_submission}
+  \item A duplicate entry (same title) — one copy is removed, with a
+        \texttt{[warn]} naming the skipped key~\cite{arxiv_submission}
   \item Private fields (\texttt{abstract}, \texttt{file}) — stripped before submission
   \item Fields reordered to a canonical format
 \end{itemize}
@@ -298,7 +300,7 @@ Your metadata (copy-paste ready):
     Demo Author
 
   Comments:
-    6 pages, 1 figures, 1 tables
+    8 pages, 1 figures, 1 tables
 
 Step 1: Start a new submission or replace an existing one
 Step 2: Choose license
@@ -333,7 +335,7 @@ files["sections/cli_tools.tex"] = r"""
 
 Every run ends with a one-line summary, for example:
 \begin{verbatim}
-Summary: 6 removed, 11 kept | 0.0 MB → 0.0 MB | 0 errors, 1 warning
+Summary: 7 removed, 10 kept | 0.0 MB → 0.0 MB | 0 errors, 3 warnings
 \end{verbatim}
 Read left to right: file counts (removed/kept), input/output size, then
 issue counts from the pre-flight checks.
