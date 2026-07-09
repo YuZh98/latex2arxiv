@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-09
+
 ### Fixed
 - Demo document now states its own run's numbers correctly (file counts, warning count, page count, before/after size, title-dedup wording) and mentions `\addbibresource` in the dependency-tracking list
 
