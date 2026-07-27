@@ -3,8 +3,12 @@
 import os
 import re
 import subprocess
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
-GUIDE_LAST_UPDATED = "v0.10.0 (2026-05-13)"
+try:
+    GUIDE_LAST_UPDATED = f"v{_pkg_version('latex2arxiv')}"
+except PackageNotFoundError:
+    GUIDE_LAST_UPDATED = "dev"
 
 _FALLBACK = "(could not extract — check your .tex)"
 
@@ -267,7 +271,8 @@ def format_guide(
 📌 Step 5: Check processing
    arXiv compiles your paper. Review the generated PDF carefully.
    Common issues:
-   • Fonts look wrong → ensure .bbl is included (latex2arxiv does this)
+   • Fonts look wrong → check the arXiv log for Type-3/bitmap font substitutions
+   • Citations show as [?] → ensure the .bbl is included (latex2arxiv does this)
    • Missing figures → check paths are relative, no absolute paths
    • Date shows today → \\today was used; consider hardcoding the date
 

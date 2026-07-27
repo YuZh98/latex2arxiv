@@ -1,3 +1,4 @@
+import sys
 from typing import Callable
 
 try:
@@ -40,7 +41,7 @@ def normalize_bibtex(
     warn_fn: Callable[[str], None] | None = None,
     is_biblatex: bool = False,
 ) -> str:
-    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}", file=__import__("sys").stderr))
+    _warn: Callable[[str], None] = warn_fn or (lambda msg: print(f"  [warn] {msg}", file=sys.stderr))
     if not HAS_BIBTEXPARSER:
         _warn("bibtexparser not installed; skipping BibTeX normalization")
         return source

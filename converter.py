@@ -391,7 +391,7 @@ def convert(
         _compile(output_zip, main_hint)
         # Update guide with page count from compiled PDF
         compiled_pdf = output_zip.with_suffix(".pdf")
-        if compiled_pdf.exists() and hasattr(issues, "metadata") and issues.metadata:
+        if compiled_pdf.exists() and issues.metadata:
             pages = _count_pages(str(compiled_pdf))
             if pages:
                 stats = issues.metadata.get("stats", {})

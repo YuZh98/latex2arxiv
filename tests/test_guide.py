@@ -1,5 +1,6 @@
 """Tests for pipeline/guide.py — metadata extraction, stats, and formatting."""
 
+import re
 import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -255,3 +256,10 @@ class TestCountPages:
         with patch("subprocess.run", side_effect=Exception("no pdfinfo")):
             stats = count_stats("some tex", pdf_path=str(fake))
         assert stats["pages"] == 1
+
+
+def test_guide_version_not_stale():
+    from pipeline.guide import GUIDE_LAST_UPDATED
+
+    assert "v0.10.0" not in GUIDE_LAST_UPDATED
+    assert re.match(r"^v\d+\.\d+|^dev$", GUIDE_LAST_UPDATED)
