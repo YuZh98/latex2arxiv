@@ -151,7 +151,9 @@ def convert(
         if main_tex is None:
             raise ConverterError("no .tex file found in archive")
         print(f"  main tex: {main_tex.relative_to(root)}")
-        issues.main_tex = str(main_tex.relative_to(root))
+        # Recorded paths index back into the output zip, whose member names are
+        # always '/'-separated — never the OS separator.
+        issues.main_tex = main_tex.relative_to(root).as_posix()
 
         all_tex_files = {main_tex}
         main_source = main_tex.read_text(encoding="utf-8", errors="replace")
@@ -164,7 +166,7 @@ def convert(
             flattened, inlined_paths = flatten_tex(main_tex, root, issues)
             main_tex.write_text(flattened, encoding="utf-8")
             _root_resolved = root.resolve()
-            issues.inlined_files = sorted(str(p.relative_to(_root_resolved)) for p in inlined_paths if p.exists())
+            issues.inlined_files = sorted(p.relative_to(_root_resolved).as_posix() for p in inlined_paths if p.exists())
             # After flatten, the only .tex left in the dependency set is the
             # main file; the fragments will be pruned from the output zip.
             all_tex_files = {main_tex}
@@ -214,7 +216,10 @@ def convert(
                 continue
             ext = path.suffix.lower()
             at_root = path.parent == root
-            if ext in {".cls", ".sty"} and path.name in used_style_files and at_root:
+            # `\usepackage{styles/custom}` records "styles/custom.sty", which a real
+            # TeX run resolves relative to the zip root — match that form too.
+            rel = path.relative_to(root).as_posix()
+            if ext in {".cls", ".sty"} and (path.name in used_style_files or rel in used_style_files):
                 whitelist.add(path.resolve())
             elif ext == ".bst" and at_root:
                 whitelist.add(path.resolve())
@@ -326,7 +331,7 @@ def convert(
         # temp dir later.
         issues.input_path = str(input_zip)
         issues.dry_run = dry_run
-        issues.kept_files = sorted(str(p.relative_to(root)) for p in kept_files)
+        issues.kept_files = sorted(p.relative_to(root).as_posix() for p in kept_files)
         issues.removed_files = removed_names
         try:
             issues.sizes_input = input_zip.stat().st_size if input_zip.is_file() else None
@@ -389,7 +394,7 @@ def convert(
         _compile(output_zip, main_hint)
         # Update guide with page count from compiled PDF
         compiled_pdf = output_zip.with_suffix(".pdf")
-        if compiled_pdf.exists() and hasattr(issues, "metadata") and issues.metadata:
+        if compiled_pdf.exists() and issues.metadata:
             pages = _count_pages(str(compiled_pdf))
             if pages:
                 stats = issues.metadata.get("stats", {})

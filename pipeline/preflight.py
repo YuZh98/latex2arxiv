@@ -44,9 +44,9 @@ def _has_latex_dvips_mode(root: Path) -> bool:
         if re.search(r'"?compiler"?\s*[:=]\s*"?(latex|tex|latex\+dvips)', content):
             return True
         # Legacy XXX format: nohypertex line or latex directive.
-        # Use a word-aware match so "xelatex" / "lualatex" don't false-positive here
-        # (they belong to _has_xelatex_mode, a separate code path).
-        if name == "00README.XXX" and re.search(r"(?<!xe)(?<!lua)latex", content):
+        # Use a word-aware match so "xelatex" / "lualatex" / "pdflatex" don't
+        # false-positive here (they are other engines, not latex+dvips).
+        if name == "00README.XXX" and re.search(r"(?<!xe)(?<!lua)(?<!pdf)latex", content):
             return True
     return False
 
@@ -93,15 +93,15 @@ def _check_compliance(
 
     # Double-spacing / referee mode. ('doubleblind' is an anonymization flag in
     # classes like acmart, not a spacing flag — do not match it here.)
-    if re.search(r"\\documentclass\[[^\]]*\b(referee|doublespace)\b", combined):
+    if re.search(r"\\documentclass\[[^\]]*\b(referee|doublespace)\b", combined_nc):
         issues.warn(
             "'referee' or 'doublespace' option detected in \\documentclass — arXiv requires single-spaced submissions"
         )
-    if re.search(r"\\(doublespacing|setstretch\s*\{[2-9])", combined):
+    if re.search(r"\\(doublespacing|setstretch\s*\{[2-9])", combined_nc):
         issues.warn("double-spacing command detected — arXiv requires single-spaced submissions")
 
     # \today in \date
-    if re.search(r"\\date\s*\{[^}]*\\today", combined):
+    if re.search(r"\\date\s*\{[^}]*\\today", combined_nc):
         issues.warn("\\today used in \\date — arXiv may rebuild the PDF and the date will change")
 
     # \includeonly restricts which chapters are compiled — almost always a mistake in submissions.
@@ -427,8 +427,9 @@ def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
 def _check_oversized_images(kept_files: set[Path], issues: Issues) -> None:
     """Warn if any PNG image exceeds arXiv's 34-megapixel threshold.
 
-    Uses Pillow to read image dimensions without loading pixel data.
-    Silently skips files that can't be read (corrupt, not actually PNG, etc.).
+    Uses Pillow to read image dimensions without loading pixel data. Images so
+    large that Pillow refuses to open them are reported too; other unreadable
+    files (corrupt, not actually PNG, etc.) are skipped silently.
     """
     try:
         from PIL import Image
@@ -441,15 +442,21 @@ def _check_oversized_images(kept_files: set[Path], issues: Issues) -> None:
         try:
             with Image.open(path) as img:
                 w, h = img.size
-            pixels = w * h
-            if pixels > _MAX_PNG_PIXELS:
-                mp = pixels / 1_000_000
-                issues.warn(
-                    f"{path.name} is {mp:.0f} megapixels (>{_MAX_PNG_PIXELS // 1_000_000} MP) — "
-                    "arXiv flags oversized PNGs; consider downscaling with --resize"
-                )
+        except Image.DecompressionBombError:
+            issues.warn(
+                f"oversized PNG '{path.name}': dimensions exceed Pillow's decompression-bomb "
+                "guard (~179 megapixels) — far above arXiv's 34-megapixel limit; downsample it"
+            )
+            continue
         except Exception:
             continue
+        pixels = w * h
+        if pixels > _MAX_PNG_PIXELS:
+            mp = pixels / 1_000_000
+            issues.warn(
+                f"{path.name} is {mp:.0f} megapixels (>{_MAX_PNG_PIXELS // 1_000_000} MP) — "
+                "arXiv flags oversized PNGs; consider downscaling with --resize"
+            )
 
 
 def _check_output_size(output_zip: Path, issues: Issues) -> None:

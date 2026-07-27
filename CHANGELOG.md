@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Fixed
+- Used `.sty`/`.cls` files in subdirectories are kept instead of pruned
+- Bib entries lacking both DOI and title now get private fields stripped
+- `\citestyle{...}` no longer produces a false undefined-citation warning
+- Commented-out `referee`/`doublespacing`/`\today` lines no longer warn
+- `pdflatex` in `00README.XXX` no longer suppresses the `.eps` warning
+- PNGs above Pillow's decompression-bomb threshold are reported instead of silently skipped
+- Windows: compiled PDF opens via `os.startfile`; zip member names use forward slashes so the upload summary works for subdirectory main files
+- Upload guide footer shows the generating latex2arxiv version and pairs symptoms with the right remedies
+
 ## [1.3.1] - 2026-07-09
 
 ### Fixed

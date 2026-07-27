@@ -631,6 +631,13 @@ class TestNormalizeBibtex:
         assert "Smith, John" in result
         assert "A Paper" in result
 
+    def test_no_key_entry_private_fields_stripped(self):
+        src = "@misc{orphan,\n  note = {kept},\n  abstract = {should be stripped},\n}\n"
+        out = normalize_bibtex(src)
+        assert "orphan" in out
+        assert "kept" in out
+        assert "should be stripped" not in out
+
 
 # ── Full pipeline integration test ────────────────────────────────────────────
 
@@ -1612,6 +1619,51 @@ class TestCompileMissingTools:
         assert captured.count("pdflatex not found") == 1
 
 
+class TestOpenFile:
+    """`_open_file` picks the right per-platform opener. The Windows branch is
+    unreachable on CI, so it is exercised with a monkeypatched `sys.platform`
+    and a stubbed `os.startfile` (absent outside Windows)."""
+
+    def test_windows_uses_startfile(self, monkeypatch):
+        import pipeline.build as build
+        from pathlib import PureWindowsPath
+
+        # PureWindowsPath, not Path: a host-native Path would render the argument
+        # with the host's separator, so the assertion would only hold on POSIX.
+        calls = []
+        monkeypatch.setattr(build.sys, "platform", "win32")
+        monkeypatch.setattr(build.os, "startfile", lambda p: calls.append(p), raising=False)
+        build._open_file(PureWindowsPath("C:/tmp/out.pdf"))
+        assert calls == ["C:\\tmp\\out.pdf"]
+
+    def test_macos_uses_open(self, monkeypatch):
+        import pipeline.build as build
+        from pathlib import PurePosixPath
+
+        calls = []
+        monkeypatch.setattr(build.sys, "platform", "darwin")
+        monkeypatch.setattr(build.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+        build._open_file(PurePosixPath("/tmp/out.pdf"))
+        assert calls == [["open", "/tmp/out.pdf"]]
+
+    def test_opener_failure_warns_instead_of_raising(self, monkeypatch, capsys):
+        """No registered handler makes `os.startfile` raise; a viewer that cannot
+        be launched must not fail an otherwise successful compile."""
+        import pipeline.build as build
+        from pathlib import PureWindowsPath
+
+        def boom(_p):
+            raise OSError("no application is associated with the file")
+
+        monkeypatch.setattr(build.sys, "platform", "win32")
+        monkeypatch.setattr(build.os, "startfile", boom, raising=False)
+        build._open_file(PureWindowsPath("C:/tmp/out.pdf"))
+
+        captured = capsys.readouterr().out
+        assert "could not open" in captured
+        assert "no application is associated" in captured
+
+
 class TestDemoFlag:
     def test_demo_dry_run(self, tmp_path):
         """--demo --dry-run should print dry-run output and not create any output zip."""
@@ -2494,6 +2546,49 @@ class TestPreFlightChecks:
         Path(zp).unlink(missing_ok=True)
         assert any("referee" in w.lower() for w in issues.warnings), f"Expected referee warning, got: {issues.warnings}"
 
+    def test_commented_referee_not_flagged(self, tmp_path):
+        """A commented-out referee \\documentclass must not warn."""
+        from converter import convert
+
+        src = (
+            "\\documentclass{article}\n"
+            "% \\documentclass[referee]{article} — old draft setting\n"
+            "\\begin{document}x\\end{document}\n"
+        )
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert not any("referee" in w.lower() for w in issues.warnings), (
+            f"Commented referee option should not warn, got: {issues.warnings}"
+        )
+
+    def test_commented_doublespacing_not_flagged(self, tmp_path):
+        """A commented-out \\doublespacing must not warn."""
+        from converter import convert
+
+        src = "\\documentclass{article}\n% \\doublespacing\n\\begin{document}x\\end{document}\n"
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert not any("double-spacing" in w.lower() for w in issues.warnings), (
+            f"Commented \\doublespacing should not warn, got: {issues.warnings}"
+        )
+
+    def test_commented_today_not_flagged(self, tmp_path):
+        """A commented-out \\date{\\today} must not warn."""
+        from converter import convert
+
+        src = "\\documentclass{article}\n% \\date{\\today}\n\\begin{document}x\\end{document}\n"
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert not any("today" in w.lower() for w in issues.warnings), (
+            f"Commented \\today should not warn, got: {issues.warnings}"
+        )
+
 
 # ── T2: subfile + bibliographystyle warnings ──────────────────────────────────
 
@@ -2831,6 +2926,21 @@ class TestPreflightV3:
         issues = convert(zp, out, dry_run=True, **kwargs)
         return issues
 
+    # ── Recorded path shape ──
+
+    def test_paths_recorded_with_posix_separators(self, tmp_path):
+        """Zip member names are always '/'-separated, so the recorded paths that
+        index back into the zip must be too. Coincides with `str()` on POSIX;
+        guards the Windows behaviour."""
+        files = {
+            "paper/main.tex": r"\documentclass{article}\begin{document}x\end{document}",
+            "figures/note.tex": r"\newcommand{\foo}{bar}",
+        }
+        issues = self._run(files, tmp_path)
+        assert issues.main_tex == "paper/main.tex"
+        assert all("\\" not in k for k in issues.kept_files)
+        assert all("\\" not in r for r in issues.removed_files)
+
     # ── Hidden dot-files ──
 
     def test_hidden_file_warns(self, tmp_path):
@@ -2963,6 +3073,46 @@ class TestPreflightV3:
         issues = self._run(files, tmp_path)
         assert not any("psfig.sty" in e for e in issues.errors)
 
+    # ── Used .sty/.cls in subdirectories ──
+
+    def test_used_subdir_sty_kept(self, tmp_path):
+        issues = self._run(
+            {
+                "main.tex": (
+                    r"\documentclass{article}\usepackage{custom}"
+                    r"\begin{document}x\end{document}"
+                ),
+                "styles/custom.sty": "% custom package\n",
+            },
+            tmp_path,
+        )
+        assert any(k.endswith("custom.sty") for k in issues.kept_files)
+
+    def test_path_qualified_sty_kept(self, tmp_path):
+        """`\\usepackage{styles/custom}` is what a real TeX run resolves from the
+        zip root, so the path-qualified reference must whitelist the file too."""
+        issues = self._run(
+            {
+                "main.tex": (
+                    r"\documentclass{article}\usepackage{styles/custom}"
+                    r"\begin{document}x\end{document}"
+                ),
+                "styles/custom.sty": "% custom package\n",
+            },
+            tmp_path,
+        )
+        assert any(k.endswith("styles/custom.sty") for k in issues.kept_files)
+
+    def test_unused_subdir_sty_still_pruned(self, tmp_path):
+        issues = self._run(
+            {
+                "main.tex": r"\documentclass{article}\begin{document}x\end{document}",
+                "styles/unused.sty": "% never loaded\n",
+            },
+            tmp_path,
+        )
+        assert not any(k.endswith("unused.sty") for k in issues.kept_files)
+
     # ── -eps-converted-to.pdf artifacts ──
 
     def test_eps_converted_to_pdf_warns(self, tmp_path):
@@ -3024,6 +3174,30 @@ class TestPreflightV3:
         _check_oversized_images({png_path}, issues)
         assert not any("megapixels" in w for w in issues.warnings)
 
+    def test_decompression_bomb_png_warns(self, tmp_path):
+        """PNG whose declared size trips Pillow's bomb guard should still warn."""
+        import struct
+        import zlib
+
+        from pipeline.preflight import _check_oversized_images
+        from pipeline.types import Issues
+
+        def chunk(tag: bytes, data: bytes) -> bytes:
+            return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+        w = h = 20000
+        png_path = tmp_path / "huge.png"
+        png_path.write_bytes(
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(b"\x00" * 10))
+            + chunk(b"IEND", b"")
+        )
+
+        issues = Issues()
+        _check_oversized_images({png_path}, issues)
+        assert any("huge.png" in w_ for w_ in issues.warnings)
+
     # ── .eps warning suppressed for latex+dvips mode ──
 
     def test_eps_no_warn_with_00readme_latex(self, tmp_path):
@@ -3077,6 +3251,19 @@ class TestPreflightV3:
         }
         issues = self._run(files, tmp_path)
         assert not any(".eps image found" in w for w in issues.warnings)
+
+    def test_00readme_pdflatex_does_not_enable_dvips_mode(self, tmp_path):
+        """00README.XXX declaring pdflatex must not be misread as latex+dvips."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}\usepackage{graphicx}"
+                r"\begin{document}\includegraphics{fig.eps}\end{document}"
+            ),
+            "fig.eps": b"%!PS-Adobe-3.0 EPSF-3.0",
+            "00README.XXX": "pdflatex\n",
+        }
+        issues = self._run(files, tmp_path)
+        assert any(".eps image found" in w for w in issues.warnings)
 
     # ── Softened biblatex message ──
 
@@ -3322,6 +3509,12 @@ class TestCiteRegexPrecision:
 
     def test_multicite_notes_not_scanned(self):
         assert self._keys(r"\autocites[{cf. x}]{a}[y]{b}") == {"a", "b"}
+
+    def test_citestyle_not_a_citation(self):
+        assert self._keys(r"\citestyle{plainnat}") == set()
+
+    def test_citet_still_matches(self):
+        assert self._keys(r"\citet{knuth84}") == {"knuth84"}
 
 
 class TestUsesBiblatexComments:

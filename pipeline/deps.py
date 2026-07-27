@@ -133,8 +133,9 @@ _CITE_PREFIX = r"(?:no|auto|paren|text|smart|super|full|foot(?:full)?)?"
 # Singular cite commands take exactly one key group; commands like \citefield
 # and \citename carry a second mandatory arg that is NOT a key, so only the
 # first brace group is captured. Bracket args are skipped, never scanned.
+# \citestyle takes a natbib style name, not a key, so it is excluded.
 _CITE_SINGLE_RE = re.compile(
-    r"\\" + _CITE_PREFIX + r"cite[a-z]*\*?\s*(?:\[[^\]]*\]\s*){0,2}\{([^}]*)\}",
+    r"\\" + _CITE_PREFIX + r"cite(?!style)[a-z]*\*?\s*(?:\[[^\]]*\]\s*){0,2}\{([^}]*)\}",
     re.IGNORECASE,
 )
 # Multicite family (\cites, \autocites, ...) chains {key} groups, each with
