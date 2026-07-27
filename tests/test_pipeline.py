@@ -3099,6 +3099,30 @@ class TestPreflightV3:
         _check_oversized_images({png_path}, issues)
         assert not any("megapixels" in w for w in issues.warnings)
 
+    def test_decompression_bomb_png_warns(self, tmp_path):
+        """PNG whose declared size trips Pillow's bomb guard should still warn."""
+        import struct
+        import zlib
+
+        from pipeline.preflight import _check_oversized_images
+        from pipeline.types import Issues
+
+        def chunk(tag: bytes, data: bytes) -> bytes:
+            return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data))
+
+        w = h = 20000
+        png_path = tmp_path / "huge.png"
+        png_path.write_bytes(
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(b"\x00" * 10))
+            + chunk(b"IEND", b"")
+        )
+
+        issues = Issues()
+        _check_oversized_images({png_path}, issues)
+        assert any("huge.png" in w_ for w_ in issues.warnings)
+
     # ── .eps warning suppressed for latex+dvips mode ──
 
     def test_eps_no_warn_with_00readme_latex(self, tmp_path):

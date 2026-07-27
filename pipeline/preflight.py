@@ -427,8 +427,9 @@ def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
 def _check_oversized_images(kept_files: set[Path], issues: Issues) -> None:
     """Warn if any PNG image exceeds arXiv's 34-megapixel threshold.
 
-    Uses Pillow to read image dimensions without loading pixel data.
-    Silently skips files that can't be read (corrupt, not actually PNG, etc.).
+    Uses Pillow to read image dimensions without loading pixel data. Images so
+    large that Pillow refuses to open them are reported too; other unreadable
+    files (corrupt, not actually PNG, etc.) are skipped silently.
     """
     try:
         from PIL import Image
@@ -441,15 +442,21 @@ def _check_oversized_images(kept_files: set[Path], issues: Issues) -> None:
         try:
             with Image.open(path) as img:
                 w, h = img.size
-            pixels = w * h
-            if pixels > _MAX_PNG_PIXELS:
-                mp = pixels / 1_000_000
-                issues.warn(
-                    f"{path.name} is {mp:.0f} megapixels (>{_MAX_PNG_PIXELS // 1_000_000} MP) — "
-                    "arXiv flags oversized PNGs; consider downscaling with --resize"
-                )
+        except Image.DecompressionBombError:
+            issues.warn(
+                f"oversized PNG '{path.name}': dimensions exceed Pillow's decompression-bomb "
+                "guard (~179 megapixels) — far above arXiv's 34-megapixel limit; downsample it"
+            )
+            continue
         except Exception:
             continue
+        pixels = w * h
+        if pixels > _MAX_PNG_PIXELS:
+            mp = pixels / 1_000_000
+            issues.warn(
+                f"{path.name} is {mp:.0f} megapixels (>{_MAX_PNG_PIXELS // 1_000_000} MP) — "
+                "arXiv flags oversized PNGs; consider downscaling with --resize"
+            )
 
 
 def _check_output_size(output_zip: Path, issues: Issues) -> None:
