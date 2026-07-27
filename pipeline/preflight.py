@@ -93,15 +93,15 @@ def _check_compliance(
 
     # Double-spacing / referee mode. ('doubleblind' is an anonymization flag in
     # classes like acmart, not a spacing flag — do not match it here.)
-    if re.search(r"\\documentclass\[[^\]]*\b(referee|doublespace)\b", combined):
+    if re.search(r"\\documentclass\[[^\]]*\b(referee|doublespace)\b", combined_nc):
         issues.warn(
             "'referee' or 'doublespace' option detected in \\documentclass — arXiv requires single-spaced submissions"
         )
-    if re.search(r"\\(doublespacing|setstretch\s*\{[2-9])", combined):
+    if re.search(r"\\(doublespacing|setstretch\s*\{[2-9])", combined_nc):
         issues.warn("double-spacing command detected — arXiv requires single-spaced submissions")
 
     # \today in \date
-    if re.search(r"\\date\s*\{[^}]*\\today", combined):
+    if re.search(r"\\date\s*\{[^}]*\\today", combined_nc):
         issues.warn("\\today used in \\date — arXiv may rebuild the PDF and the date will change")
 
     # \includeonly restricts which chapters are compiled — almost always a mistake in submissions.

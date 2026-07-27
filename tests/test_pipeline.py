@@ -2501,6 +2501,49 @@ class TestPreFlightChecks:
         Path(zp).unlink(missing_ok=True)
         assert any("referee" in w.lower() for w in issues.warnings), f"Expected referee warning, got: {issues.warnings}"
 
+    def test_commented_referee_not_flagged(self, tmp_path):
+        """A commented-out referee \\documentclass must not warn."""
+        from converter import convert
+
+        src = (
+            "\\documentclass{article}\n"
+            "% \\documentclass[referee]{article} — old draft setting\n"
+            "\\begin{document}x\\end{document}\n"
+        )
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert not any("referee" in w.lower() for w in issues.warnings), (
+            f"Commented referee option should not warn, got: {issues.warnings}"
+        )
+
+    def test_commented_doublespacing_not_flagged(self, tmp_path):
+        """A commented-out \\doublespacing must not warn."""
+        from converter import convert
+
+        src = "\\documentclass{article}\n% \\doublespacing\n\\begin{document}x\\end{document}\n"
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert not any("double-spacing" in w.lower() for w in issues.warnings), (
+            f"Commented \\doublespacing should not warn, got: {issues.warnings}"
+        )
+
+    def test_commented_today_not_flagged(self, tmp_path):
+        """A commented-out \\date{\\today} must not warn."""
+        from converter import convert
+
+        src = "\\documentclass{article}\n% \\date{\\today}\n\\begin{document}x\\end{document}\n"
+        zp = _make_single_tex_zip(src)
+        out = str(tmp_path / "out.zip")
+        issues = convert(Path(zp), Path(out), dry_run=True)
+        Path(zp).unlink(missing_ok=True)
+        assert not any("today" in w.lower() for w in issues.warnings), (
+            f"Commented \\today should not warn, got: {issues.warnings}"
+        )
+
 
 # ── T2: subfile + bibliographystyle warnings ──────────────────────────────────
 
