@@ -1626,20 +1626,24 @@ class TestOpenFile:
 
     def test_windows_uses_startfile(self, monkeypatch):
         import pipeline.build as build
+        from pathlib import PureWindowsPath
 
+        # PureWindowsPath, not Path: a host-native Path would render the argument
+        # with the host's separator, so the assertion would only hold on POSIX.
         calls = []
         monkeypatch.setattr(build.sys, "platform", "win32")
         monkeypatch.setattr(build.os, "startfile", lambda p: calls.append(p), raising=False)
-        build._open_file(Path("C:/tmp/out.pdf"))
-        assert calls == ["C:/tmp/out.pdf"]
+        build._open_file(PureWindowsPath("C:/tmp/out.pdf"))
+        assert calls == ["C:\\tmp\\out.pdf"]
 
     def test_macos_uses_open(self, monkeypatch):
         import pipeline.build as build
+        from pathlib import PurePosixPath
 
         calls = []
         monkeypatch.setattr(build.sys, "platform", "darwin")
         monkeypatch.setattr(build.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
-        build._open_file(Path("/tmp/out.pdf"))
+        build._open_file(PurePosixPath("/tmp/out.pdf"))
         assert calls == [["open", "/tmp/out.pdf"]]
 
 
