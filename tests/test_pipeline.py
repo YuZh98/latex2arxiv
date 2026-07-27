@@ -3355,6 +3355,12 @@ class TestCiteRegexPrecision:
     def test_multicite_notes_not_scanned(self):
         assert self._keys(r"\autocites[{cf. x}]{a}[y]{b}") == {"a", "b"}
 
+    def test_citestyle_not_a_citation(self):
+        assert self._keys(r"\citestyle{plainnat}") == set()
+
+    def test_citet_still_matches(self):
+        assert self._keys(r"\citet{knuth84}") == {"knuth84"}
+
 
 class TestUsesBiblatexComments:
     def test_commented_out_biblatex_not_detected(self):
