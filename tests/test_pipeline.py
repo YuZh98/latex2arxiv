@@ -1646,6 +1646,23 @@ class TestOpenFile:
         build._open_file(PurePosixPath("/tmp/out.pdf"))
         assert calls == [["open", "/tmp/out.pdf"]]
 
+    def test_opener_failure_warns_instead_of_raising(self, monkeypatch, capsys):
+        """No registered handler makes `os.startfile` raise; a viewer that cannot
+        be launched must not fail an otherwise successful compile."""
+        import pipeline.build as build
+        from pathlib import PureWindowsPath
+
+        def boom(_p):
+            raise OSError("no application is associated with the file")
+
+        monkeypatch.setattr(build.sys, "platform", "win32")
+        monkeypatch.setattr(build.os, "startfile", boom, raising=False)
+        build._open_file(PureWindowsPath("C:/tmp/out.pdf"))
+
+        captured = capsys.readouterr().out
+        assert "could not open" in captured
+        assert "no application is associated" in captured
+
 
 class TestDemoFlag:
     def test_demo_dry_run(self, tmp_path):

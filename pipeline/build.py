@@ -17,14 +17,20 @@ from pipeline.types import ConverterError
 
 
 def _open_file(path: Path) -> None:
-    """Open a file with the OS default viewer, cross-platform."""
-    if sys.platform == "win32":
-        # cmd's `start` reads a quoted first argument as a window title.
-        os.startfile(str(path))
-    elif sys.platform == "darwin":
-        subprocess.run(["open", str(path)])
-    else:
-        subprocess.run(["xdg-open", str(path)])
+    """Open a file with the OS default viewer, cross-platform.
+
+    Failure to launch a viewer must never fail an otherwise successful compile,
+    so a missing handler or absent opener binary is reported as a warning."""
+    try:
+        if sys.platform == "win32":
+            # cmd's `start` reads a quoted first argument as a window title.
+            os.startfile(str(path))
+        elif sys.platform == "darwin":
+            subprocess.run(["open", str(path)])
+        else:
+            subprocess.run(["xdg-open", str(path)])
+    except OSError as exc:
+        print(f"  [warn] could not open {path}: {exc}")
 
 
 def _format_pdflatex_errors(stdout: str, max_errors: int = 5) -> str:
