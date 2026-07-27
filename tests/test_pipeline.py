@@ -3153,6 +3153,19 @@ class TestPreflightV3:
         issues = self._run(files, tmp_path)
         assert not any(".eps image found" in w for w in issues.warnings)
 
+    def test_00readme_pdflatex_does_not_enable_dvips_mode(self, tmp_path):
+        """00README.XXX declaring pdflatex must not be misread as latex+dvips."""
+        files = {
+            "main.tex": (
+                r"\documentclass{article}\usepackage{graphicx}"
+                r"\begin{document}\includegraphics{fig.eps}\end{document}"
+            ),
+            "fig.eps": b"%!PS-Adobe-3.0 EPSF-3.0",
+            "00README.XXX": "pdflatex\n",
+        }
+        issues = self._run(files, tmp_path)
+        assert any(".eps image found" in w for w in issues.warnings)
+
     # ── Softened biblatex message ──
 
     def test_biblatex_message_mentions_native_biber(self, tmp_path):

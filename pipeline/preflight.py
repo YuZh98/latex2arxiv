@@ -44,9 +44,9 @@ def _has_latex_dvips_mode(root: Path) -> bool:
         if re.search(r'"?compiler"?\s*[:=]\s*"?(latex|tex|latex\+dvips)', content):
             return True
         # Legacy XXX format: nohypertex line or latex directive.
-        # Use a word-aware match so "xelatex" / "lualatex" don't false-positive here
-        # (they belong to _has_xelatex_mode, a separate code path).
-        if name == "00README.XXX" and re.search(r"(?<!xe)(?<!lua)latex", content):
+        # Use a word-aware match so "xelatex" / "lualatex" / "pdflatex" don't
+        # false-positive here (they are other engines, not latex+dvips).
+        if name == "00README.XXX" and re.search(r"(?<!xe)(?<!lua)(?<!pdf)latex", content):
             return True
     return False
 
