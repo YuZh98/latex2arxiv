@@ -214,7 +214,7 @@ def convert(
                 continue
             ext = path.suffix.lower()
             at_root = path.parent == root
-            if ext in {".cls", ".sty"} and path.name in used_style_files and at_root:
+            if ext in {".cls", ".sty"} and path.name in used_style_files:
                 whitelist.add(path.resolve())
             elif ext == ".bst" and at_root:
                 whitelist.add(path.resolve())

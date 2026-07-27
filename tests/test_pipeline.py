@@ -2963,6 +2963,31 @@ class TestPreflightV3:
         issues = self._run(files, tmp_path)
         assert not any("psfig.sty" in e for e in issues.errors)
 
+    # ── Used .sty/.cls in subdirectories ──
+
+    def test_used_subdir_sty_kept(self, tmp_path):
+        issues = self._run(
+            {
+                "main.tex": (
+                    r"\documentclass{article}\usepackage{custom}"
+                    r"\begin{document}x\end{document}"
+                ),
+                "styles/custom.sty": "% custom package\n",
+            },
+            tmp_path,
+        )
+        assert any(k.endswith("custom.sty") for k in issues.kept_files)
+
+    def test_unused_subdir_sty_still_pruned(self, tmp_path):
+        issues = self._run(
+            {
+                "main.tex": r"\documentclass{article}\begin{document}x\end{document}",
+                "styles/unused.sty": "% never loaded\n",
+            },
+            tmp_path,
+        )
+        assert not any(k.endswith("unused.sty") for k in issues.kept_files)
+
     # ── -eps-converted-to.pdf artifacts ──
 
     def test_eps_converted_to_pdf_warns(self, tmp_path):
