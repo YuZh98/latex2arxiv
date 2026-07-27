@@ -631,6 +631,13 @@ class TestNormalizeBibtex:
         assert "Smith, John" in result
         assert "A Paper" in result
 
+    def test_no_key_entry_private_fields_stripped(self):
+        src = "@misc{orphan,\n  note = {kept},\n  abstract = {should be stripped},\n}\n"
+        out = normalize_bibtex(src)
+        assert "orphan" in out
+        assert "kept" in out
+        assert "should be stripped" not in out
+
 
 # ── Full pipeline integration test ────────────────────────────────────────────
 

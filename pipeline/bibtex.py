@@ -59,6 +59,10 @@ def normalize_bibtex(
         else:
             no_key.append(entry)
 
+    # Strip private fields. biblatex: 'keywords' is functional
+    # (\printbibliography[keyword=...]) — keep it there.
+    private_fields = _PRIVATE_FIELDS - {"keywords"} if is_biblatex else _PRIVATE_FIELDS
+
     unique_entries = []
     for dedup, entries in groups.items():
         if len(entries) == 1:
@@ -74,9 +78,6 @@ def normalize_bibtex(
             for s in skipped:
                 _warn(f"duplicate entry skipped: {s}")
 
-        # Strip private fields. biblatex: 'keywords' is functional
-        # (\printbibliography[keyword=...]) — keep it there.
-        private_fields = _PRIVATE_FIELDS - {"keywords"} if is_biblatex else _PRIVATE_FIELDS
         for f in private_fields:
             chosen.pop(f, None)
 
@@ -90,6 +91,9 @@ def normalize_bibtex(
                 ordered[f] = chosen[f]
         unique_entries.append(ordered)
 
+    for entry in no_key:
+        for f in private_fields:
+            entry.pop(f, None)
     unique_entries.extend(no_key)
     db.entries = unique_entries
     writer = BibTexWriter()
