@@ -44,7 +44,7 @@ Your manuscript never leaves your browser. The extension sends nothing to any se
 
 **Live on the Chrome Web Store.** The UI, service worker, offscreen document, and Web Worker run the full `latex2arxiv` pipeline via Pyodide against an open Overleaf project. The Pyodide runtime and the four packages it ships are vendored under `pyodide/` (~13 MB) so the package is self-contained per the MV3 remote-code policy. Every bundled wheel and runtime file is sha256-pinned and re-verified in CI.
 
-Design rationale, dismissed alternatives, and the full build plan: [`docs/browser-extension-design.md`](../docs/browser-extension-design.md).
+Design rationale, dismissed alternatives, and the full build plan: [`materials/browser-extension-design.md`](../materials/browser-extension-design.md).
 
 ### Architecture
 

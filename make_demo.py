@@ -366,7 +366,7 @@ latex2arxiv paper.zip --flatten --compile
 \end{verbatim}
 Inlines every \texttt{\textbackslash input} / \texttt{\textbackslash include} /
 \texttt{\textbackslash subfile} into the main \texttt{.tex}. Useful when arXiv
-has trouble with multi-file projects. See \texttt{docs/flatten.md} for details.
+has trouble with multi-file projects. See \texttt{materials/flatten.md} for details.
 
 \subsection*{\texttt{-{}-json}: machine-readable output}
 
@@ -374,7 +374,7 @@ has trouble with multi-file projects. See \texttt{docs/flatten.md} for details.
 latex2arxiv paper.zip --json 2>/dev/null | jq .counts
 \end{verbatim}
 Emits a JSON summary on stdout (progress goes to stderr). Useful for CI
-pipelines and AI agent integrations. See \texttt{docs/json-schema.md} for the
+pipelines and AI agent integrations. See \texttt{materials/json-schema.md} for the
 schema.
 
 \subsection*{\texttt{-{}-demo}: this document}

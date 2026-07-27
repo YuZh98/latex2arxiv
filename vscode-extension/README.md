@@ -41,7 +41,7 @@ Every check the underlying [`latex2arxiv` CLI](https://github.com/YuZh98/latex2a
 - **Bibliography** — missing `.bib`, mismatched `\bibliographystyle`, biber-only commands
 - **Project hygiene** — unused `\input`s, missing referenced files, encoding mismatches
 
-Full check list and JSON output schema: [docs/json-schema.md](https://github.com/YuZh98/latex2arxiv/blob/main/docs/json-schema.md).
+Full check list and JSON output schema: [materials/json-schema.md](https://github.com/YuZh98/latex2arxiv/blob/main/materials/json-schema.md).
 
 ## Commands
 
