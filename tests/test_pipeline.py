@@ -3071,6 +3071,21 @@ class TestPreflightV3:
         )
         assert any(k.endswith("custom.sty") for k in issues.kept_files)
 
+    def test_path_qualified_sty_kept(self, tmp_path):
+        """`\\usepackage{styles/custom}` is what a real TeX run resolves from the
+        zip root, so the path-qualified reference must whitelist the file too."""
+        issues = self._run(
+            {
+                "main.tex": (
+                    r"\documentclass{article}\usepackage{styles/custom}"
+                    r"\begin{document}x\end{document}"
+                ),
+                "styles/custom.sty": "% custom package\n",
+            },
+            tmp_path,
+        )
+        assert any(k.endswith("styles/custom.sty") for k in issues.kept_files)
+
     def test_unused_subdir_sty_still_pruned(self, tmp_path):
         issues = self._run(
             {

@@ -216,7 +216,10 @@ def convert(
                 continue
             ext = path.suffix.lower()
             at_root = path.parent == root
-            if ext in {".cls", ".sty"} and path.name in used_style_files:
+            # `\usepackage{styles/custom}` records "styles/custom.sty", which a real
+            # TeX run resolves relative to the zip root — match that form too.
+            rel = path.relative_to(root).as_posix()
+            if ext in {".cls", ".sty"} and (path.name in used_style_files or rel in used_style_files):
                 whitelist.add(path.resolve())
             elif ext == ".bst" and at_root:
                 whitelist.add(path.resolve())
