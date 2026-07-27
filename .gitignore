@@ -22,12 +22,11 @@ test_project[ _]*/
 my_project.zip
 my_project*/
 demo.cast
-docs/vscode-extension-handoff.md
 .coverage
 .claude/
 .superpowers/
-docs/superpowers/
 vscode-extension/.vscode/
 browser-extension/dist/
 .DS_Store
 browser-extension/screenshots/setup*-screenshot.png
+docs/*

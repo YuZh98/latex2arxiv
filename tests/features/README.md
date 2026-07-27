@@ -20,7 +20,7 @@ each major release.
 |---|---|---|
 | `cli_inputs.feature` | CLI | zip / directory / git URL / `--demo` input acceptance |
 | `clean_prune.feature` | CLI | file pruning, comment stripping, draft-command removal |
-| `preflight_checks.feature` | CLI | error/warn checks from `docs/pre-flight.md` |
+| `preflight_checks.feature` | CLI | error/warn checks from `materials/pre-flight.md` |
 | `compile.feature` | CLI | `--compile` running pdflatex and opening the PDF |
 | `guide.feature` | CLI | `--guide` upload walkthrough generation |
 | `dry_run.feature` | CLI | `--dry-run` preview without writing |
