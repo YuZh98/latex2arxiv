@@ -1619,6 +1619,30 @@ class TestCompileMissingTools:
         assert captured.count("pdflatex not found") == 1
 
 
+class TestOpenFile:
+    """`_open_file` picks the right per-platform opener. The Windows branch is
+    unreachable on CI, so it is exercised with a monkeypatched `sys.platform`
+    and a stubbed `os.startfile` (absent outside Windows)."""
+
+    def test_windows_uses_startfile(self, monkeypatch):
+        import pipeline.build as build
+
+        calls = []
+        monkeypatch.setattr(build.sys, "platform", "win32")
+        monkeypatch.setattr(build.os, "startfile", lambda p: calls.append(p), raising=False)
+        build._open_file(Path("C:/tmp/out.pdf"))
+        assert calls == ["C:/tmp/out.pdf"]
+
+    def test_macos_uses_open(self, monkeypatch):
+        import pipeline.build as build
+
+        calls = []
+        monkeypatch.setattr(build.sys, "platform", "darwin")
+        monkeypatch.setattr(build.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+        build._open_file(Path("/tmp/out.pdf"))
+        assert calls == [["open", "/tmp/out.pdf"]]
+
+
 class TestDemoFlag:
     def test_demo_dry_run(self, tmp_path):
         """--demo --dry-run should print dry-run output and not create any output zip."""
@@ -2880,6 +2904,21 @@ class TestPreflightV3:
         out = tmp_path / "out.zip"
         issues = convert(zp, out, dry_run=True, **kwargs)
         return issues
+
+    # ── Recorded path shape ──
+
+    def test_paths_recorded_with_posix_separators(self, tmp_path):
+        """Zip member names are always '/'-separated, so the recorded paths that
+        index back into the zip must be too. Coincides with `str()` on POSIX;
+        guards the Windows behaviour."""
+        files = {
+            "paper/main.tex": r"\documentclass{article}\begin{document}x\end{document}",
+            "figures/note.tex": r"\newcommand{\foo}{bar}",
+        }
+        issues = self._run(files, tmp_path)
+        assert issues.main_tex == "paper/main.tex"
+        assert all("\\" not in k for k in issues.kept_files)
+        assert all("\\" not in r for r in issues.removed_files)
 
     # ── Hidden dot-files ──
 

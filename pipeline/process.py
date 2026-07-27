@@ -64,13 +64,13 @@ def _process_files(
                     pass  # keep it
                 else:
                     log(f"  remove: {rel}")
-                    removed_names.append(str(rel))
+                    removed_names.append(rel.as_posix())
                     if not dry_run:
                         path.unlink()
                     continue
             else:
                 log(f"  remove: {rel}")
-                removed_names.append(str(rel))
+                removed_names.append(rel.as_posix())
                 if not dry_run:
                     path.unlink()
                 continue

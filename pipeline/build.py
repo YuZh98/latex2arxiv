@@ -3,6 +3,7 @@
 Used only when the CLI is invoked with `--compile`. Imported by converter.py
 and called from convert() at the end of a successful conversion."""
 
+import os
 import re
 import sys
 import shutil
@@ -18,7 +19,8 @@ from pipeline.types import ConverterError
 def _open_file(path: Path) -> None:
     """Open a file with the OS default viewer, cross-platform."""
     if sys.platform == "win32":
-        subprocess.run(["start", str(path)], shell=True)
+        # cmd's `start` reads a quoted first argument as a window title.
+        os.startfile(str(path))
     elif sys.platform == "darwin":
         subprocess.run(["open", str(path)])
     else:
