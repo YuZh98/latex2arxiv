@@ -73,7 +73,11 @@ jobs:
           grep -F "09-flatten-subfile" /tmp/fixture_out.txt | grep -F "✓ clean"
           grep -F "10-multifile-graphicspath" /tmp/fixture_out.txt | grep -F "✓ clean"
           grep -F "11-biblatex-bbl" /tmp/fixture_out.txt | grep -F "1 warning"
-          grep -F "11 fixtures ran" /tmp/fixture_out.txt
+          grep -F "12-plain-bibtex-natbib" /tmp/fixture_out.txt | grep -F "✓ clean"
+          grep -F "13-subdir-styles" /tmp/fixture_out.txt | grep -F "1 warning"
+          grep -F "14-xelatex-00readme" /tmp/fixture_out.txt | grep -F "✓ clean"
+          grep -F "15-archive-layout-warns" /tmp/fixture_out.txt | grep -F "2 warning"
+          grep -F "15 fixtures ran" /tmp/fixture_out.txt
 
   compile-smoke:
     # Live --compile end-to-end test against real TeX Live + biber. Catches

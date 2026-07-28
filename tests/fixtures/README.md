@@ -25,6 +25,10 @@ logic.
 | 09 | `09-flatten-subfile/` | `main.tex` with `\subfile{chapters/ch1}` (subdirectory) and `\subfile{ch2}` (peer). Run with `--flatten` to exercise subfile preamble-stripping and the including-file-relative path resolution for `\subfile`. |
 | 10 | `10-multifile-graphicspath/` | `main.tex` with `\input{sections/intro}`, `\graphicspath{{figures/}}`, and an extension-less `\includegraphics{fig1}`. Tests subdirectory image resolution plus pruning of an unused figure and an unreferenced `.tex`. |
 | 11 | `11-biblatex-bbl/` | biblatex with a shipped `.bbl` at bbl format 3.2. Tests the bbl-version pre-flight warn, `\addbibresource[location=local]` parsing, and `\autocite`/`\textcite` key detection. |
+| 12 | `12-plain-bibtex-natbib/` | Classic BibTeX workflow: natbib `\citep`/`\citet`, `\bibliographystyle{plainnat}`, `\bibliography{refs}`. Exercises the `bibtex` (not biber) dispatch in `--compile` and private-field stripping (`abstract`, `file`) in `.bib` normalization. |
+| 13 | `13-subdir-styles/` | Path-qualified `\usepackage{styles/custom}` with the `.sty` in a subdirectory. Tests the style-file whitelist keeping non-root styles and the "custom style file kept" advisory warn. |
+| 14 | `14-xelatex-00readme/` | `fontspec` + `unicode-math` with a `00README.yaml` declaring `compiler: xelatex`. Tests that the XeLaTeX opt-in suppresses the engine `[error]`s (contrast with 07). `--compile` fails by design — `_compile()` is pdflatex-only (exit code stays 0; compile failures are reported, not fatal). |
+| 15 | `15-archive-layout-warns/` | Hidden `.arxivignore` file and `.notes/` dot-directory. Tests the archive-layout warns (arXiv deletes dot-paths on announcement) and their pruning from the output. |
 
 ## How to run
 

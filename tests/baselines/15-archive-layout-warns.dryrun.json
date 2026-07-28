@@ -1,0 +1,35 @@
+{
+  "compile": null,
+  "counts": {
+    "errors": 0,
+    "kept": 1,
+    "removed": 2,
+    "warnings": 2
+  },
+  "dry_run": true,
+  "errors": [],
+  "flatten": false,
+  "inlined_files": [],
+  "input": null,
+  "kept_files": [
+    "main.tex"
+  ],
+  "main_tex": "main.tex",
+  "metadata": null,
+  "output": null,
+  "removed_files": [
+    ".arxivignore",
+    ".notes/scratch.txt"
+  ],
+  "schema_version": 1,
+  "sizes": {
+    "input_bytes": null,
+    "output_bytes": null,
+    "uncompressed_bytes": 122
+  },
+  "version": null,
+  "warnings": [
+    "hidden file or directory: .arxivignore \u2014 arXiv deletes paths starting with '.' upon announcement; if your build depends on this, rename it",
+    "hidden file or directory: .notes/scratch.txt \u2014 arXiv deletes paths starting with '.' upon announcement; if your build depends on this, rename it"
+  ]
+}
