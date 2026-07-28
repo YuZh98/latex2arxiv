@@ -1,0 +1,6 @@
+{
+ "errors": [],
+ "warnings": [
+  "custom style file kept: styles/custom.sty \u2014 arXiv may suggest removing this; ignore that warning, the file is required for compilation"
+ ]
+}
