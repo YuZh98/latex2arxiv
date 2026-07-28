@@ -143,6 +143,11 @@ requirements. The terminal output uses two severities:
         \texttt{\textbackslash addbibresource} without a
         \texttt{.bbl} shipped — if a referenced \texttt{.bib} is missing,
         arXiv will block your submission. Ship the \texttt{.bbl} as a fallback.
+  \item Shipped \texttt{.bbl} with a stale bbl format version — arXiv accepts
+        bbl format 3.3 under its default TeX Live; a 3.2 file needs the
+        older TeX Live at submission time, which arXiv plans to retire.
+        Regenerate with a current biblatex, or let arXiv run Biber from
+        your \texttt{.bib}.
   \item Output zip $> 50$\,MB — consider \texttt{-{}-resize} or splitting
         supplementary materials.
   \item Filenames with spaces or non-ASCII characters — rename to ASCII.
@@ -154,6 +159,10 @@ requirements. The terminal output uses two severities:
   \item Custom \texttt{.cls} / \texttt{.sty} included — arXiv may suggest
         removing these; ignore that warning, they are required for compilation.
   \item \texttt{.eps} images — \texttt{pdflatex} cannot render them.
+  \item \texttt{fontspec} / \texttt{unicode-math} without a XeLaTeX opt-in —
+        these packages abort under arXiv's default pdfLaTeX. Shipping a
+        \texttt{00README} with \texttt{compiler: xelatex} declares the
+        engine and silences the error.
   \item Undefined citations — \texttt{\textbackslash cite\{key\}} where
         \texttt{key} is not in any kept \texttt{.bib} or \texttt{.bbl} file.
         This demo triggers it intentionally (see \S6).
@@ -270,6 +279,13 @@ When multiple entries share the same DOI or title, the converter prefers the
 entry whose key is actually cited in the \texttt{.tex} sources, so cleanup
 never breaks a working \verb|\cite{}| command.
 
+biblatex projects get the same treatment with two differences: the citation
+scan understands the biblatex families (\verb|\autocite|, \verb|\textcite|,
+\verb|\footcite|, multicite forms), and the \texttt{keywords} field is kept —
+it is functional there (\verb|\printbibliography[keyword=...]|), not private
+metadata. \texttt{-{}-compile} picks \texttt{biber} or \texttt{bibtex} to
+match your backend automatically.
+
 Install \texttt{bibtexparser} to enable this stage:
 \begin{verbatim}
 pip install bibtexparser
@@ -377,6 +393,15 @@ Emits a JSON summary on stdout (progress goes to stderr). Useful for CI
 pipelines and AI agent integrations. See \texttt{materials/json-schema.md} for the
 schema.
 
+\subsection*{Input formats}
+
+The input does not have to be a zip. A project directory or a git URL works
+the same way:
+\begin{verbatim}
+latex2arxiv path/to/project/ out.zip
+latex2arxiv https://github.com/user/paper out.zip
+\end{verbatim}
+
 \subsection*{\texttt{-{}-demo}: this document}
 
 \begin{verbatim}
@@ -385,6 +410,10 @@ latex2arxiv --demo --compile --guide
 No input file needed. Locates the bundled \texttt{demo\_project.zip},
 processes it, opens the resulting PDF, and writes an upload guide — what you
 are reading right now.
+
+Beyond the CLI, the same pipeline ships as a VS Code extension, a Chrome
+extension for Overleaf, an MCP server for AI-assistant integration, and a
+GitHub Action for CI.
 """
 
 # ── Unused tex file (should be removed) ───────────────────────────────────────

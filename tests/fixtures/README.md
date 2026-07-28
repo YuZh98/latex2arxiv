@@ -146,6 +146,10 @@ shipped recently:
 - **#05** is the "can I see what the tool actually surfaces?" demo. Useful for screenshots, README copy, and validating new pre-flight checks don't silently overlap.
 - **#10** guards the `\graphicspath` + extension-less `\includegraphics` resolution path — a subdirectory figure that resolve-failures would silently drop.
 - **#11** locks in the biblatex `.bbl` handling from PR #227: the bbl-format-version pre-flight warn, `\addbibresource[options]{...}` parsing, and `keywords` preservation for biblatex projects.
+- **#12** covers the classic natbib+BibTeX workflow the biblatex fixtures don't: the `bibtex` branch of the compile dispatch and private-field stripping without the biblatex `keywords` carve-out.
+- **#13** locks in the subdirectory style-file whitelisting from PR #236 — before it, a used `styles/custom.sty` was silently pruned and the arXiv build broke.
+- **#14** is the suppression counterpart to #07: the same fontspec preamble, made legitimate by a `00README` XeLaTeX opt-in (PR #177).
+- **#15** locks in the archive-layout warns and the per-dot-directory dedup from PR #229.
 
 ## Adding a new fixture
 
@@ -243,3 +247,60 @@ brief note in the "Why" section.
   `refs.bib` is pruned, the biblatex whitelist handling (incl.
   `\addbibresource[options]{...}` parsing) has regressed. CI pins the
   1-warning row in `fixtures-smoke` (`.github/workflows/test.yml`).
+
+### 12-plain-bibtex-natbib
+
+- **Kept:** `main.tex`, `refs.bib` (2 files).
+- **Removed:** none.
+- **Errors / warnings:** 0 / 0.
+- **Cleaned-source notes:** the private `abstract` and `file` fields are
+  stripped from both `refs.bib` entries (this is a plain-BibTeX project, so
+  no `keywords` carve-out applies — contrast fixture 11).
+- **`--compile` mode:** `Running bibtex ...` (not biber) should appear and a
+  PDF with a resolved `plainnat` bibliography should be produced.
+- **Regression anchor:** if `Running biber` appears instead, the
+  `uses_biblatex()` dispatch in `pipeline/build.py` has regressed; if
+  `abstract`/`file` survive in the output `refs.bib`, private-field
+  stripping in `pipeline/bibtex.py` has regressed.
+
+### 13-subdir-styles
+
+- **Kept:** `main.tex`, `styles/custom.sty` (2 files).
+- **Removed:** none.
+- **Errors:** 0. **Warnings:** 1.
+  - `custom style file kept: styles/custom.sty — arXiv may suggest removing this; ignore that warning, the file is required for compilation`
+- **Regression anchor:** if `styles/custom.sty` shows up under `remove:`,
+  the path-qualified style whitelisting in `converter.py` has regressed —
+  keeping used `.sty`/`.cls` files outside the zip root (both basename and
+  `\usepackage{styles/custom}` path-qualified references) was the fix
+  shipped in PR #236. CI pins the 1-warning row in `fixtures-smoke`.
+
+### 14-xelatex-00readme
+
+- **Kept:** `main.tex`, `00README.yaml` (2 files).
+- **Removed:** none.
+- **Errors / warnings:** 0 / 0.
+- **Regression anchor:** if the `fontspec` / `unicode-math` `[error]` lines
+  from fixture 07 appear here, the `00README` `compiler: xelatex` opt-in
+  (`_has_xelatex_mode` in `pipeline/preflight.py`) has regressed — this
+  fixture is the suppression counterpart to 07's error case.
+- **`--compile` mode:** fails by design — `_compile()` runs pdflatex only,
+  and fontspec aborts under pdfTeX. The compile failure is reported but does
+  not change the exit code, so the runner still counts this fixture as
+  clean. A future xelatex dispatch in `_compile()` should flip this into a
+  real PDF; update this note when that lands.
+
+### 15-archive-layout-warns
+
+- **Kept:** `main.tex` (1 file).
+- **Removed:** `.arxivignore`, `.notes/scratch.txt` (2 files).
+- **Errors:** 0. **Warnings:** 2.
+  - `hidden file or directory: .arxivignore — arXiv deletes paths starting with '.' upon announcement ...`
+  - `hidden file or directory: .notes/scratch.txt — ...`
+- **Regression anchors:** if either warning disappears, the pre-prune
+  archive-layout scan in `pipeline/preflight.py:_check_archive_layout` has
+  regressed. The warns dedup per dot-component (one warn for the whole
+  `.notes/` tree, however many files it contains — the fix shipped in
+  PR #229); if adding a second file under `.notes/` ever produces a third
+  warning, that dedup has regressed. CI pins the 2-warning row in
+  `fixtures-smoke`.
