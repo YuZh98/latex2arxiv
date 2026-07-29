@@ -3,21 +3,19 @@
 [![PyPI](https://img.shields.io/pypi/v/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
 [![Downloads](https://static.pepy.tech/badge/latex2arxiv)](https://pepy.tech/project/latex2arxiv)
 [![Tests](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml/badge.svg)](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-%E2%89%A585%25-brightgreen)](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml)
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew&logoColor=white)](https://github.com/YuZh98/homebrew-latex2arxiv)
-[![VS Code](https://vsmarketplacebadges.dev/version-short/YuZh98.latex2arxiv.svg?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
+[![VS Code](https://img.shields.io/visual-studio-marketplace/v/YuZh98.latex2arxiv?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
 [![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](materials/mcp.md)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/oeaoajmhcmlgdbeacnpkcofodekkpeab?label=Chrome&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab)
 
 **Submit to arXiv without the headache. One command cleans your project, catches rejection-causing errors, and walks you through the upload.**
 
-## Who is this for?
+Tested in CI on Ubuntu and macOS across Python 3.10 to 3.13: 680+ tests, an enforced 85% coverage gate, and a live pdflatex+biber compile check.
 
-**You have a LaTeX paper heading to arXiv.** Two ways in:
+**In a terminal:** `pip install latex2arxiv`, one command. **In Overleaf:** the [Chrome extension](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab) adds a "Clean for arXiv" button inside the editor ([privacy](browser-extension/PRIVACY.md)).
 
-- **Comfortable in a terminal?** `pip install latex2arxiv` — one command cleans, checks, and packages your paper.
-- **Use Overleaf?** The [Chrome extension](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab) adds a "Clean for arXiv" button right inside the editor — zero install, project never leaves your browser ([how privacy works](browser-extension/PRIVACY.md)).
-
-**First time submitting to arXiv?** Your paper compiles fine locally, yet arXiv can still reject it for reasons nobody warned you about — shell-escape packages, a missing `.bbl`, oversized figures. latex2arxiv catches those *before* you upload and writes a copy-paste-ready walkthrough of the submission form.
+A paper that compiles fine locally can still be rejected for reasons nobody warned you about: shell-escape packages, a missing `.bbl`, oversized figures. latex2arxiv catches those *before* you upload and writes a copy-paste-ready walkthrough of the submission form.
 
 > Your original project is never modified — all output goes to a new `_arxiv.zip`.
 
@@ -31,7 +29,7 @@
    ```
 3. **Upload:** a new `my_project_arxiv.zip` appears next to the input — upload it at [arxiv.org/submit](https://arxiv.org/submit). The `--guide` text file walks you through every field on the form.
 
-New to the terminal? The [step-by-step Overleaf → arXiv guide](materials/overleaf.md) covers opening a terminal, `PATH` fixes, and git-synced projects. Prefer zero install? The [Chrome extension](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab) does the same from inside Overleaf. Want to see it work first? Try the built-in demo — no file needed: `latex2arxiv --demo --compile --guide`.
+New to the terminal? The [step-by-step Overleaf → arXiv guide](materials/overleaf.md) covers opening a terminal, `PATH` fixes, and git-synced projects. Want to see it work first? Try the built-in demo, no file needed: `latex2arxiv --demo --compile --guide`.
 
 **Also useful for:** gating a paper repo in CI (`latex2arxiv paper.zip --dry-run` exits non-zero on errors) and stripping revision markup like `\added{}` / `\textcolor{red}{}` ([custom rules →](#custom-removal-rules---config)).
 
@@ -68,6 +66,14 @@ On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)
 Also: `--flatten` (single-file output, [docs](materials/flatten.md)), `--json` (CI integration, [schema](materials/json-schema.md)), `--resize` (image downscaling), `--dry-run` (preview without writing), BibTeX normalization, `\pdfoutput=1` injection.
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, `\bibliography`, and biblatex's `\addbibresource` (optional arguments included). Citation analysis understands natbib and the biblatex families (`\autocite`, `\parencite`, `\textcite`, multicite forms) and reads both BibTeX and biblatex `.bbl` formats. Commented-out commands are ignored.
+
+## How it works
+
+1. Extract the input (zip, directory, or a shallow git clone) into a temporary workspace.
+2. Resolve the dependency graph from the main `.tex`; anything unreachable is dropped.
+3. Clean the kept sources: comments, draft markup, config rules, BibTeX normalization.
+4. Run the pre-flight checks against arXiv's submission rules.
+5. Repack as `_arxiv.zip`; optionally compile the result and write the upload guide.
 
 ## Upload guide (`--guide`)
 
@@ -116,7 +122,7 @@ The same Python pipeline runs in all five. Pick what fits.
 Full flag surface, fastest path. `latex2arxiv paper.zip --compile --guide`. Installs via `pip` or `brew` ([details below](#installation)).
 
 ### Chrome extension — Overleaf
-"Clean for arXiv" button inside the editor. Runs in an offscreen Pyodide worker; project bytes never leave your browser. Get it on the [Chrome Web Store](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab). Source: [`browser-extension/`](browser-extension/).
+"Clean for arXiv" button inside the editor. The full Python pipeline runs in your browser through Pyodide (WebAssembly); project bytes never leave the machine. Get it on the [Chrome Web Store](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab). Source: [`browser-extension/`](browser-extension/).
 
 | Validate | Clean for arXiv | Collapse |
 |---|---|---|
@@ -133,9 +139,11 @@ Per-editor paths: [materials/mcp.md](materials/mcp.md).
 
 ### GitHub Action — CI gate
 ```yaml
-- run: pip install latex2arxiv && latex2arxiv paper.zip --dry-run
+- uses: YuZh98/latex2arxiv@main
+  with:
+    input: paper/
 ```
-Fails the build on `[error]` issues. Also ships as a [`pre-commit` hook](materials/ci.md) (`latex2arxiv-dryrun`). [Action details](materials/ci.md).
+Fails the build on `[error]` issues. Also ships as a [`pre-commit` hook](materials/ci.md) (`latex2arxiv-dryrun`). [Action inputs and details](materials/ci.md).
 
 ### VS Code
 [`ext install YuZh98.latex2arxiv`](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv). Status-bar action on the active `.tex` file.
