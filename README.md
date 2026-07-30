@@ -5,7 +5,7 @@
 [![Tests](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml/badge.svg)](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml)
 [![Coverage](https://img.shields.io/badge/coverage-%E2%89%A585%25-brightgreen)](https://github.com/YuZh98/latex2arxiv/actions/workflows/test.yml)
 [![Homebrew](https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew&logoColor=white)](https://github.com/YuZh98/homebrew-latex2arxiv)
-[![VS Code](https://img.shields.io/visual-studio-marketplace/v/YuZh98.latex2arxiv?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
+[![VS Code](https://vsmarketplacebadges.dev/version-short/YuZh98.latex2arxiv.svg?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv)
 [![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](materials/mcp.md)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/oeaoajmhcmlgdbeacnpkcofodekkpeab?label=Chrome&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/latex2arxiv-for-overleaf/oeaoajmhcmlgdbeacnpkcofodekkpeab)
 
@@ -29,9 +29,17 @@ A paper that compiles fine locally can still be rejected for reasons nobody warn
    ```
 3. **Upload:** a new `my_project_arxiv.zip` appears next to the input — upload it at [arxiv.org/submit](https://arxiv.org/submit). The `--guide` text file walks you through every field on the form.
 
-New to the terminal? The [step-by-step Overleaf → arXiv guide](materials/overleaf.md) covers opening a terminal, `PATH` fixes, and git-synced projects. Want to see it work first? Try the built-in demo, no file needed: `latex2arxiv --demo --compile --guide`.
+New to the terminal? The [step-by-step Overleaf → arXiv guide](materials/overleaf.md) covers opening a terminal, `PATH` fixes, and git-synced projects.
 
 **Also useful for:** gating a paper repo in CI (`latex2arxiv paper.zip --dry-run` exits non-zero on errors) and stripping revision markup like `\added{}` / `\textcolor{red}{}` ([custom rules →](#custom-removal-rules---config)).
+
+### Try the demo first
+
+```bash
+latex2arxiv --demo --compile --guide
+```
+
+No file needed. The bundled demo project is itself the tutorial: it compiles to a short PDF that documents every feature by demonstrating it on its own source, and the run writes a sample upload guide alongside.
 
 ## Before / After
 
@@ -307,4 +315,4 @@ Homebrew compiles Pillow's C extensions from source and suppresses progress outp
 
 🎬 **Try the demo:** `latex2arxiv --demo --compile --guide`
 
-Made by [Hugh Zheng](https://github.com/YuZh98) · MIT License
+Made by [Hugh Zheng](https://yuzh98.github.io) ([GitHub](https://github.com/YuZh98)) · MIT License
