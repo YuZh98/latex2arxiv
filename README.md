@@ -1,3 +1,5 @@
+
+
 # latex2arxiv
 
 [![PyPI](https://img.shields.io/pypi/v/latex2arxiv.svg)](https://pypi.org/project/latex2arxiv/)
@@ -122,9 +124,9 @@ Pass `--guide` and latex2arxiv writes a plain-text file alongside your output zi
 
 No more guessing what goes where.
 
-## Same engine, five surfaces
+## Same engine, six surfaces
 
-The same Python pipeline runs in all five. Pick what fits.
+The same Python pipeline runs in all six. Pick what fits.
 
 ### Terminal — `latex2arxiv`
 Full flag surface, fastest path. `latex2arxiv paper.zip --compile --guide`. Installs via `pip` or `brew` ([details below](#installation)).
@@ -155,6 +157,9 @@ Fails the build on `[error]` issues. Also ships as a [`pre-commit` hook](materia
 
 ### VS Code
 [`ext install YuZh98.latex2arxiv`](https://marketplace.visualstudio.com/items?itemName=YuZh98.latex2arxiv). Status-bar action on the active `.tex` file.
+
+### Zed
+Source: [`zed-extension/`](zed-extension/). Context-server integration for the Zed editor.
 
 ## Installation
 
