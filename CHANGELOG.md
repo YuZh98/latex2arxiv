@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Changed
+- Zed MCP setup is a `context_servers` entry in Zed's `settings.json`; the editor extension it previously documented was never published
+
+### Removed
+- Zed editor extension source
+
 ### Fixed
 - Used `.sty`/`.cls` files in subdirectories are kept instead of pruned
 - Bib entries lacking both DOI and title now get private fields stripped
