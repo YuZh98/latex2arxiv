@@ -8,6 +8,7 @@ Usage:
 
 import io
 import json
+import os
 import re
 import sys
 import argparse
@@ -447,6 +448,45 @@ def _emit_json(issues: Issues) -> None:
     sys.stdout.write("\n")
 
 
+def _check_output_location(raw: str) -> None:
+    """Reject an output path whose directory is missing, before any input work."""
+    out = Path(raw)
+    if out.is_dir():
+        return
+    missing = out if raw.endswith(("/", os.sep)) else out.parent
+    if not missing.is_dir():
+        raise ConverterError(f"output directory {missing} does not exist")
+
+
+def _default_output(inp_raw: str, inp: Path) -> Path:
+    if _is_git_url(inp_raw):
+        name_part = inp_raw.rstrip("/").rsplit("/", 1)[-1]
+        if ":" in name_part:
+            name_part = name_part.rsplit(":", 1)[-1].rsplit("/", 1)[-1]
+        repo_name = name_part.removesuffix(".git")
+        return Path(f"{repo_name}_arxiv.zip")
+    if Path(inp_raw).is_dir():
+        return Path(f"{Path(os.path.abspath(inp_raw)).name}_arxiv.zip")
+    if inp.suffix.lower() == ".zip":
+        return inp.with_stem(inp.stem + "_arxiv")
+    return inp.with_name(inp.name + "_arxiv.zip")
+
+
+def _resolve_output(raw: str | None, inp_raw: str, inp: Path) -> Path:
+    """Pick the output zip path and refuse one that would overwrite the input."""
+    if not raw:
+        return _default_output(inp_raw, inp)
+    out = Path(raw)
+    if out.is_dir():
+        out = out / _default_output(inp_raw, inp).name
+    elif out.suffix.lower() != ".zip":
+        out = out.with_name(out.name + ".zip")
+        print(f"  [note] output path has no .zip extension; writing to {out}")
+    if out.exists() and inp.exists() and os.path.samefile(out, inp):
+        raise ConverterError(f"output {out} would overwrite the input; choose a different output path")
+    return out
+
+
 def _do_convert(args: argparse.Namespace, cleanup_tmp: list[str]) -> Issues:
     """Run the demo or the regular conversion path. Returns the Issues object
     populated by convert(). Raises ConverterError on fatal failures."""
@@ -483,19 +523,10 @@ def _do_convert(args: argparse.Namespace, cleanup_tmp: list[str]) -> Issues:
             )
 
     inp_raw = args.input
-    inp = _resolve_input(inp_raw, cleanup_tmp)
     if args.output:
-        out = Path(args.output)
-    elif _is_git_url(inp_raw):
-        name_part = inp_raw.rstrip("/").rsplit("/", 1)[-1]
-        if ":" in name_part:
-            name_part = name_part.rsplit(":", 1)[-1].rsplit("/", 1)[-1]
-        repo_name = name_part.removesuffix(".git")
-        out = Path(f"{repo_name}_arxiv.zip")
-    elif Path(inp_raw).is_dir():
-        out = Path(f"{Path(inp_raw).name}_arxiv.zip")
-    else:
-        out = inp.with_stem(inp.stem + "_arxiv")
+        _check_output_location(args.output)
+    inp = _resolve_input(inp_raw, cleanup_tmp)
+    out = _resolve_output(args.output, inp_raw, inp)
     config_path = Path(args.config) if args.config else None
     print(f"Converting {inp_raw} → {out}\n")
     return convert(
@@ -515,7 +546,9 @@ def main():
     parser = argparse.ArgumentParser(description="Convert LaTeX zip to arXiv-ready zip")
     parser.add_argument("--version", action="version", version=f"latex2arxiv {_get_version()}")
     parser.add_argument("input", nargs="?", help="Input .zip file, directory, or git URL")
-    parser.add_argument("output", nargs="?", help="Output .zip file (default: input_arxiv.zip)")
+    parser.add_argument(
+        "output", nargs="?", help="Output .zip file (default: input_arxiv.zip); .zip is appended if missing"
+    )
     parser.add_argument("--main", help="Filename of the main .tex file (e.g. JASA_main.tex)")
     parser.add_argument("--compile", action="store_true", help="Compile output with pdflatex and open PDF")
     parser.add_argument(
