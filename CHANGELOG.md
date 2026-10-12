@@ -8,6 +8,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ### Fixed
 - MCP server no longer fails to start against the `mcp` 2.x SDK; the `latex2arxiv[mcp]` extra now installs a 1.x release
+- Output path without a `.zip` extension gets `.zip` appended instead of producing an extensionless archive
+- Output path naming an existing directory writes the default-named zip inside it
+- Output path that resolves to the input file is refused instead of overwriting the input
+- Missing output directory and non-zip input file report a clean error instead of a traceback
+- Input `paper` falls back to `paper.zip` when no file or directory of that name exists
+- `latex2arxiv .` names the output after the directory instead of `_arxiv.zip`
 - Used `.sty`/`.cls` files in subdirectories are kept instead of pruned
 - Bib entries lacking both DOI and title now get private fields stripped
 - `\citestyle{...}` no longer produces a false undefined-citation warning

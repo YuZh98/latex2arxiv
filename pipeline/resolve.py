@@ -150,5 +150,11 @@ def _resolve_input(inp_raw: str, tmp_list: list[str]) -> Path:
         return _zip_directory(inp, tmp_list)
 
     if not inp.exists():
-        raise ConverterError(f"{inp} not found")
+        fallback = inp.with_name(inp.name + ".zip")
+        if not fallback.is_file():
+            raise ConverterError(f"{inp} not found")
+        print(f"  [note] {inp} not found; using {fallback}")
+        inp = fallback
+    if not zipfile.is_zipfile(inp):
+        raise ConverterError(f"{inp} is not a zip archive; pass a .zip file, a directory, or a git URL")
     return inp

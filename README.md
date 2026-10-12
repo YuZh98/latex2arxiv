@@ -196,6 +196,8 @@ latex2arxiv input [output.zip] [options]
 
 `input` can be a `.zip` file, a directory of LaTeX sources, or a git URL (https or ssh). Directories are zipped internally; git URLs are cloned with `--depth 1`.
 
+`output` defaults to `<input>_arxiv.zip`. `.zip` is appended if you leave it off, and an existing directory receives the default-named zip. An output path that points at the input file is refused.
+
 | Flag | Description |
 |---|---|
 | `--main FILENAME` | Specify the main `.tex` file (e.g. `JASA_main.tex`). Auto-detected via `\documentclass` if omitted. |
