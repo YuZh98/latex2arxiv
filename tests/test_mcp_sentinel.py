@@ -20,5 +20,5 @@ def test_mcp_package_is_installed():
     except ImportError:
         pytest.fail(
             "mcp package not installed in CI; all MCP tests are silently skipping. "
-            "Add 'mcp fastmcp' to the pip install line in test.yml."
+            "Install the package with the mcp extra in test.yml."
         )
