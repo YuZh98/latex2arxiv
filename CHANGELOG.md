@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 ## [Unreleased]
 
 ### Fixed
+- MCP server no longer fails to start against the `mcp` 2.x SDK; the `latex2arxiv[mcp]` extra now installs a 1.x release
 - Used `.sty`/`.cls` files in subdirectories are kept instead of pruned
 - Bib entries lacking both DOI and title now get private fields stripped
 - `\citestyle{...}` no longer produces a false undefined-citation warning
