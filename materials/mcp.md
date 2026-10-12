@@ -66,9 +66,19 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 
 ## Usage with Zed
 
-Install the `latex2arxiv` extension from Zed's Extensions panel. The extension launches `latex2arxiv-mcp` automatically — no JSON config needed.
+Add to Zed's `settings.json` (`cmd-,` on macOS, `ctrl-,` on Linux):
 
-> Requires `latex2arxiv-mcp` on PATH (`pip install "latex2arxiv[mcp]"`).
+```json
+{
+  "context_servers": {
+    "latex2arxiv": {
+      "command": "latex2arxiv-mcp",
+      "args": [],
+      "env": {}
+    }
+  }
+}
+```
 
 
 ## Available Tools
