@@ -147,7 +147,7 @@ Per-editor paths: [materials/mcp.md](materials/mcp.md).
 
 ### GitHub Action — CI gate
 ```yaml
-- uses: YuZh98/latex2arxiv@main
+- uses: YuZh98/latex2arxiv@v1.3.2
   with:
     input: paper/
 ```
