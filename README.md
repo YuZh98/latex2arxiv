@@ -194,7 +194,9 @@ pip install .
 latex2arxiv input [output.zip] [options]
 ```
 
-`input` can be a `.zip` file, a directory of LaTeX sources, or a git URL (https or ssh). Directories are zipped internally; git URLs are cloned with `--depth 1`.
+`input` can be a `.zip` file, a directory of LaTeX sources, or a git URL (https or ssh). Directories are zipped internally; git URLs are cloned with `--depth 1`. If no file or directory named `input` exists, `input.zip` is tried.
+
+`output` defaults to `<input>_arxiv.zip`. `.zip` is appended if you leave it off, and an existing directory receives the default-named zip. An output path that points at the input file is refused.
 
 | Flag | Description |
 |---|---|

@@ -38,6 +38,12 @@ Feature: Accept LaTeX projects from any common input form
     Then the cleaned output is written to "out.zip"
     And no file "paper_arxiv.zip" is created
 
+  Scenario: Explicit output path without a .zip extension
+    Given a file "paper.zip" containing a compilable LaTeX project
+    When I run `latex2arxiv paper.zip out.v2`
+    Then the cleaned output is written to "out.v2.zip"
+    And no file "out.v2" is created
+
   Scenario: Auto-detect main .tex via \documentclass
     Given a zip whose only file containing `\documentclass` is "main_v2.tex"
     When I run `latex2arxiv paper.zip`

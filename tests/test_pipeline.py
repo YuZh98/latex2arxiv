@@ -2048,6 +2048,148 @@ class TestJsonOutput:
         assert payload["main_tex"].endswith(".tex")
 
 
+# ── CLI input / output path handling ──────────────────────────────────────────
+
+
+def _minimal_zip(path: Path, body: str = "x") -> Path:
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("main.tex", rf"\documentclass{{article}}\begin{{document}}{body}\end{{document}}")
+    return path
+
+
+def _assert_clean_failure(result: subprocess.CompletedProcess, snippet: str) -> None:
+    combined = result.stdout + result.stderr
+    assert result.returncode == 1, combined
+    assert snippet in combined, combined
+    assert "Traceback" not in combined, combined
+
+
+class TestCliPathHandling:
+    def test_output_without_zip_suffix_gets_it_appended(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip")
+        result = _run_converter("paper.zip", "out.v2", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert zipfile.is_zipfile(tmp_path / "out.v2.zip")
+        assert not (tmp_path / "out.v2").exists()
+        assert "out.v2.zip" in result.stdout
+
+    def test_uppercase_zip_suffix_is_kept(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip")
+        result = _run_converter("paper.zip", "OUT.ZIP", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["OUT.ZIP", "paper.zip"]
+
+    def test_json_reports_appended_output_path(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip")
+        result = _run_converter("paper.zip", "out", "--json", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout)["output"] == "out.zip"
+
+    def test_dry_run_reports_appended_path_and_writes_nothing(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip")
+        result = _run_converter("paper.zip", "out", "--dry-run", cwd=tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert "Would have created: out.zip" in result.stdout
+        assert [p.name for p in tmp_path.iterdir()] == ["paper.zip"]
+
+    def test_output_directory_receives_default_named_zip(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip")
+        (tmp_path / "out").mkdir()
+        result = _run_converter("paper.zip", "out", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert zipfile.is_zipfile(tmp_path / "out" / "paper_arxiv.zip")
+        assert not (tmp_path / "out.zip").exists()
+
+    def test_output_directory_with_directory_input(self, tmp_path):
+        (tmp_path / "paper").mkdir()
+        (tmp_path / "paper" / "main.tex").write_text(r"\documentclass{article}\begin{document}x\end{document}")
+        (tmp_path / "out").mkdir()
+        result = _run_converter("paper", "out/", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert zipfile.is_zipfile(tmp_path / "out" / "paper_arxiv.zip")
+
+    def test_missing_output_parent_is_a_clean_error(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip")
+        result = _run_converter("paper.zip", "nodir/out.zip", cwd=tmp_path)
+        _assert_clean_failure(result, "output directory nodir does not exist")
+
+    def test_missing_output_directory_with_trailing_slash_is_an_error(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip")
+        result = _run_converter("paper.zip", "nodir/", cwd=tmp_path)
+        _assert_clean_failure(result, "output directory nodir does not exist")
+        assert not (tmp_path / "nodir.zip").exists()
+
+    def test_missing_output_parent_fails_under_dry_run(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip")
+        result = _run_converter("paper.zip", "nodir/out.zip", "--dry-run", cwd=tmp_path)
+        _assert_clean_failure(result, "does not exist")
+
+    def test_output_same_as_input_is_refused(self, tmp_path):
+        src = _minimal_zip(tmp_path / "paper.zip")
+        before = src.read_bytes()
+        result = _run_converter("paper.zip", "paper.zip", cwd=tmp_path)
+        _assert_clean_failure(result, "would overwrite the input")
+        assert src.read_bytes() == before
+
+    def test_output_same_as_input_by_another_spelling_is_refused(self, tmp_path):
+        src = _minimal_zip(tmp_path / "paper.zip")
+        before = src.read_bytes()
+        (tmp_path / "sub").mkdir()
+        result = _run_converter("paper.zip", str(tmp_path / "sub" / ".." / "paper"), cwd=tmp_path)
+        _assert_clean_failure(result, "would overwrite the input")
+        assert src.read_bytes() == before
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="symlink creation needs privileges on Windows")
+    def test_output_symlinked_to_input_is_refused(self, tmp_path):
+        src = _minimal_zip(tmp_path / "paper.zip")
+        before = src.read_bytes()
+        (tmp_path / "alias.zip").symlink_to(src)
+        result = _run_converter("paper.zip", "alias.zip", cwd=tmp_path)
+        _assert_clean_failure(result, "would overwrite the input")
+        assert src.read_bytes() == before
+
+    def test_extensionless_zip_input_gets_zip_suffixed_default_output(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.v2")
+        result = _run_converter("paper.v2", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert zipfile.is_zipfile(tmp_path / "paper.v2_arxiv.zip")
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["paper.v2", "paper.v2_arxiv.zip"]
+
+    def test_missing_input_falls_back_to_zip_suffix(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip")
+        result = _run_converter("paper", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert zipfile.is_zipfile(tmp_path / "paper_arxiv.zip")
+        assert "using paper.zip" in result.stdout
+
+    def test_directory_wins_over_zip_fallback(self, tmp_path):
+        _minimal_zip(tmp_path / "paper.zip", body="FROMZIP")
+        (tmp_path / "paper").mkdir()
+        (tmp_path / "paper" / "main.tex").write_text(r"\documentclass{article}\begin{document}FROMDIR\end{document}")
+        result = _run_converter("paper", cwd=tmp_path)
+        assert result.returncode == 0, result.stdout + result.stderr
+        with zipfile.ZipFile(tmp_path / "paper_arxiv.zip") as zf:
+            assert "FROMDIR" in zf.read("main.tex").decode()
+
+    def test_missing_input_without_fallback_reports_not_found(self, tmp_path):
+        result = _run_converter("paper", cwd=tmp_path)
+        _assert_clean_failure(result, "paper not found")
+
+    def test_non_zip_file_input_is_a_clean_error(self, tmp_path):
+        (tmp_path / "notes.txt").write_text("hi")
+        result = _run_converter("notes.txt", cwd=tmp_path)
+        _assert_clean_failure(result, "notes.txt is not a zip archive")
+
+    def test_dot_directory_input_names_output_after_directory(self, tmp_path):
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        (proj / "main.tex").write_text(r"\documentclass{article}\begin{document}x\end{document}")
+        result = _run_converter(".", cwd=proj)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert zipfile.is_zipfile(proj / "proj_arxiv.zip")
+        assert not (proj / "_arxiv.zip").exists()
+
+
 # ── --flatten flag ────────────────────────────────────────────────────────────
 
 
