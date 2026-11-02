@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: YuZh98/latex2arxiv@v1.2.0
+      - uses: YuZh98/latex2arxiv@v1.3.2
         with:
           input: paper/        # directory of .tex sources, or a .zip path
           main: main.tex       # optional; auto-detected from \documentclass
@@ -26,7 +26,7 @@ jobs:
 The action accepts a directory or a `.zip` for `input`. If a directory, it's zipped on the fly. By default it runs in `--dry-run` mode (no output written, but `[error]` lines fail the job). Set `dry-run: 'false'` to actually emit the cleaned zip — useful in a release workflow:
 
 ```yaml
-      - uses: YuZh98/latex2arxiv@v1.2.0
+      - uses: YuZh98/latex2arxiv@v1.3.2
         id: clean
         with:
           input: paper/
@@ -56,7 +56,7 @@ For repos that keep a built submission zip checked in:
 ```yaml
 repos:
   - repo: https://github.com/YuZh98/latex2arxiv
-    rev: v1.2.0
+    rev: v1.3.2
     hooks:
       - id: latex2arxiv-dryrun
         files: paper\.zip$  # restrict to your submission zip
