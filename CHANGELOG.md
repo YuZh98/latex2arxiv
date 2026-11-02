@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Changed
+- Zed MCP setup is a `context_servers` entry in Zed's `settings.json`; the editor extension it previously documented was never published
+
+### Removed
+- Zed editor extension source
+
 ### Fixed
 - MCP server no longer fails to start against the `mcp` 2.x SDK; the `latex2arxiv[mcp]` extra now installs a 1.x release
 - Used `.sty`/`.cls` files in subdirectories are kept instead of pruned
