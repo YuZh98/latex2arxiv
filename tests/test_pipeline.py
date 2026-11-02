@@ -3603,6 +3603,30 @@ class TestBiblatexBblAndPreflight:
         issues = self._run({"main.tex": tex}, tmp_path)
         assert any("refs.bib" in e for e in issues.errors)
 
+    @pytest.mark.parametrize("name", ["x.ris", "refs.json", "refs.yaml"])
+    def test_non_bib_data_source_is_kept_without_error(self, tmp_path, name):
+        from converter import convert
+
+        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", rf"\addbibresource{{{name}}}")
+        zp = tmp_path / "in.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("main.tex", tex)
+            zf.writestr(name, "data")
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out)
+        assert issues.errors == []
+        assert name in zipfile.ZipFile(out).namelist()
+
+    def test_missing_non_bib_data_source_is_error(self, tmp_path):
+        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{x.ris}")
+        issues = self._run({"main.tex": tex}, tmp_path)
+        assert any("references x.ris but" in e for e in issues.errors)
+
+    def test_extensionless_resource_resolves_to_bib(self, tmp_path):
+        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource[datatype=bibtex]{refs}")
+        issues = self._run({"main.tex": tex, "refs.bib": "@misc{k, title={X}}"}, tmp_path)
+        assert issues.errors == []
+
     def test_macro_bib_name_is_not_missing(self, tmp_path):
         tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{\jobname.bib}")
         issues = self._run({"main.tex": tex}, tmp_path)

@@ -9,12 +9,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 ### Changed
 - `\addbibresource` with neither the `.bib` nor a `.bbl` is now an `[error]`, matching `\bibliography`; arXiv blocks these submissions
 - A `.bib` written by `filecontents` with no `.bbl` warns instead of erroring
-- biblatex with a `.bib` and no `.bbl` no longer warns; arXiv runs Biber on the `.bib`
+- biblatex with a `.bib` and no `.bbl` no longer warns; arXiv runs the configured backend
 
 ### Fixed
-- Default output for an extensionless zip input gets a `.zip` suffix (v1.3.2)
 - Bundled `biblatex.sty` no longer gets a contradictory "custom style file kept" advisory
 - `\addbibresource` URLs are no longer treated as local `.bib` files
+- Non-`.bib` `\addbibresource` data files such as `.ris` are kept in the output
 
 ## [browser-extension 0.1.12] - 2026-11-02
 
@@ -37,6 +37,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - Missing output directory and non-zip input file report a clean error instead of a traceback
 - Input `paper` falls back to `paper.zip` when no file or directory of that name exists
 - `latex2arxiv .` names the output after the directory instead of `_arxiv.zip`
+- Default output for an extensionless zip input gets a `.zip` suffix
 - Used `.sty`/`.cls` files in subdirectories are kept instead of pruned
 - Bib entries lacking both DOI and title now get private fields stripped
 - `\citestyle{...}` no longer produces a false undefined-citation warning

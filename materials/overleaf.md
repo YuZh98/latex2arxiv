@@ -50,7 +50,7 @@ If `latex2arxiv` reports `[error]` lines, fix them before uploading. Common ones
 | `\usepackage{minted} requires shell-escape` | Works in Overleaf, fails on arXiv | Replace with `listings` or pre-render code blocks |
 | `\usepackage{psfig}` | Legacy, no longer supported by arXiv | Switch to `graphicx`'s `\includegraphics` |
 | `.eps image found` | `pdflatex` can't process `.eps` | Convert to `.pdf` (use `epstopdf`) |
-| biblatex without `.bbl` shipped | arXiv often fails to resolve `.bib` files | Compile locally first; the `.bbl` will be picked up automatically on the next run |
+| `\addbibresource references refs.bib but it is not in the output` | Neither the `.bib` nor a `.bbl` is in the project, so arXiv blocks the submission | Add the `.bib` file to your project |
 
 Always check the [arXiv submission preview](https://arxiv.org/submit) PDF before submitting — `--compile` is a local sanity check, but arXiv pins specific TeX Live versions and edge cases occasionally slip through.
 
@@ -66,7 +66,7 @@ Supported. Dependency tracker handles `\subfile`. Watch for `\subfile`'d files c
 Use a YAML config to strip them on the way out. See [Custom removal rules](../README.md#custom-removal-rules---config) and the [`arxiv_config.yaml`](../arxiv_config.yaml) template.
 
 **Project uses biblatex + biber**
-Supported. `latex2arxiv --compile` detects `\usepackage{biblatex}` or `\addbibresource` and runs `biber` instead of `bibtex`. arXiv compiles biblatex projects too as long as you ship a `.bbl` (or your project still resolves the `.bib`).
+Supported. `latex2arxiv --compile` detects `\usepackage{biblatex}` or `\addbibresource` and runs `biber` instead of `bibtex`. arXiv compiles biblatex projects too: upload the `.bib` and it runs the configured backend, or ship a matching `.bbl`.
 
 **Overleaf project has `__MACOSX/` and `.DS_Store` files**
 If you ever round-trip through macOS Finder, those folders end up in the zip. `latex2arxiv` ignores them.
