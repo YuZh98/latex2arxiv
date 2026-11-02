@@ -194,6 +194,8 @@ def find_used_bib_files(tex_sources: list[str]) -> set:
                 name = Path(name.strip()).name
                 used.add(name if name.endswith(".bib") else name + ".bib")
         for m in ADDBIBRESOURCE_RE.finditer(src):
+            if "://" in m.group(1):
+                continue
             name = Path(m.group(1).strip()).name
             used.add(name if name.endswith(".bib") else name + ".bib")
     return used

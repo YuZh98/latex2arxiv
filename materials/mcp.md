@@ -66,7 +66,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 
 ## Usage with Zed
 
-Add to Zed's `settings.json` (`cmd-,` on macOS, `ctrl-,` on Linux):
+Add to Zed's `settings.json` (command palette: `zed: open settings file`):
 
 ```json
 {
@@ -175,7 +175,7 @@ Both tools resolve the `path` argument relative to a sandboxed root. The root is
 > {
 >   "success": false,
 >   "errors": ["\\usepackage{minted} requires shell-escape — arXiv compiles without it"],
->   "warnings": ["biblatex detected but no main.bbl shipped"]
+>   "warnings": ["\\today used in \\date — arXiv may rebuild the PDF and the date will change"]
 > }
 > ```
 >

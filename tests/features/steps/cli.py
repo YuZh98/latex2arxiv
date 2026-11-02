@@ -1447,7 +1447,7 @@ def _pf_no_bib_no_bbl():
     pass
 
 
-@given("the main .tex contains `\\usepackage{biblatex}` or `\\addbibresource{...}`")
+@given('the project loads biblatex and ships "refs.bib"')
 def _pf_biblatex(project_dir, tex_content):
     body = (
         "\\documentclass{article}\n"
@@ -1457,6 +1457,18 @@ def _pf_biblatex(project_dir, tex_content):
     )
     tex_content["body"] = body
     _pf_build(project_dir, body, {"refs.bib": "@article{x,title={X}}\n"})
+
+
+@given('the main .tex references `\\addbibresource{refs.bib}` but "refs.bib" is not in the project')
+def _pf_addbibresource_missing(project_dir, tex_content):
+    body = (
+        "\\documentclass{article}\n"
+        "\\usepackage{biblatex}\n"
+        "\\addbibresource{refs.bib}\n"
+        "\\begin{document}\nBody.\n\\end{document}\n"
+    )
+    tex_content["body"] = body
+    _pf_build(project_dir, body)
 
 
 @given("no `<main>.bbl` is shipped in the project")
@@ -1538,20 +1550,17 @@ def _pf_project_named_file(project_dir, tex_content, name):
 
 
 @given(
-    "a project that triggers a \\today warning, a biblatex .bbl warning, "
+    "a project that triggers a \\today warning, a \\printindex warning, "
     "and an oversized-output warning at the same time"
 )
 def _pf_three_warns(project_dir, tex_content):
     body = (
         "\\documentclass{article}\n"
-        "\\usepackage{biblatex}\n"
-        "\\addbibresource{refs.bib}\n"
         "\\date{\\today}\n"
-        "\\begin{document}\n\\includegraphics{big}\n\\end{document}\n"
+        "\\begin{document}\n\\includegraphics{big}\n\\printindex\n\\end{document}\n"
     )
     tex_content["body"] = body
     extras = {
-        "refs.bib": "@article{x,title={X}}\n",
         "big.pdf": b"%PDF-1.4\n" + os.urandom(60 * 1024 * 1024),
     }
     _pf_build(project_dir, body, extras)
@@ -1646,12 +1655,13 @@ def _pf_tikz_error(result):
 
 @then('an "[error]" notes the missing .bib without a fallback .bbl')
 def _pf_bib_missing_error(result):
-    _pf_assert_severity(result, "error", "bibliography", "bbl")
+    _pf_assert_severity(result, "error", "references", ".bbl", "block")
 
 
-@then('a "[warn]" recommends shipping the `.bbl` as a fallback')
-def _pf_biblatex_warn(result):
-    _pf_assert_severity(result, "warn", "biblatex", "bbl")
+@then("no pre-flight line mentions a `.bbl`")
+def _pf_no_bbl_line(result):
+    _pf_assert_no_severity_containing(result, "warn", ".bbl")
+    _pf_assert_no_severity_containing(result, "error", ".bbl")
 
 
 @then('a "[warn]" notes that arXiv compiles from root')
@@ -1697,7 +1707,7 @@ def _pf_filename_warn(result):
 
 @then('all three "[warn]" lines are emitted independently')
 def _pf_three_warn_independent(result):
-    for kw in ("today", "biblatex", "MB"):
+    for kw in ("today", "printindex", "MB"):
         _pf_assert_severity(result, "warn", kw)
 
 

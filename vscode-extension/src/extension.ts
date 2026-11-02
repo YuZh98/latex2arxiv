@@ -407,9 +407,6 @@ function locatorFor(msg: string): RegExp | null {
     if (msg.startsWith('double-spacing command detected')) {
         return /\\(?:doublespacing|setstretch\s*\{[2-9])/;
     }
-    if (msg.startsWith('biblatex detected but no')) {
-        return /\\(?:usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b|addbibresource)/;
-    }
 
     const absMatch = msg.match(/absolute path in \\input\/\\includegraphics:\s*'([^']+)'/);
     if (absMatch) return new RegExp(escapeRegex(absMatch[1]));

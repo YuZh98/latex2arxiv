@@ -1072,14 +1072,14 @@ class TestPreflightChecks:
         issues, _ = self._run(files)
         assert not any("minted" in e for e in issues.errors)
 
-    def test_biblatex_without_bbl_warns(self):
+    def test_biblatex_with_bib_without_bbl_does_not_warn(self):
         files = {
             "main.tex": r"\documentclass{article}\usepackage{biblatex}\addbibresource{refs.bib}"
             r"\begin{document}hi\end{document}",
             "refs.bib": "@misc{x, title={t}}",
         }
         issues, _ = self._run(files)
-        assert any("biblatex" in w and ".bbl" in w for w in issues.warnings)
+        assert not any("biblatex" in w and ".bbl" in w for w in issues.warnings)
 
     def test_biblatex_with_bbl_does_not_warn(self):
         files = {
@@ -3181,8 +3181,7 @@ class TestPreflightV3:
         issues = self._run(files, tmp_path)
         assert not any("refs.bib" in e for e in issues.errors)
 
-    def test_biblatex_missing_bib_not_error(self, tmp_path):
-        """biblatex projects use the biblatex-specific check, not this one."""
+    def test_biblatex_missing_bib_is_error(self, tmp_path):
         files = {
             "main.tex": (
                 r"\documentclass{article}"
@@ -3192,8 +3191,7 @@ class TestPreflightV3:
             ),
         }
         issues = self._run(files, tmp_path)
-        # Should get the biblatex warning, not the "block" error
-        assert not any("block" in e for e in issues.errors)
+        assert any("block" in e for e in issues.errors)
 
     # ── Shipped psfig.sty ──
 
@@ -3407,23 +3405,6 @@ class TestPreflightV3:
         issues = self._run(files, tmp_path)
         assert any(".eps image found" in w for w in issues.warnings)
 
-    # ── Softened biblatex message ──
-
-    def test_biblatex_message_mentions_native_biber(self, tmp_path):
-        """biblatex warning should mention arXiv can run Biber natively."""
-        files = {
-            "main.tex": (
-                r"\documentclass{article}"
-                r"\usepackage{biblatex}\addbibresource{refs.bib}"
-                r"\begin{document}\printbibliography\end{document}"
-            ),
-            "refs.bib": "@article{foo, title={Foo}}",
-        }
-        issues = self._run(files, tmp_path)
-        bib_warns = [w for w in issues.warnings if "biblatex" in w]
-        assert bib_warns
-        assert "natively" in bib_warns[0]
-
 
 class TestUsesBiblatex:
     def test_detects_usepackage_with_options(self):
@@ -3584,10 +3565,56 @@ class TestBiblatexBblAndPreflight:
         issues = self._run(files, tmp_path)
         assert not any("bbl format" in w or "BibTeX-format" in w for w in issues.warnings)
 
-    def test_missing_bbl_existing_warn_kept(self, tmp_path):
+    def test_bib_without_bbl_is_silent(self, tmp_path):
         files = {"main.tex": self._main_tex(), "refs.bib": "@article{einstein1905, title={X}}"}
         issues = self._run(files, tmp_path)
-        assert any("no main.bbl shipped" in w for w in issues.warnings)
+        assert issues.errors == []
+        assert not any(".bbl" in w for w in issues.warnings)
+
+    def test_missing_bib_and_bbl_is_error(self, tmp_path):
+        issues = self._run({"main.tex": self._main_tex()}, tmp_path)
+        assert any("\\addbibresource references refs.bib" in e for e in issues.errors)
+
+    def test_shipped_bbl_covers_missing_bib(self, tmp_path):
+        issues = self._run({"main.tex": self._main_tex(), "main.bbl": self._BBL_33}, tmp_path)
+        assert not any("refs.bib" in e for e in issues.errors)
+
+    def test_filecontents_bib_warns_instead_of_error(self, tmp_path):
+        tex = self._main_tex().replace(
+            r"\begin{document}",
+            "\\begin{filecontents*}[overwrite]{refs.bib}\n@article{k, title={X}}\n\\end{filecontents*}\n"
+            r"\begin{document}",
+        )
+        issues = self._run({"main.tex": tex}, tmp_path)
+        assert issues.errors == []
+        assert any("refs.bib" in w and "filecontents" in w for w in issues.warnings)
+
+    def test_filecontents_bib_warns_for_plain_bibliography(self, tmp_path):
+        tex = (
+            "\\begin{filecontents*}{refs.bib}\n@article{k, title={X}}\n\\end{filecontents*}\n"
+            r"\documentclass{article}\begin{document}\cite{k}\bibliography{refs}\end{document}"
+        )
+        issues = self._run({"main.tex": tex}, tmp_path)
+        assert issues.errors == []
+        assert any("refs.bib" in w and "filecontents" in w for w in issues.warnings)
+
+    def test_commented_filecontents_does_not_excuse_missing_bib(self, tmp_path):
+        tex = "% \\begin{filecontents*}{refs.bib}\n" + self._main_tex()
+        issues = self._run({"main.tex": tex}, tmp_path)
+        assert any("refs.bib" in e for e in issues.errors)
+
+    def test_macro_bib_name_is_not_missing(self, tmp_path):
+        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{\jobname.bib}")
+        issues = self._run({"main.tex": tex}, tmp_path)
+        assert issues.errors == []
+
+    def test_remote_bib_resource_is_not_missing(self, tmp_path):
+        tex = self._main_tex().replace(
+            r"\addbibresource{refs.bib}", r"\addbibresource[location=remote]{https://example.org/refs.bib}"
+        )
+        assert "example.org" in tex
+        issues = self._run({"main.tex": tex}, tmp_path)
+        assert issues.errors == []
 
     # ── bundled biblatex.sty ──
 
@@ -3599,6 +3626,7 @@ class TestBiblatexBblAndPreflight:
         }
         issues = self._run(files, tmp_path)
         assert any("bundled biblatex.sty" in w for w in issues.warnings)
+        assert not any("custom style file kept" in w for w in issues.warnings)
 
     def test_no_bundled_sty_silent(self, tmp_path):
         files = {"main.tex": self._main_tex(), "main.bbl": self._BBL_33}

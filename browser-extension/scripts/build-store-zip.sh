@@ -3,8 +3,7 @@
 #
 # Excludes dev-only paths (tests/, scripts/, node_modules/, package*.json,
 # *.md, dist/) so the upload package contains only files Chrome actually
-# loads at runtime. Verifies the result against the manifest snapshot
-# before declaring success.
+# loads at runtime.
 #
 # Usage:
 #   ./browser-extension/scripts/build-store-zip.sh

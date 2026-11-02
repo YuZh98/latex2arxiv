@@ -67,7 +67,7 @@ On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)
 |---|---|---|
 | 📦 | **One command, any input** | Accepts a `.zip`, directory, or git URL; outputs an arXiv-ready `.zip`; optionally compiles and opens the PDF for review |
 | ✂️ | **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
-| 🧹 | **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages, handles nested braces correctly (`\deleted{see \cite{x}}` works) |
+| 🧹 | **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages; [config rules](#custom-removal-rules---config) handle nested braces correctly (`\deleted{see \cite{x}}` works) |
 | 🚨 | **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex `.bbl` version mismatches, missing index files, oversized output, undefined citations, problematic filenames — [full list](#pre-flight-checks) |
 | 🗺️ | **Guides you through upload** | `--guide` extracts title, authors, abstract, page/figure/table counts and writes a step-by-step arXiv upload walkthrough |
 
@@ -232,13 +232,13 @@ Before producing the output zip, latex2arxiv validates the project against [arXi
 
 ```text
 $ latex2arxiv paper.zip --dry-run
+  [warn] \today used in \date — arXiv may rebuild the PDF and the date will change
+  [warn] .eps image found: photo.eps — pdflatex does not support .eps; convert to .pdf or .png, or use latex+dvips via 00README
   [error] \usepackage{minted} requires shell-escape — arXiv compiles without it; this submission will fail to build
-  [error] \usepackage{psfig} — arXiv no longer supports the psfig package
-  [warn]  \today used in \date — arXiv may rebuild the PDF and the date will change
-  [warn]  .eps image found: photo.eps — pdflatex does not support .eps; convert to .pdf or .png
-  [warn]  \printindex used but no .ind file at root — build locally and re-run latex2arxiv
+  [error] \usepackage{psfig} — arXiv no longer supports the psfig package; convert figure inclusions to \includegraphics from graphicx
+  [warn] \printindex used but no .ind file at root — arXiv does not run makeindex; build locally and re-run latex2arxiv (the .ind will be included automatically)
 
-Summary: 2 errors, 7 warnings
+Summary: 0 removed, 2 kept | 2 errors, 3 warnings
 ```
 
 Either `[error]` line would have caused arXiv to reject the submission after upload. The exit code is non-zero on errors, so a CI step like `latex2arxiv paper.zip --dry-run` fails the build before the bad submission ever leaves the repo.

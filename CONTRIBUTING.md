@@ -60,7 +60,7 @@ included both, which arXiv rejects. Pick the root-level copy.
    checks are in progress or red.
 3. **Behaviour-changing PRs get an independent review** before merge.
    Docs-only, dependabot grouped-minor/patch, and single-file typo
-   fixes are exempt (note `audit-exempt: docs-only` etc. in the PR body).
+   fixes are exempt.
 4. **No `Co-Authored-By: Claude` trailers** or AI/agent process narrative
    in committed artefacts — readers care about the change, not the
    workflow that produced it.

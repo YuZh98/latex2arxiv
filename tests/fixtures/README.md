@@ -70,9 +70,7 @@ here, treat it as a regression and investigate.
 
 - **Kept:** `main.tex`, `bib/refs.bib` (2 files).
 - **Removed:** none.
-- **Errors / warnings:** 0 / 1.
-  - `biblatex detected but no main.bbl shipped` — defensive recommendation;
-    the .bbl would be the fallback if arXiv can't resolve any `.bib`. Legitimate.
+- **Errors / warnings:** 0 / 0.
 - **Regression anchor:** if `bib/refs.bib` shows up under `remove:`, the
   subdirectory-`.bib` handling in `find_used_bib_files()` has regressed.
   This was the entire point of the fix shipped in PR #45.

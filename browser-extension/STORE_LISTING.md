@@ -95,7 +95,7 @@ Used to fetch the current Overleaf project zip on the user's behalf, using the s
 
 Justification (paste if asked):
 ```
-The Pyodide WebAssembly runtime (~13 MB), every Python wheel the pipeline loads, and the Python entrypoint script all ship inside the extension package. The contents of pyodide/ and wheels/ are verified against pinned SHA-256 hashes at install time (browser-extension/pyodide/integrity.json and browser-extension/wheels/integrity.json). The extension does not download or execute any code that is not part of the published package.
+The Pyodide WebAssembly runtime (~13 MB), every Python wheel the pipeline loads, and the Python entrypoint script all ship inside the extension package. The contents of pyodide/ and wheels/ are pinned by SHA-256 hashes (pyodide/integrity.json and wheels/index.json), and bundled wheels are verified at runtime before installation. The extension does not download or execute any code that is not part of the published package.
 ```
 
 ### Data usage disclosures

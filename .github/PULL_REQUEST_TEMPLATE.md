@@ -24,5 +24,5 @@
 Audit gate (per CONTRIBUTING.md):
 - Behaviour-changing PRs need an independent review before merge.
 - Exempt: docs-only, dependabot grouped-minor/patch, single-file typo
-  fixes. Note the exemption like `audit-exempt: docs-only` in this body.
+  fixes.
 -->

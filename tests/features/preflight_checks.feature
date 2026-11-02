@@ -59,12 +59,18 @@ Feature: Catch arXiv submission blockers before upload
     Then an "[error]" notes the missing .bib without a fallback .bbl
     And the process exits with code 1
 
-  Scenario: biblatex without shipped .bbl emits a warning
-    Given the main .tex contains `\usepackage{biblatex}` or `\addbibresource{...}`
+  Scenario: biblatex with a .bib and no .bbl passes
+    Given the project loads biblatex and ships "refs.bib"
     And no `<main>.bbl` is shipped in the project
     When I run `latex2arxiv project.zip --dry-run`
-    Then a "[warn]" recommends shipping the `.bbl` as a fallback
+    Then no pre-flight line mentions a `.bbl`
     And the process exits with code 0
+
+  Scenario: \addbibresource with missing .bib and no .bbl
+    Given the main .tex references `\addbibresource{refs.bib}` but "refs.bib" is not in the project
+    When I run `latex2arxiv project.zip --dry-run`
+    Then an "[error]" notes the missing .bib without a fallback .bbl
+    And the process exits with code 1
 
   Scenario: Main .tex not at the submission root
     Given the only file containing `\documentclass` is "src/main.tex"
@@ -106,8 +112,8 @@ Feature: Catch arXiv submission blockers before upload
     When I run `latex2arxiv project.zip --dry-run`
     Then a "[warn]" notes that `\input`/`\includegraphics` resolution will break
 
-  Scenario: \today + missing .bbl + oversized output coexist
-    Given a project that triggers a \today warning, a biblatex .bbl warning, and an oversized-output warning at the same time
+  Scenario: \today + missing index + oversized output coexist
+    Given a project that triggers a \today warning, a \printindex warning, and an oversized-output warning at the same time
     When I run `latex2arxiv project.zip`
     Then all three "[warn]" lines are emitted independently
     And the process exits with code 0

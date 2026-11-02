@@ -320,7 +320,7 @@ def convert(
 
         # Advisory: custom style/class files
         for path in kept_files:
-            if path.suffix.lower() in {".cls", ".sty"}:
+            if path.suffix.lower() in {".cls", ".sty"} and path.name != "biblatex.sty":
                 issues.warn(
                     f"custom style file kept: {path.relative_to(root)} — "
                     "arXiv may suggest removing this; ignore that warning, "
