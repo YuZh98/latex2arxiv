@@ -1480,19 +1480,19 @@ def _pf_set_directive(project_dir, tex_content, result, directive):
 
 
 # Note: pytest-bdd 8.x double-escapes backslashes from Scenario Outline Examples
-# cells before substituting into step text. So the rendered step text for cell
-# `\printindex` is `the main .tex contains `\\printindex`` (two backslashes).
-@given(parsers.parse("the main .tex contains `\\\\printindex`"))
+# cells before substituting into step text (cell `\printindex` renders with two
+# backslashes); 9.x substitutes the cell verbatim. The patterns accept both.
+@given(parsers.re(r"the main \.tex contains `\\{1,2}printindex`"))
 def _pf_printindex(project_dir, tex_content, result):
     _pf_set_directive(project_dir, tex_content, result, "printindex")
 
 
-@given(parsers.parse("the main .tex contains `\\\\printglossary`"))
+@given(parsers.re(r"the main \.tex contains `\\{1,2}printglossary`"))
 def _pf_printglossary(project_dir, tex_content, result):
     _pf_set_directive(project_dir, tex_content, result, "printglossary")
 
 
-@given(parsers.parse("the main .tex contains `\\\\printnomenclature`"))
+@given(parsers.re(r"the main \.tex contains `\\{1,2}printnomenclature`"))
 def _pf_printnomenclature(project_dir, tex_content, result):
     _pf_set_directive(project_dir, tex_content, result, "printnomenclature")
 
