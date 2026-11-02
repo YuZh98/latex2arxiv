@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-02
+
 ### Changed
 - Zed MCP setup is a `context_servers` entry in Zed's `settings.json`; the editor extension it previously documented was never published
 
