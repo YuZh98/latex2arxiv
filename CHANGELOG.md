@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [browser-extension 0.1.12] - 2026-11-02
+
+### Changed
+- Bundle the v1.3.2 `latex2arxiv` wheel, bringing the biblatex pre-flight checks and the fixes from v1.3.0 through v1.3.2 to the extension
+
 ## [1.3.2] - 2026-11-02
 
 ### Changed
