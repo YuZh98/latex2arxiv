@@ -118,8 +118,7 @@ def find_used_style_files(tex_sources: list[str]) -> set:
 
 
 BIBLATEX_PACKAGE_RE = re.compile(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}")
-ADDBIBRESOURCE_RE = re.compile(r"\\addbibresource(?:\[[^\]]*\])?\{([^}]+)\}")
-_DATA_SOURCE_SUFFIXES = {".bib", ".bltxml", ".xml", ".ris", ".rdf", ".json", ".yaml", ".yml"}
+ADDBIBRESOURCE_RE = re.compile(r"\\addbibresource(?:\[([^\]]*)\])?\{([^}]+)\}")
 
 
 def uses_biblatex(tex_sources: list[str]) -> bool:
@@ -181,22 +180,36 @@ def find_cited_keys(tex_sources: list[str]) -> set:
     return keys
 
 
-def find_used_bib_files(tex_sources: list[str]) -> set:
+def find_bib_resources(tex_sources: list[str], main_stem: str | None = None) -> list[tuple[str, str]]:
+    """Return (options, argument) for each \\addbibresource, with \\jobname resolved."""
+    resources = []
+    for src in tex_sources:
+        for m in ADDBIBRESOURCE_RE.finditer(_strip_comments(src)):
+            arg = m.group(2).strip()
+            if main_stem:
+                arg = arg.replace("\\jobname", main_stem)
+            resources.append((m.group(1) or "", arg))
+    return resources
+
+
+def find_used_bib_files(tex_sources: list[str], main_stem: str | None = None) -> set:
     """Return set of data file basenames referenced by \\bibliography or \\addbibresource.
 
-    Directory components in the argument (e.g. \\addbibresource{bib/refs.bib}) are
-    stripped — converter.py matches against ``path.name`` when scanning for .bib files.
+    \\bibliography appends .bib like BibTeX; \\addbibresource names are taken
+    literally, as Biber does. Directory components are stripped — converter.py
+    matches against ``path.name`` when scanning for data files.
     """
     used = set()
     for src in tex_sources:
         src = _strip_comments(src)
         for m in re.finditer(r"\\bibliography\{([^}]+)\}", src):
             for name in m.group(1).split(","):
-                name = Path(name.strip()).name
+                name = name.strip()
+                if main_stem:
+                    name = name.replace("\\jobname", main_stem)
+                name = Path(name).name
                 used.add(name if name.endswith(".bib") else name + ".bib")
-        for m in ADDBIBRESOURCE_RE.finditer(src):
-            if "://" in m.group(1):
-                continue
-            name = Path(m.group(1).strip()).name
-            used.add(name if Path(name).suffix.lower() in _DATA_SOURCE_SUFFIXES else name + ".bib")
+    for _, arg in find_bib_resources(tex_sources, main_stem):
+        if "://" not in arg:
+            used.add(Path(arg).name)
     return used

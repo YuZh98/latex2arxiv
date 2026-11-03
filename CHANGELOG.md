@@ -13,8 +13,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ### Fixed
 - Bundled `biblatex.sty` no longer gets a contradictory "custom style file kept" advisory
-- `\addbibresource` URLs are no longer treated as local `.bib` files
-- Non-`.bib` `\addbibresource` data files such as `.ris` are kept in the output
+- `\addbibresource` data files such as `.ris` are kept in the output, and an `[error]` reports that Biber cannot read them
+- `\addbibresource` without the `.bib` extension is an `[error]`; Biber does not add it
+- `\jobname` in `\addbibresource` and `\bibliography` resolves to the main file, so its `.bib` is kept
+- Remote `\addbibresource` URLs warn when no `.bbl` is shipped
 
 ## [browser-extension 0.1.12] - 2026-11-02
 
