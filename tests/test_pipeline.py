@@ -3603,52 +3603,105 @@ class TestBiblatexBblAndPreflight:
         issues = self._run({"main.tex": tex}, tmp_path)
         assert any("refs.bib" in e for e in issues.errors)
 
-    @pytest.mark.parametrize("name", ["x.ris", "refs.json", "refs.yaml"])
-    def test_non_bib_data_source_is_kept_without_error(self, tmp_path, name):
+    def _with_resource(self, resource):
+        return self._main_tex().replace(r"\addbibresource{refs.bib}", resource)
+
+    @pytest.mark.parametrize("name", ["x.ris", "refs.json", "refs.yaml", "refs.xml"])
+    def test_non_bibtex_data_source_is_kept_and_errors(self, tmp_path, name):
         from converter import convert
 
-        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", rf"\addbibresource{{{name}}}")
         zp = tmp_path / "in.zip"
         with zipfile.ZipFile(zp, "w") as zf:
-            zf.writestr("main.tex", tex)
+            zf.writestr("main.tex", self._with_resource(rf"\addbibresource{{{name}}}"))
             zf.writestr(name, "data")
         out = tmp_path / "out.zip"
         issues = convert(zp, out)
-        assert issues.errors == []
+        assert any(name in e and "not BibTeX data" in e for e in issues.errors)
         assert name in zipfile.ZipFile(out).namelist()
 
+    def test_unsupported_datatype_errors(self, tmp_path):
+        tex = self._with_resource(r"\addbibresource[datatype=ris]{x.ris}")
+        issues = self._run({"main.tex": tex, "x.ris": "TY  - JOUR"}, tmp_path)
+        assert any("not BibTeX data" in e for e in issues.errors)
+
+    def test_biblatexml_datatype_is_accepted(self, tmp_path):
+        tex = self._with_resource(r"\addbibresource[datatype=biblatexml]{refs.bltxml}")
+        issues = self._run({"main.tex": tex, "refs.bltxml": "<bltx:entries/>"}, tmp_path)
+        assert issues.errors == []
+
+    def test_non_bibtex_data_source_with_bbl_is_silent(self, tmp_path):
+        tex = self._with_resource(r"\addbibresource{x.ris}")
+        issues = self._run({"main.tex": tex, "x.ris": "TY  - JOUR", "main.bbl": self._BBL_33}, tmp_path)
+        assert issues.errors == []
+
     def test_missing_non_bib_data_source_is_error(self, tmp_path):
-        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{x.ris}")
-        issues = self._run({"main.tex": tex}, tmp_path)
+        issues = self._run({"main.tex": self._with_resource(r"\addbibresource{x.ris}")}, tmp_path)
         assert any("references x.ris but" in e for e in issues.errors)
 
-    def test_extensionless_resource_resolves_to_bib(self, tmp_path):
-        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource[datatype=bibtex]{refs}")
-        issues = self._run({"main.tex": tex, "refs.bib": "@misc{k, title={X}}"}, tmp_path)
-        assert issues.errors == []
+    @pytest.mark.parametrize("arg", ["refs", "refs.v2"])
+    def test_resource_without_bib_extension_errors(self, tmp_path, arg):
+        tex = self._with_resource(rf"\addbibresource{{{arg}}}")
+        issues = self._run({"main.tex": tex, f"{arg}.bib": "@misc{k, title={X}}"}, tmp_path)
+        assert issues.errors == [
+            f"\\addbibresource{{{arg}}} needs the full file name — Biber does not add .bib; "
+            f"use \\addbibresource{{{arg}.bib}}"
+        ]
 
-    def test_dotted_resource_name_resolves_to_bib(self, tmp_path):
-        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{refs.v2}")
-        issues = self._run({"main.tex": tex, "refs.v2.bib": "@misc{k, title={X}}"}, tmp_path)
-        assert issues.errors == []
+    def test_resource_without_extension_keeps_bib_in_output(self, tmp_path):
+        from converter import convert
+
+        zp = tmp_path / "in.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("main.tex", self._with_resource(r"\addbibresource{refs}"))
+            zf.writestr("refs.bib", "@misc{k, title={X}}")
+        out = tmp_path / "out.zip"
+        convert(zp, out)
+        assert "refs.bib" in zipfile.ZipFile(out).namelist()
+
+    def test_duplicate_resource_without_extension_errors_once(self, tmp_path):
+        tex = self._with_resource("\\addbibresource{refs}\n\\addbibresource{refs}")
+        issues = self._run({"main.tex": tex, "refs.bib": "@misc{k, title={X}}"}, tmp_path)
+        assert sum("needs the full file name" in e for e in issues.errors) == 1
+        assert not any("references refs" in e for e in issues.errors)
 
     def test_uppercase_bib_suffix_is_kept(self, tmp_path):
-        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{REFS.BIB}")
+        tex = self._with_resource(r"\addbibresource{REFS.BIB}")
         issues = self._run({"main.tex": tex, "REFS.BIB": "@misc{k, title={X}}"}, tmp_path)
         assert issues.errors == []
 
-    def test_macro_bib_name_is_not_missing(self, tmp_path):
-        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{\jobname.bib}")
-        issues = self._run({"main.tex": tex}, tmp_path)
+    def test_jobname_resource_resolves_to_main_bib(self, tmp_path):
+        from converter import convert
+
+        zp = tmp_path / "in.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("main.tex", self._with_resource(r"\addbibresource{\jobname.bib}"))
+            zf.writestr("main.bib", "@misc{k, title={X}}")
+        out = tmp_path / "out.zip"
+        issues = convert(zp, out)
+        assert issues.errors == []
+        assert "main.bib" in zipfile.ZipFile(out).namelist()
+
+    def test_missing_jobname_bib_is_error(self, tmp_path):
+        issues = self._run({"main.tex": self._with_resource(r"\addbibresource{\jobname.bib}")}, tmp_path)
+        assert any("references main.bib but" in e for e in issues.errors)
+
+    def test_jobname_bibliography_resolves_to_main_bib(self):
+        assert find_used_bib_files([r"\bibliography{\jobname}"], "paper") == {"paper.bib"}
+
+    def test_other_macro_bib_name_is_not_missing(self, tmp_path):
+        issues = self._run({"main.tex": self._with_resource(r"\addbibresource{\bibdir.bib}")}, tmp_path)
         assert issues.errors == []
 
-    def test_remote_bib_resource_is_not_missing(self, tmp_path):
-        tex = self._main_tex().replace(
-            r"\addbibresource{refs.bib}", r"\addbibresource[location=remote]{https://example.org/refs.bib}"
-        )
-        assert "example.org" in tex
-        issues = self._run({"main.tex": tex}, tmp_path)
+    def test_remote_bib_resource_warns_without_bbl(self, tmp_path):
+        url = "https://example.org/refs.bib"
+        issues = self._run({"main.tex": self._with_resource(rf"\addbibresource[location=remote]{{{url}}}")}, tmp_path)
         assert issues.errors == []
+        assert any(url in w and "network" in w for w in issues.warnings)
+
+    def test_remote_bib_resource_with_bbl_is_silent(self, tmp_path):
+        tex = self._with_resource(r"\addbibresource[location=remote]{https://example.org/refs.bib}")
+        issues = self._run({"main.tex": tex, "main.bbl": self._BBL_33}, tmp_path)
+        assert not any("network" in w for w in issues.warnings)
 
     # ── bundled biblatex.sty ──
 

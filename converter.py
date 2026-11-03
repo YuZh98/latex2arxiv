@@ -194,7 +194,7 @@ def convert(
                 )
 
         used_image_paths, used_image_refs = find_used_images(all_sources, tex_dirs, root)
-        used_bib_files = find_used_bib_files(all_sources)
+        used_bib_files = find_used_bib_files(all_sources, main_tex.stem)
         used_style_files = find_used_style_files(all_sources)
         cited_keys = find_cited_keys(all_sources)
         is_biblatex = uses_biblatex(all_sources)
@@ -205,6 +205,8 @@ def convert(
         # Add .bib files — prefer root-level over subdirectory duplicates.
         for bib_name in used_bib_files:
             candidates = [p for p in root.rglob(bib_name) if p.name == bib_name]
+            if not candidates and not bib_name.endswith(".bib"):
+                candidates = [p for p in root.rglob(bib_name + ".bib") if p.name == bib_name + ".bib"]
             if not candidates:
                 continue
             # Prefer the one closest to root (fewest path components).
