@@ -204,9 +204,9 @@ def convert(
         whitelist |= used_image_paths
         # Add .bib files — prefer root-level over subdirectory duplicates.
         for bib_name in used_bib_files:
-            candidates = [p for p in root.rglob(bib_name) if p.name == bib_name]
+            candidates = [p for p in root.rglob(bib_name) if p.name == bib_name and p.is_file()]
             if not candidates and not bib_name.endswith(".bib"):
-                candidates = [p for p in root.rglob(bib_name + ".bib") if p.name == bib_name + ".bib"]
+                candidates = [p for p in root.rglob(bib_name + ".bib") if p.name == bib_name + ".bib" and p.is_file()]
             if not candidates:
                 continue
             # Prefer the one closest to root (fewest path components).

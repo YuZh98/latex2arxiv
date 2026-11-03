@@ -3629,6 +3629,28 @@ class TestBiblatexBblAndPreflight:
         issues = self._run({"main.tex": tex, "refs.bltxml": "<bltx:entries/>"}, tmp_path)
         assert issues.errors == []
 
+    def test_braced_biblatexml_datatype_is_accepted(self, tmp_path):
+        tex = self._with_resource(r"\addbibresource[datatype={biblatexml}]{refs.xml}")
+        issues = self._run({"main.tex": tex, "refs.xml": "<bltx:entries/>"}, tmp_path)
+        assert issues.errors == []
+
+    def test_duplicate_non_bibtex_resource_errors_once(self, tmp_path):
+        tex = self._with_resource("\\addbibresource{x.ris}\n\\addbibresource{x.ris}")
+        issues = self._run({"main.tex": tex, "x.ris": "TY  - JOUR"}, tmp_path)
+        assert sum("not BibTeX data" in e for e in issues.errors) == 1
+
+    def test_directory_named_like_resource_does_not_hide_bib(self, tmp_path):
+        from converter import convert
+
+        zp = tmp_path / "in.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.writestr("main.tex", self._with_resource(r"\addbibresource{refs}"))
+            zf.writestr("refs.bib", "@misc{k, title={X}}")
+            zf.writestr("refs/notes.txt", "x")
+        out = tmp_path / "out.zip"
+        convert(zp, out)
+        assert "refs.bib" in zipfile.ZipFile(out).namelist()
+
     def test_non_bibtex_data_source_with_bbl_is_silent(self, tmp_path):
         tex = self._with_resource(r"\addbibresource{x.ris}")
         issues = self._run({"main.tex": tex, "x.ris": "TY  - JOUR", "main.bbl": self._BBL_33}, tmp_path)
