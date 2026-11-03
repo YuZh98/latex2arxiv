@@ -293,7 +293,7 @@ latex2arxiv covers cleaning, pre-flight validation, and producing the upload-rea
 Pre-flight catches the documented submission-blocking patterns. arXiv pins specific TeX Live versions and occasionally surfaces new edge cases — always run the [arXiv submission preview](https://arxiv.org/submit) after upload. If you hit a reproducible miss, [file an issue](https://github.com/YuZh98/latex2arxiv/issues) with your project zip.
 
 **2. What's the difference between `[error]` and `[warn]`?**
-Errors block submission and exit the tool non-zero — use them to gate CI. Warnings are advisory: the build will likely succeed on arXiv but a human should look. Example: missing `.bbl` is a warn (arXiv will run BibTeX); `\usepackage{minted}` is an error (shell-escape isn't allowed).
+Errors block submission and exit the tool non-zero — use them to gate CI. Warnings are advisory: the build will likely succeed on arXiv but a human should look. Example: an `.eps` figure is a warn (pdflatex can't read it, but a `00README` can select latex+dvips); `\usepackage{minted}` is an error (shell-escape isn't allowed).
 
 **3. My main `.tex` isn't being auto-detected correctly.**
 Auto-detection ranks files containing `\documentclass` by `\input` reference count. For ambiguous projects (response letters next to the paper, multiple `\documentclass` files), pass `--main paper.tex` explicitly.

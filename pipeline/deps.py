@@ -119,6 +119,7 @@ def find_used_style_files(tex_sources: list[str]) -> set:
 
 BIBLATEX_PACKAGE_RE = re.compile(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}")
 ADDBIBRESOURCE_RE = re.compile(r"\\addbibresource(?:\[[^\]]*\])?\{([^}]+)\}")
+_DATA_SOURCE_SUFFIXES = {".bib", ".bltxml", ".xml", ".ris", ".rdf", ".json", ".yaml", ".yml"}
 
 
 def uses_biblatex(tex_sources: list[str]) -> bool:
@@ -197,5 +198,5 @@ def find_used_bib_files(tex_sources: list[str]) -> set:
             if "://" in m.group(1):
                 continue
             name = Path(m.group(1).strip()).name
-            used.add(name if Path(name).suffix else name + ".bib")
+            used.add(name if Path(name).suffix.lower() in _DATA_SOURCE_SUFFIXES else name + ".bib")
     return used

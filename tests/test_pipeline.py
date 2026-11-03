@@ -3627,6 +3627,16 @@ class TestBiblatexBblAndPreflight:
         issues = self._run({"main.tex": tex, "refs.bib": "@misc{k, title={X}}"}, tmp_path)
         assert issues.errors == []
 
+    def test_dotted_resource_name_resolves_to_bib(self, tmp_path):
+        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{refs.v2}")
+        issues = self._run({"main.tex": tex, "refs.v2.bib": "@misc{k, title={X}}"}, tmp_path)
+        assert issues.errors == []
+
+    def test_uppercase_bib_suffix_is_kept(self, tmp_path):
+        tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{REFS.BIB}")
+        issues = self._run({"main.tex": tex, "REFS.BIB": "@misc{k, title={X}}"}, tmp_path)
+        assert issues.errors == []
+
     def test_macro_bib_name_is_not_missing(self, tmp_path):
         tex = self._main_tex().replace(r"\addbibresource{refs.bib}", r"\addbibresource{\jobname.bib}")
         issues = self._run({"main.tex": tex}, tmp_path)
