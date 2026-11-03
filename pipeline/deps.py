@@ -119,6 +119,7 @@ def find_used_style_files(tex_sources: list[str]) -> set:
 
 BIBLATEX_PACKAGE_RE = re.compile(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\bbiblatex\b[^}]*\}")
 ADDBIBRESOURCE_RE = re.compile(r"\\addbibresource(?:\[[^\]]*\])?\{([^}]+)\}")
+_DATA_SOURCE_SUFFIXES = {".bib", ".bltxml", ".xml", ".ris", ".rdf", ".json", ".yaml", ".yml"}
 
 
 def uses_biblatex(tex_sources: list[str]) -> bool:
@@ -181,7 +182,7 @@ def find_cited_keys(tex_sources: list[str]) -> set:
 
 
 def find_used_bib_files(tex_sources: list[str]) -> set:
-    """Return set of .bib basenames referenced by \\bibliography or \\addbibresource.
+    """Return set of data file basenames referenced by \\bibliography or \\addbibresource.
 
     Directory components in the argument (e.g. \\addbibresource{bib/refs.bib}) are
     stripped — converter.py matches against ``path.name`` when scanning for .bib files.
@@ -194,6 +195,8 @@ def find_used_bib_files(tex_sources: list[str]) -> set:
                 name = Path(name.strip()).name
                 used.add(name if name.endswith(".bib") else name + ".bib")
         for m in ADDBIBRESOURCE_RE.finditer(src):
+            if "://" in m.group(1):
+                continue
             name = Path(m.group(1).strip()).name
-            used.add(name if name.endswith(".bib") else name + ".bib")
+            used.add(name if Path(name).suffix.lower() in _DATA_SOURCE_SUFFIXES else name + ".bib")
     return used

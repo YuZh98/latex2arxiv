@@ -6,9 +6,9 @@ updates:
       interval: "weekly"
     ignore:
       - dependency-name: "bibtexparser"
-        update-types: ["version-update:semver-major"]
+        versions: [">=2"]
       - dependency-name: "mcp"
-        update-types: ["version-update:semver-major"]
+        versions: [">=2"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

@@ -134,15 +134,17 @@ requirements. The terminal output uses two severities:
         \texttt{pythontex} / \texttt{shellesc} —
         require \texttt{-{}-shell-escape}; arXiv compiles without it, so these
         always fail to build on arXiv.
+  \item A \texttt{\textbackslash bibliography} or
+        \texttt{\textbackslash addbibresource} file that is missing, with no
+        \texttt{.bbl} shipped — arXiv will block your submission.
 \end{itemize}
 
 \subsection*{Pre-flight warnings (review before submitting)}
 
 \begin{itemize}
-  \item \texttt{\textbackslash usepackage\{biblatex\}} or
-        \texttt{\textbackslash addbibresource} without a
-        \texttt{.bbl} shipped — if a referenced \texttt{.bib} is missing,
-        arXiv will block your submission. Ship the \texttt{.bbl} as a fallback.
+  \item A \texttt{.bib} written by \texttt{filecontents} with no \texttt{.bbl}
+        shipped — arXiv may block the submission. Ship the \texttt{.bib} as a
+        separate file.
   \item Shipped \texttt{.bbl} with a stale bbl format version — arXiv accepts
         bbl format 3.3 under its default TeX Live; a 3.2 file needs the
         older TeX Live at submission time, which arXiv plans to retire.
@@ -316,7 +318,7 @@ Your metadata (copy-paste ready):
     Demo Author
 
   Comments:
-    8 pages, 1 figures, 1 tables
+    9 pages, 1 figures, 1 tables
 
 Step 1: Start a new submission or replace an existing one
 Step 2: Choose license

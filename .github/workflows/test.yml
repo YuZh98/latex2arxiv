@@ -63,7 +63,7 @@ jobs:
           set -e
           bash tests/fixtures/run_all.sh | tee /tmp/fixture_out.txt
           grep -F "01-minimal" /tmp/fixture_out.txt | grep -F "✓ clean"
-          grep -F "02-biblatex-biber" /tmp/fixture_out.txt | grep -F "1 warning"
+          grep -F "02-biblatex-biber" /tmp/fixture_out.txt | grep -F "✓ clean"
           grep -F "03-revision-markup" /tmp/fixture_out.txt | grep -F "✓ clean"
           grep -F "04-multi-documentclass" /tmp/fixture_out.txt | grep -F "✓ clean"
           grep -E "05-pre-flight-warnings.*2 error.*6 warning" /tmp/fixture_out.txt

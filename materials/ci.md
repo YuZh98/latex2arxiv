@@ -16,7 +16,7 @@ jobs:
   arxiv-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: YuZh98/latex2arxiv@v1.3.2
         with:
           input: paper/        # directory of .tex sources, or a .zip path
@@ -44,7 +44,7 @@ The action accepts a directory or a `.zip` for `input`. If a directory, it's zip
 | `dry-run` | `'true'` | If `'false'`, emit the cleaned zip alongside the input. |
 | `flatten` | `'false'` | If `'true'`, inline `\input` / `\include` / `\subfile` into a single `.tex`. |
 | `resize` | `''` | Pixel cap for image downscaling (e.g. `'1600'`); empty disables resizing. |
-| `version` | (latest) | Pin a specific `latex2arxiv` version (e.g. `'1.2.0'`). |
+| `version` | (latest) | Pin a specific `latex2arxiv` version (e.g. `'1.3.2'`). |
 | `python-version` | `'3.12'` | Python version used to install `latex2arxiv`. |
 
 **Output:** `cleaned-zip` — path to the cleaned zip when `dry-run: 'false'` (empty otherwise).

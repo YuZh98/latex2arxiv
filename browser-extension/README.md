@@ -83,11 +83,15 @@ Pillow, PyYAML, `regex`, and `micropip` ship under `pyodide/` alongside the runt
 Rebuild the wheels with:
 
 ```sh
-# from repo root
-python -m build --wheel --outdir /tmp/l2a-wheel/ .
+# from repo root; a clean export keeps stale build/ output out of the wheel
+mkdir /tmp/l2a-src && git archive vX.Y.Z | tar -x -C /tmp/l2a-src
+python -m build --wheel --outdir /tmp/l2a-wheel/ /tmp/l2a-src
 pip wheel 'bibtexparser>=1.4,<2' pyparsing --no-deps -w browser-extension/wheels/
+git rm browser-extension/wheels/latex2arxiv-*.whl
 cp /tmp/l2a-wheel/latex2arxiv-*.whl browser-extension/wheels/
 ```
+
+Then update the wheel name and sha256 in `wheels/index.json`, bump `manifest.json` and the version pin in `tests/manifest.test.mjs`, and run `npm test` and `npm run smoke` in `tests/`.
 
 ### Vendored Pyodide
 

@@ -6,10 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Changed
+- `\addbibresource` with neither the `.bib` nor a `.bbl` is now an `[error]`, matching `\bibliography`; arXiv blocks these submissions
+- A `.bib` written by `filecontents` with no `.bbl` warns instead of erroring
+- biblatex with a `.bib` and no `.bbl` no longer warns; arXiv runs the configured backend
+
+### Fixed
+- Bundled `biblatex.sty` no longer gets a contradictory "custom style file kept" advisory
+- `\addbibresource` URLs are no longer treated as local `.bib` files
+- Non-`.bib` `\addbibresource` data files such as `.ris` are kept in the output
+
 ## [browser-extension 0.1.12] - 2026-11-02
 
 ### Changed
-- Bundle the v1.3.2 `latex2arxiv` wheel, bringing the biblatex pre-flight checks and the fixes from v1.3.0 through v1.3.2 to the extension
+- Bundle the v1.3.2 `latex2arxiv` wheel, bringing the biblatex pre-flight checks and pipeline fixes from v1.3.0 through v1.3.2 to the extension
 
 ## [1.3.2] - 2026-11-02
 
@@ -20,13 +30,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - Zed editor extension source
 
 ### Fixed
-- MCP server no longer fails to start against the `mcp` 2.x SDK; the `latex2arxiv[mcp]` extra now installs a 1.x release
+- `latex2arxiv[mcp]` pins the `mcp` SDK to 1.x, so a fresh install no longer resolves to the unsupported 2.x and fail at startup
 - Output path without a `.zip` extension gets `.zip` appended instead of producing an extensionless archive
 - Output path naming an existing directory writes the default-named zip inside it
 - Output path that resolves to the input file is refused instead of overwriting the input
 - Missing output directory and non-zip input file report a clean error instead of a traceback
 - Input `paper` falls back to `paper.zip` when no file or directory of that name exists
 - `latex2arxiv .` names the output after the directory instead of `_arxiv.zip`
+- Default output for an extensionless zip input gets a `.zip` suffix
 - Used `.sty`/`.cls` files in subdirectories are kept instead of pruned
 - Bib entries lacking both DOI and title now get private fields stripped
 - `\citestyle{...}` no longer produces a false undefined-citation warning
