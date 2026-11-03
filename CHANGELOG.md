@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-11-03
+
 ### Changed
 - `\addbibresource` with neither the `.bib` nor a `.bbl` is now an `[error]`, matching `\bibliography`; arXiv blocks these submissions
 - A `.bib` written by `filecontents` with no `.bbl` warns instead of erroring
