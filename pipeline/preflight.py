@@ -101,7 +101,10 @@ def _has_minted_cache(root: Path) -> bool:
     return cache.is_dir() and any(cache.glob("*.minted"))
 
 
-_LIVE_REF_RE = re.compile(r"\\(?:input|include|subfile|includegraphics)(?:\[[^\]]*\])?\{([^}]+)\}")
+_LIVE_REF_RE = re.compile(
+    r"\\(?:input|include|subfile|includegraphics\*?)(?:\[[^\]]*\])*\{([^}]+)\}"
+    r"|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}"
+)
 
 
 def _norm_ref(ref: str) -> str:
@@ -117,25 +120,33 @@ def _kpsewhich(*args: str, cwd: str) -> str:
     if kpsewhich is None:
         return ""
     try:
-        out = subprocess.run([kpsewhich, *args], capture_output=True, text=True, timeout=10, cwd=cwd)
+        out = subprocess.run([kpsewhich, *args], capture_output=True, text=True, timeout=30, cwd=cwd)
     except (OSError, subprocess.SubprocessError):
         return ""
     return out.stdout.strip()
 
 
-def _provided_by_texlive(ref: str) -> bool:
-    """True if `ref` ships with TeX Live itself; the user's own texmf trees and cwd don't count."""
-    if ref in _TEXLIVE_INPUTS or ref.startswith("example-image"):
-        return True
+def _texlive_provided(refs: list[str]) -> set[str]:
+    """Subset of `refs` that TeX Live itself ships; the user's own texmf trees and cwd don't count.
+
+    One kpsewhich call for all refs: per-ref calls cost seconds on projects with many missing files.
+    """
+    provided = {r for r in refs if r in _TEXLIVE_INPUTS or r.startswith("example-image")}
+    pending = [r for r in refs if r not in provided]
+    if not pending:
+        return provided
     with tempfile.TemporaryDirectory() as empty:
         dist = _kpsewhich("-var-value", "TEXMFDIST", cwd=empty)
         if not dist:
-            return False
+            return provided
         dist_root = Path(dist).resolve()
-        for hit in _kpsewhich(ref, ref + ".tex", cwd=empty).splitlines():
-            if Path(hit).resolve().is_relative_to(dist_root):
-                return True
-    return False
+        names = [n for r in pending for n in (r, r + ".tex")]
+        hits = {
+            Path(h).name
+            for h in _kpsewhich(*names, cwd=empty).splitlines()
+            if Path(h).resolve().is_relative_to(dist_root)
+        }
+    return provided | {r for r in pending if Path(r).name in hits or Path(r).name + ".tex" in hits}
 
 
 def _report_missing_targets(
@@ -147,31 +158,31 @@ def _report_missing_targets(
     combined = _VERBATIM_ENVS.sub("", re.sub(r"(?<!\\)%[^\n]*", "", "\n".join(all_sources)))
     generated = set(_FILECONTENTS_RE.findall(combined))
     externalized = "\\tikzexternalize" in combined
-    live_refs = {_norm_ref(m.group(1)) for m in _LIVE_REF_RE.finditer(combined)}
+    live_refs = {_norm_ref(m.group(1) or m.group(2)) for m in _LIVE_REF_RE.finditer(combined)}
 
-    def skip(ref: str) -> bool:
-        ref = _norm_ref(ref)
+    def candidate(ref: str) -> bool:
         return (
-            Path(ref).suffix.lower() in _BUILD_OUTPUT_EXTS
-            or ref in generated
-            or ref + ".tex" in generated
-            or ref not in live_refs
-            or _provided_by_texlive(ref)
+            Path(ref).suffix.lower() not in _BUILD_OUTPUT_EXTS
+            and ref not in generated
+            and ref + ".tex" not in generated
+            and ref in live_refs
         )
 
-    for ref in missing_inputs:
-        if not skip(ref):
+    inputs = [r for r in dict.fromkeys(map(_norm_ref, missing_inputs)) if candidate(r)]
+    images = [] if externalized else [r for r in sorted({_norm_ref(r) for r in missing_images}) if candidate(r)]
+    provided = _texlive_provided(inputs + images)
+    for ref in inputs:
+        if ref not in provided:
             issues.warn(
-                f"\\input/\\include/\\subfile target not found: {_norm_ref(ref)} — unless TeX Live provides it, "
+                f"\\input/\\include/\\subfile target not found: {ref} — unless TeX Live provides it, "
                 "arXiv's build stops with 'File not found'"
             )
-    for ref in sorted(missing_images):
-        if externalized or skip(ref):
-            continue
-        issues.warn(
-            f"\\includegraphics target not found: {_norm_ref(ref)} — unless TeX Live provides it, "
-            "arXiv's build stops with 'File not found'"
-        )
+    for ref in images:
+        if ref not in provided:
+            issues.warn(
+                f"\\includegraphics target not found: {ref} — unless TeX Live provides it, "
+                "arXiv's build stops with 'File not found'"
+            )
 
 
 def _check_compliance(

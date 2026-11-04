@@ -71,7 +71,7 @@ def find_used_images(
     Also respects \\graphicspath{{dir1/}{dir2/}} declarations.
     """
     _IMAGE_RE = re.compile(
-        r"\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}"
+        r"\\includegraphics\*?(?:\[[^\]]*\])*\{([^}]+)\}"
         r"|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}"
     )
 

@@ -4110,3 +4110,36 @@ class TestMissingTargetRound2:
     def test_directory_case_mismatch_reported(self, tmp_path):
         src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{figs/a.png}\n\\end{document}\n"
         assert self._warns({"main.tex": src, "Figs/a.png": b"\x89PNG"}, tmp_path)
+
+    def test_starred_and_overpic_missing_refs_reported(self, tmp_path):
+        src = (
+            "\\documentclass{article}\n\\usepackage{graphicx,overpic}\n\\begin{document}\n"
+            "\\includegraphics*[width=1cm]{missing_star}\n\\begin{overpic}[scale=.5]{missing_overpic}\\end{overpic}\n"
+            "\\end{document}\n"
+        )
+        warns = self._warns({"main.tex": src}, tmp_path)
+        assert any("target not found: missing_star " in w for w in warns)
+        assert any("target not found: missing_overpic " in w for w in warns)
+
+    def test_kpsewhich_called_once_for_many_missing_refs(self, tmp_path, monkeypatch):
+        import pipeline.preflight as pf
+
+        calls = []
+        monkeypatch.setattr(pf.shutil, "which", lambda name: "/usr/bin/kpsewhich")
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            out = "/dist" if "-var-value" in cmd else ""
+            return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+        monkeypatch.setattr(pf.subprocess, "run", fake_run)
+        figs = "".join(f"\\includegraphics{{figs/f{i}}}\n" for i in range(40))
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n" + figs + "\\end{document}\n"
+        warns = self._warns({"main.tex": src}, tmp_path)
+        assert len(warns) == 40
+        assert len(calls) == 2
+
+    def test_starred_includegraphics_image_kept(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics*[width=1cm]{fig}\n\\end{document}\n"
+        issues, names = _convert_files({"main.tex": src, "fig.png": b"\x89PNG"}, tmp_path)
+        assert "fig.png" in names

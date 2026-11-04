@@ -21,8 +21,8 @@ Before producing the output zip, latex2arxiv validates the project against [arXi
 | ⚠️ warn | Main `.tex` not at the submission root | arXiv compiles from the root, so `\input`, `\includegraphics` and bibliography paths resolve from there. |
 | ⚠️ warn | `\input` / `\include` / `\subfile` / `\includegraphics` target not found in the project | arXiv's build stops with "File not found". Skips TeX Live files (checked with `kpsewhich` when installed), `filecontents` outputs, build outputs and verbatim; image checks are skipped when `\tikzexternalize` is used. |
 | ⚠️ warn | `\usepackage{minted}` with a shipped `_minted` cache | Every listing must already be in the cache; build it with TeX Live 2025 (minted v3) and select TeX Live 2025. |
-| ⚠️ warn | `\pdfoutput` set while `00README` selects xelatex or latex | xelatex has no `\pdfoutput`; latex+dvips needs DVI output. |
-| ⚠️ warn | `\pdfoutput=0` without a latex `00README` | pdflatex then writes DVI, not PDF. |
+| ⚠️ warn | Any `\pdfoutput` assignment while `00README` selects xelatex or latex | xelatex has no `\pdfoutput`; latex+dvips needs DVI output. |
+| ⚠️ warn | `\pdfoutput=0` with no xelatex or latex `00README` | pdflatex then writes DVI, not PDF. |
 | ⚠️ warn | `00README.yaml` / `00README.yml` | Not a format arXiv documents and not read as a processor choice; use `00README.json` or the legacy `00README.XXX`. |
 | ⚠️ warn | `.tex` file inside `anc/` | arXiv says TeX files do not belong in the ancillary directory. |
 | ⚠️ warn | `\printindex` / `\printglossary` / `\printnomenclature` without matching `.ind` / `.gls` / `.nls` | arXiv doesn't run makeindex or glossary processors; the printed section silently disappears. |
