@@ -36,7 +36,7 @@ Feature: Catch arXiv submission blockers before upload
     Given the main .tex contains `\usepackage{fontspec}`
     And no "00README" with `compiler: xelatex` is shipped
     When I run `latex2arxiv project.zip --dry-run`
-    Then an "[error]" mentions that XeLaTeX or LuaLaTeX is required
+    Then an "[error]" mentions that XeLaTeX is required
     And the process exits with code 1
 
   Scenario: fontspec accepted with a 00README compiler hint

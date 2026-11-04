@@ -21,6 +21,8 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 from pipeline.types import ConvertContext, Issues, ConverterError
 from pipeline.deps import (
+    is_ancillary,
+    is_minted_cache,
     find_included_tex,
     find_used_images,
     find_used_bib_files,
@@ -36,6 +38,7 @@ from pipeline.guide import extract_metadata, count_stats, format_summary, format
 from pipeline.preflight import (
     SIZE_WARN_MB,  # noqa: F401  re-exported so `converter.SIZE_WARN_MB` keeps working
     _check_archive_layout,
+    _report_missing_targets,
     _check_compliance,
     _check_files,
     _check_output_size,
@@ -158,7 +161,8 @@ def convert(
 
         all_tex_files = {main_tex}
         main_source = main_tex.read_text(encoding="utf-8", errors="replace")
-        all_tex_files |= find_included_tex(main_source, main_tex.parent, root, {main_tex})
+        missing_inputs: list[str] = []
+        all_tex_files |= find_included_tex(main_source, main_tex.parent, root, {main_tex}, missing=missing_inputs)
 
         # 2b. Optional flatten: inline every \input/\include/\subfile into
         # main.tex, then drop the fragment files from the kept-files set so
@@ -193,7 +197,9 @@ def convert(
                     "characters in the output"
                 )
 
-        used_image_paths, used_image_refs = find_used_images(all_sources, tex_dirs, root)
+        missing_images: set[str] = set()
+        used_image_paths, used_image_refs = find_used_images(all_sources, tex_dirs, root, missing=missing_images)
+        _report_missing_targets(missing_inputs, missing_images, all_sources, issues)
         used_bib_files = find_used_bib_files(all_sources, main_tex.stem)
         used_style_files = find_used_style_files(all_sources)
         cited_keys = find_cited_keys(all_sources)
@@ -214,6 +220,7 @@ def convert(
             whitelist.add(best.resolve())
         # Add used support files (.cls, .sty) and always-keep types (.bst, .ind, .gls, .nls, .bbl)
         main_stem = main_tex.stem
+        uses_minted = "minted.sty" in used_style_files
         for path in root.rglob("*"):
             if not path.is_file():
                 continue
@@ -229,6 +236,8 @@ def convert(
             elif ext == ".bbl" and path.stem == main_stem and at_root:
                 whitelist.add(path.resolve())
             elif ext in {".ind", ".gls", ".nls"} and at_root:
+                whitelist.add(path.resolve())
+            elif is_ancillary(rel) or (uses_minted and is_minted_cache(rel)):
                 whitelist.add(path.resolve())
             elif at_root and (path.name == "00README" or path.name.startswith("00README.")):
                 # arXiv reads 00README / 00README.XXX at root for processor hints,

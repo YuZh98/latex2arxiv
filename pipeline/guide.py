@@ -264,6 +264,8 @@ def format_guide(
 📌 Step 4: Upload files
    Upload: {filename} ({output_size_mb:.1f} MB)
    arXiv will auto-detect {main_tex} as the main file.
+   Processor: keep pdflatex unless the project needs xelatex (fontspec) or
+   latex (.eps figures); keep TeX Live 2025 unless you need 2023.
 
    ⚠️  arXiv may warn that .sty or .cls files appear unused.
        IGNORE this — deleting them will break compilation.
