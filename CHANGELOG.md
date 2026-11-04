@@ -6,6 +6,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 
 ## [Unreleased]
 
+### Changed
+- `\pdfoutput=1` is no longer injected and an existing `\pdfoutput=N` is left as written; the injection broke xelatex and latex+dvips builds, and arXiv selects the processor at submission
+- `00README.yaml` and a lualatex `00README` no longer count as a XeLaTeX opt-in
+- `\usepackage{minted}` with a shipped minted v3 `_minted` cache warns instead of erroring; arXiv documents this recipe for TeX Live 2025
+- fontspec / unicode-math error recommends `00README.json` or selecting xelatex at submission
+
+### Added
+- Warn when an `\input`, `\include`, `\subfile` or `\includegraphics` target is missing from the project
+- `[error]` when `00README` requests lualatex, which arXiv does not support
+- Warn on `00README.yaml`, on `\pdfoutput` with a xelatex or latex `00README`, on `\pdfoutput=0`, and on `.tex` files in `anc/`
+- Upload guide says which processor and TeX Live version to pick
+
+### Fixed
+- Root `anc/` (ancillary files) is kept, minus hidden files and build junk, and `--resize` skips it; `_minted` caches are kept when minted is used
+- Quoted `\includegraphics{"name with spaces"}` resolves, so the image is kept
+- `\includegraphics` paths must match letter case, as on arXiv; a case mismatch that resolved on macOS or Windows now gets the missing-target warning
+- `\input` paths resolve from the archive root first, where arXiv compiles, so root-relative inputs of a main file in a subdirectory are kept
+- Main-file-in-subdirectory warning no longer claims arXiv cannot find the file
+
 ## [1.3.3] - 2026-11-03
 
 ### Changed

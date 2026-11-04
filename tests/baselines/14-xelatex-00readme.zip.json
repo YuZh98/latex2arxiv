@@ -1,10 +1,10 @@
 {
- "content_hashes": {
-  "00README.yaml": "705ff8b89502146bfaa5b987d386689555688ccdf8b43e11185da4b13b07ab13",
-  "main.tex": "4ea8be7a0de3b1d997e953ebc34ea6b96a17f2e0a4b5762a0804ee96bdf8ef08"
- },
- "names": [
-  "00README.yaml",
-  "main.tex"
- ]
+  "content_hashes": {
+    "00README.json": "4c5750628003ef7b2a3f784ccc78a91ec28bce6b56ad9a90b6cb60c3f79134da",
+    "main.tex": "bd1f354cb09d2278526a2423f729519b58a3025c513acf4066e0a7f7f7edb47d"
+  },
+  "names": [
+    "00README.json",
+    "main.tex"
+  ]
 }

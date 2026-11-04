@@ -64,15 +64,15 @@ Feature: Prune the project and clean the .tex sources
     When I run `latex2arxiv project.zip`
     Then "old_section.tex" is treated as unreferenced and dropped from the output
 
-  Scenario: Silent fix — inject \pdfoutput=1
+  Scenario: No \pdfoutput is injected
     Given the input "main.tex" does not declare `\pdfoutput`
     When I run `latex2arxiv project.zip`
-    Then the cleaned "main.tex" includes `\pdfoutput=1` so arXiv selects pdfLaTeX
+    Then the cleaned "main.tex" does not contain `\pdfoutput`
 
-  Scenario: Silent fix — normalize an existing \pdfoutput
+  Scenario: An existing \pdfoutput is left as written
     Given the input "main.tex" contains `\pdfoutput=0`
     When I run `latex2arxiv project.zip`
-    Then the cleaned "main.tex" contains `\pdfoutput=1`
+    Then the cleaned "main.tex" still contains `\pdfoutput=0`
 
   Scenario: Preserve 00README hints for arXiv processor
     Given the input contains a "00README" file at the project root

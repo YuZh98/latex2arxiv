@@ -12,7 +12,7 @@
   "inlined_files": [],
   "input": null,
   "kept_files": [
-    "00README.yaml",
+    "00README.json",
     "main.tex"
   ],
   "main_tex": "main.tex",
@@ -23,7 +23,7 @@
   "sizes": {
     "input_bytes": null,
     "output_bytes": null,
-    "uncompressed_bytes": 168
+    "uncompressed_bytes": 247
   },
   "version": null,
   "warnings": []

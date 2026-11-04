@@ -66,19 +66,19 @@ On a real statistics paper ([arXiv:2504.11630](https://arxiv.org/abs/2504.11630)
 || Feature | What it does |
 |---|---|---|
 | 📦 | **One command, any input** | Accepts a `.zip`, directory, or git URL; outputs an arXiv-ready `.zip`; optionally compiles and opens the PDF for review |
-| ✂️ | **Prunes your project to submission-ready** | Keeps only files reachable from your main `.tex`; removes build artifacts, editor files, cover letters, unused figures |
+| ✂️ | **Prunes your project to submission-ready** | Keeps files reachable from your main `.tex` plus arXiv's `anc/` and `00README`; removes build artifacts, editor files, cover letters, unused figures |
 | 🧹 | **Cleans your `.tex`** | Strips comments, removes `\todo{}` / `\hl{}` / draft packages; [config rules](#custom-removal-rules---config) handle nested braces correctly (`\deleted{see \cite{x}}` works) |
-| 🚨 | **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`minted`, `pythontex`); `[warn]` for biblatex `.bbl` version mismatches, missing index files, oversized output, undefined citations, problematic filenames — [full list](#pre-flight-checks) |
+| 🚨 | **Catches submission blockers before you upload** | `[error]` for shell-escape packages that will fail on arXiv (`pythontex`, `minted` without its `_minted` cache); `[warn]` for biblatex `.bbl` version mismatches, missing index files, oversized output, undefined citations, problematic filenames — [full list](#pre-flight-checks) |
 | 🗺️ | **Guides you through upload** | `--guide` extracts title, authors, abstract, page/figure/table counts and writes a step-by-step arXiv upload walkthrough |
 
-Also: `--flatten` (single-file output, [docs](materials/flatten.md)), `--json` (CI integration, [schema](materials/json-schema.md)), `--resize` (image downscaling), `--dry-run` (preview without writing), BibTeX normalization, `\pdfoutput=1` injection.
+Also: `--flatten` (single-file output, [docs](materials/flatten.md)), `--json` (CI integration, [schema](materials/json-schema.md)), `--resize` (image downscaling), `--dry-run` (preview without writing), BibTeX normalization.
 
 Dependency tracking respects `\input`, `\include`, `\subfile`, `\includegraphics`, `\graphicspath`, `\bibliography`, and biblatex's `\addbibresource` (optional arguments included). Citation analysis understands natbib and the biblatex families (`\autocite`, `\parencite`, `\textcite`, multicite forms) and reads both BibTeX and biblatex `.bbl` formats. Commented-out commands are ignored.
 
 ## How it works
 
 1. Extract the input (zip, directory, or a shallow git clone) into a temporary workspace.
-2. Resolve the dependency graph from the main `.tex`; anything unreachable is dropped.
+2. Resolve the dependency graph from the main `.tex`; anything unreachable is dropped, except `anc/`, `00README*` and, when minted is loaded, a `_minted` cache.
 3. Clean the kept sources: comments, draft markup, config rules, BibTeX normalization.
 4. Run the pre-flight checks against arXiv's submission rules.
 5. Repack as `_arxiv.zip`; optionally compile the result and write the upload guide.
@@ -201,7 +201,7 @@ latex2arxiv input [output.zip] [options]
 | Flag | Description |
 |---|---|
 | `--main FILENAME` | Specify the main `.tex` file (e.g. `JASA_main.tex`). Auto-detected via `\documentclass` if omitted. |
-| `--resize PX` | Resize images so longest side ≤ PX pixels (e.g. `--resize 1600`). Requires `Pillow`. |
+| `--resize PX` | Resize images so longest side ≤ PX pixels (e.g. `--resize 1600`); `anc/` is left alone. Requires `Pillow`. |
 | `--config FILE` | YAML config file for custom removal rules (see below). |
 | `--compile` | Run `pdflatex` on the output and open the resulting PDF. |
 | `--guide` | Write a detailed arXiv upload guide (metadata + step-by-step instructions) to a text file alongside the output. |
@@ -293,7 +293,7 @@ latex2arxiv covers cleaning, pre-flight validation, and producing the upload-rea
 Pre-flight catches the documented submission-blocking patterns. arXiv pins specific TeX Live versions and occasionally surfaces new edge cases — always run the [arXiv submission preview](https://arxiv.org/submit) after upload. If you hit a reproducible miss, [file an issue](https://github.com/YuZh98/latex2arxiv/issues) with your project zip.
 
 **2. What's the difference between `[error]` and `[warn]`?**
-Errors block submission and exit the tool non-zero — use them to gate CI. Warnings are advisory: the build will likely succeed on arXiv but a human should look. Example: an `.eps` figure is a warn (pdflatex can't read it, but a `00README` can select latex+dvips); `\usepackage{minted}` is an error (shell-escape isn't allowed).
+Errors block submission and exit the tool non-zero — use them to gate CI. Warnings are advisory: the build will likely succeed on arXiv but a human should look. Example: an `.eps` figure is a warn (pdflatex can't read it, but a `00README` can select latex+dvips); `\usepackage{pythontex}` is an error (shell-escape isn't allowed).
 
 **3. My main `.tex` isn't being auto-detected correctly.**
 Auto-detection ranks files containing `\documentclass` by `\input` reference count. For ambiguous projects (response letters next to the paper, multiple `\documentclass` files), pass `--main paper.tex` explicitly.

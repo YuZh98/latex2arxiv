@@ -227,14 +227,3 @@ def remove_comment_environments(source: str) -> str:
     source = re.sub(r"\\begin\{comment\}.*?\\end\{comment\}", "", source, flags=re.DOTALL)
     source = re.sub(r"\\iffalse\b.*?\\fi\b", "", source, flags=re.DOTALL)
     return source
-
-
-def ensure_pdfoutput(source: str) -> str:
-    """Ensure \\pdfoutput=1 is the only \\pdfoutput declaration.
-
-    arXiv requires PDF output. A user-set \\pdfoutput=0 (or any non-1 value)
-    forces DVI mode and contradicts the PDFLaTeX submission path, so we
-    strip any existing \\pdfoutput=N and prepend \\pdfoutput=1.
-    """
-    stripped = re.sub(r"\\pdfoutput\s*=\s*\d+\s*\n?", "", source)
-    return r"\pdfoutput=1" + "\n" + stripped
