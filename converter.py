@@ -552,8 +552,66 @@ def _do_convert(args: argparse.Namespace, cleanup_tmp: list[str]) -> Issues:
         guide=args.guide,
     )
 
+def try_convert_capture_json(args) -> int:
+    exit_code = 0
+    # argparse-level validation. Fail fast before setting up stdout capture —
+    # these errors are not part of the JSON envelope contract.
+    if args.clean_demo:
+        _DEMO_GLOBS = ("demo_project_arxiv*",)
+        removed = []
+        for g in _DEMO_GLOBS:
+            for f in Path(".").glob(g):
+                f.unlink()
+                removed.append(str(f))
+        if removed:
+            print(f"Removed: {', '.join(removed)}")
+        else:
+            print("Nothing to clean.")
+    else:
+        # Under --json, capture stdout into a buffer so progress lines don't pollute
+        # the JSON payload. The capture is restored in `finally` and the captured
+        # text is forwarded to stderr for visibility.
+        real_stdout = sys.stdout
+        capture_buf: io.StringIO | None = None
+        if args.json:
+            capture_buf = io.StringIO()
+            sys.stdout = capture_buf
+        issues: Issues | None = None
+        cleanup_tmp: list[str] = []
+        try:
+            issues = _do_convert(args, cleanup_tmp)
+            if issues.errors:
+                exit_code = 1
+        except ConverterError as e:
+            if issues is None:
+                issues = Issues()
+            # Surface the as-passed input path and its on-disk size even on fatal
+            # early-exit so the JSON envelope has something useful for debugging
+            # instead of `null` for every field.
+            if issues.input_path is None and getattr(args, "input", None):
+                issues.input_path = args.input
+            if issues.sizes_input is None and issues.input_path:
+                try:
+                    p = Path(issues.input_path)
+                    if p.is_file():
+                        issues.sizes_input = p.stat().st_size
+                except (OSError, ValueError):
+                    pass
+            issues.error(str(e))
+            exit_code = 1
+        finally:
+            for d in cleanup_tmp:
+                shutil.rmtree(d, ignore_errors=True)
+            if args.json:
+                sys.stdout = real_stdout
+                if capture_buf is not None and capture_buf.getvalue():
+                    sys.stderr.write(capture_buf.getvalue())
+                if issues is None:
+                    issues = Issues()
+                _emit_json(issues)
+    return exit_code
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Convert LaTeX zip to arXiv-ready zip")
     parser.add_argument("--version", action="version", version=f"latex2arxiv {_get_version()}")
     parser.add_argument("input", nargs="?", help="Input .zip file, directory, or git URL")
@@ -585,69 +643,12 @@ def main():
         "--guide", action="store_true", help="Write a detailed arXiv upload guide to a text file alongside the output"
     )
     parser.add_argument("--clean-demo", action="store_true", help="Remove demo output files (demo_project_arxiv*)")
-    args = parser.parse_args()
-
-    # argparse-level validation. Fail fast before setting up stdout capture —
-    # these errors are not part of the JSON envelope contract.
-    if args.clean_demo:
-        _DEMO_GLOBS = ("demo_project_arxiv*",)
-        removed = []
-        for g in _DEMO_GLOBS:
-            for f in Path(".").glob(g):
-                f.unlink()
-                removed.append(str(f))
-        if removed:
-            print(f"Removed: {', '.join(removed)}")
-        else:
-            print("Nothing to clean.")
-        sys.exit(0)
+    args = parser.parse_args(argv)
 
     if not args.demo and not args.input:
         parser.error("the following arguments are required: input")
 
-    # Under --json, capture stdout into a buffer so progress lines don't pollute
-    # the JSON payload. The capture is restored in `finally` and the captured
-    # text is forwarded to stderr for visibility.
-    real_stdout = sys.stdout
-    capture_buf: io.StringIO | None = None
-    if args.json:
-        capture_buf = io.StringIO()
-        sys.stdout = capture_buf
-
-    issues: Issues | None = None
-    exit_code = 0
-    cleanup_tmp: list[str] = []
-    try:
-        issues = _do_convert(args, cleanup_tmp)
-        if issues.errors:
-            exit_code = 1
-    except ConverterError as e:
-        if issues is None:
-            issues = Issues()
-        # Surface the as-passed input path and its on-disk size even on fatal
-        # early-exit so the JSON envelope has something useful for debugging
-        # instead of `null` for every field.
-        if issues.input_path is None and getattr(args, "input", None):
-            issues.input_path = args.input
-        if issues.sizes_input is None and issues.input_path:
-            try:
-                p = Path(issues.input_path)
-                if p.is_file():
-                    issues.sizes_input = p.stat().st_size
-            except (OSError, ValueError):
-                pass
-        issues.error(str(e))
-        exit_code = 1
-    finally:
-        for d in cleanup_tmp:
-            shutil.rmtree(d, ignore_errors=True)
-        if args.json:
-            sys.stdout = real_stdout
-            if capture_buf is not None and capture_buf.getvalue():
-                sys.stderr.write(capture_buf.getvalue())
-            if issues is None:
-                issues = Issues()
-            _emit_json(issues)
+    exit_code = try_convert_capture_json(args)
     sys.exit(exit_code)
 
 
