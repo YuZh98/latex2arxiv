@@ -57,17 +57,32 @@ def _restore_verbatim(source: str, placeholders: dict) -> str:
 
 
 def strip_comments(source: str) -> str:
-    """Remove LaTeX comments (% ...) while preserving \\% and verbatim blocks."""
+    """Remove LaTeX comments while preserving whitespace-suppression %,
+    escaped \\%, and verbatim blocks.
+    """
     protected, placeholders = _protect_verbatim(source)
 
     result_lines = []
     for line in protected.splitlines(keepends=True):
         # Find first unescaped %
-        stripped = re.sub(r"(?<!\\)%.*", "", line)
-        # If the line was entirely a comment (only whitespace remains), drop it
-        # to avoid introducing spurious paragraph breaks
-        if stripped.strip() == "" and "%" in line and not line.strip().startswith("\x00"):
-            continue
+        match = re.search(r"(?<!\\)%", line)
+
+        if match:
+            # Preserve % if it is the last non-whitespace character
+            # on the line, since it suppresses the following newline.
+            if line[match.start():].rstrip() == "%":
+                stripped = line[:match.start()] + "%"
+                # Preserve the original line ending.
+                stripped += "\n" if line.endswith("\n") else ""
+            else:
+                stripped = line[:match.start()]
+
+            # Drop lines that were entirely comments.
+            if stripped.strip() == "" and not stripped.endswith("%"):
+                continue
+        else:
+            stripped = line
+
         result_lines.append(stripped)
 
     stripped = "".join(result_lines)
