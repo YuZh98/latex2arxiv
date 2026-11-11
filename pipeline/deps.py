@@ -1,10 +1,6 @@
 import re
 from pathlib import Path
-
-
-def _strip_comments(source: str) -> str:
-    """Remove LaTeX line comments (% ...) while preserving \\%."""
-    return re.sub(r"(?<!\\)%[^\n]*", "", source)
+from tex import strip_comments
 
 
 def find_included_tex(source: str, base: Path, root: Path, visited: set, compile_base: Path | None = None) -> set:
@@ -19,7 +15,7 @@ def find_included_tex(source: str, base: Path, root: Path, visited: set, compile
         compile_base = base
     found = set()
     root_resolved = root.resolve()
-    for cmd in re.findall(r"\\(?:input|include|subfile)\{([^}]+)\}", _strip_comments(source)):
+    for cmd in re.findall(r"\\(?:input|include|subfile)\{([^}]+)\}", strip_comments(source)):
         names = [cmd] if cmd.endswith(".tex") else [cmd + ".tex", cmd]
         candidates: list[Path] = []
         for name in names:
@@ -60,7 +56,7 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
 
     graphic_dirs: list[Path] = []
     for src in tex_sources:
-        for m in re.finditer(r"\\graphicspath\{((?:\{[^}]*\})+)\}", _strip_comments(src)):
+        for m in re.finditer(r"\\graphicspath\{((?:\{[^}]*\})+)\}", strip_comments(src)):
             for d in re.findall(r"\{([^}]+)\}", m.group(1)):
                 for base in [root_dir] + tex_dirs:
                     full = (base / d).resolve()
@@ -74,7 +70,7 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
     used_paths = set()
     used_refs = set()
     for src, tex_dir in zip(tex_sources, tex_dirs):
-        for m in _IMAGE_RE.finditer(_strip_comments(src)):
+        for m in _IMAGE_RE.finditer(strip_comments(src)):
             ref = (m.group(1) or m.group(2)).strip()
             used_refs.add(ref)
             candidates = [Path(ref)] + [Path(ref + ext) for ext in (".pdf", ".png", ".jpg", ".jpeg", ".eps")]
@@ -104,7 +100,7 @@ def find_used_style_files(tex_sources: list[str]) -> set:
     """
     used = set()
     for src in tex_sources:
-        src = _strip_comments(src)
+        src = strip_comments(src)
         for m in re.finditer(r"\\usepackage(?:\[[^\]]*\])?\{([^}]+)\}", src):
             for name in m.group(1).split(","):
                 name = name.strip()
@@ -125,7 +121,7 @@ def uses_biblatex(tex_sources: list[str]) -> bool:
     """True if any source loads the biblatex package or declares a bib resource."""
     return any(
         BIBLATEX_PACKAGE_RE.search(src) or ADDBIBRESOURCE_RE.search(src)
-        for src in (_strip_comments(s) for s in tex_sources)
+        for src in (strip_comments(s) for s in tex_sources)
     )
 
 
@@ -170,7 +166,7 @@ def find_cited_keys(tex_sources: list[str]) -> set:
     """
     keys: set = set()
     for src in tex_sources:
-        src = _strip_comments(src)
+        src = strip_comments(src)
         for m in _CITE_SINGLE_RE.finditer(src):
             _add_keys(m.group(1), keys)
         for m in _CITE_MULTI_RE.finditer(src):
@@ -184,7 +180,7 @@ def find_bib_resources(tex_sources: list[str], main_stem: str | None = None) -> 
     """Return (options, argument) for each \\addbibresource, with \\jobname resolved."""
     resources = []
     for src in tex_sources:
-        for m in ADDBIBRESOURCE_RE.finditer(_strip_comments(src)):
+        for m in ADDBIBRESOURCE_RE.finditer(strip_comments(src)):
             arg = m.group(2).strip()
             if main_stem:
                 arg = arg.replace("\\jobname", main_stem)
@@ -201,7 +197,7 @@ def find_used_bib_files(tex_sources: list[str], main_stem: str | None = None) ->
     """
     used = set()
     for src in tex_sources:
-        src = _strip_comments(src)
+        src = strip_comments(src)
         for m in re.finditer(r"\\bibliography\{([^}]+)\}", src):
             for name in m.group(1).split(","):
                 name = name.strip()
