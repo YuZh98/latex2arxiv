@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from tex import strip_comments
+from pipeline.tex import strip_comments
 
 
 def find_included_tex(source: str, base: Path, root: Path, visited: set, compile_base: Path | None = None) -> set:
