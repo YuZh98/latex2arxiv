@@ -348,7 +348,7 @@ def _check_compliance(
 def _check_archive_layout(root: Path, issues: Issues) -> None:
     """Pre-prune scan over EVERY extracted file (not just kept_files).
 
-    Two checks belong here rather than in :func:`_check_files`:
+    Three checks belong here rather than in :func:`_check_files`:
 
     * shipped ``psfig.sty`` — arXiv hard-rejects this regardless of whether the
       user ``\\usepackage{psfig}``-d it. Without the pre-prune scan, an
@@ -356,6 +356,8 @@ def _check_archive_layout(root: Path, issues: Issues) -> None:
     * hidden / dot-files — arXiv deletes files starting with ``.`` upon
       announcement. Same kept-files limitation: ``.arxivignore`` etc. would
       never reach :func:`_check_files`.
+    * empty files — arXiv deletes empty files. Check this here because
+      unreferenced empty files never reach :func:`_check_files`.
 
     Both checks ignore macOS ``__MACOSX/`` metadata noise and ``.DS_Store`` —
     the extractor strips those before we reach this point, so they would not
@@ -382,6 +384,12 @@ def _check_archive_layout(root: Path, issues: Issues) -> None:
             issues.warn(
                 f"hidden file or directory: {rel} — arXiv deletes paths starting with "
                 "'.' upon announcement; if your build depends on this, rename it"
+            )
+
+        if path.stat().st_size == 0:
+            issues.warn(
+                f"Empty file: {str(path)} — arXiv deletes empty files; "
+                "if your build depends on this, add a comment to make it non-empty."
             )
 
         # Shipped psfig.sty at any depth (case-insensitive — Mac/Windows
