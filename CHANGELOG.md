@@ -19,6 +19,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - Upload guide says which processor and TeX Live version to pick
 
 ### Fixed
+- A comment directly after text (`\newcommand{\x}{%`) leaves its `%` in place, so stripping it no longer adds a space where the line break was
 - Root `anc/` (ancillary files) is kept, minus hidden files and build junk, and `--resize` skips it; `_minted` caches are kept when minted is used
 - Quoted `\includegraphics{"name with spaces"}` resolves, so the image is kept
 - `\includegraphics*` images are kept; they were pruned as unreferenced
