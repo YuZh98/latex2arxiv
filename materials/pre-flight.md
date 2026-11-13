@@ -41,6 +41,7 @@ Before producing the output zip, latex2arxiv validates the project against [arXi
 | ⚠️ warn | Absolute path in `\input` / `\include` / `\includegraphics` | Build server can't resolve `/abs/...` or `C:\...`; use a path relative to the submission root. |
 | ⚠️ warn | `-eps-converted-to.pdf` artifacts in source | arXiv does not perform on-the-fly eps→pdf conversion; convert figures yourself and update `\includegraphics` paths. |
 | ⚠️ warn | `.eps` images shipped (pdflatex mode) | `pdflatex` doesn't support `.eps`; convert to `.pdf` or `.png`, or use `latex+dvips` via `00README`. Suppressed when `00README` specifies `compiler: latex`. |
+| ⚠️ warn | Empty (zero-byte) file in output | arXiv's upload removes empty files, so anything that inputs or loads one fails to build. |
 | ⚠️ warn | Hidden files (dot-files/directories) in output | arXiv deletes files starting with `.` upon announcement; if your build depends on them, rename. |
 | ⚠️ warn | PNG image exceeds 34 megapixels | arXiv flags oversized PNGs (since Feb 2026); consider `--resize` to downscale. |
 | ⚠️ warn | `.tex` source not valid UTF-8 | Re-save as UTF-8 to avoid corrupted accented/special characters. |
@@ -55,4 +56,5 @@ In addition to surfacing issues, the conversion silently fixes common pitfalls:
 - Preserves `00README` / `00README.json` / `00README.XXX` files at root for arXiv processor hints.
 - Keeps the root `anc/` directory (arXiv ancillary files) minus hidden files and build junk, without normalizing its `.bib` files; `--resize` skips it.
 - Keeps root `_minted*` caches, minus hidden files and build junk, when minted is loaded. Only a minted v3 `_minted/` cache downgrades the minted error; a v2 `_minted-<jobname>/` cache is shipped but still errors.
+- Writes a lone `%` into a `.tex` file that holds only comments, so cleaning does not leave an empty file that arXiv would remove.
 - Strips comments and standard draft annotations (`\todo`, `\hl`, ...) and packages (`todonotes`, `comment`, ...).

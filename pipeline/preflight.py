@@ -484,7 +484,7 @@ def _check_compliance(
 def _check_archive_layout(root: Path, issues: Issues) -> None:
     """Pre-prune scan over EVERY extracted file (not just kept_files).
 
-    Three checks belong here rather than in :func:`_check_files`:
+    Two checks belong here rather than in :func:`_check_files`:
 
     * shipped ``psfig.sty`` — arXiv hard-rejects this regardless of whether the
       user ``\\usepackage{psfig}``-d it. Without the pre-prune scan, an
@@ -492,8 +492,6 @@ def _check_archive_layout(root: Path, issues: Issues) -> None:
     * hidden / dot-files — arXiv deletes files starting with ``.`` upon
       announcement. Same kept-files limitation: ``.arxivignore`` etc. would
       never reach :func:`_check_files`.
-    * empty files — arXiv deletes empty files. Check this here because
-      unreferenced empty files never reach :func:`_check_files`.
 
     Both checks ignore macOS ``__MACOSX/`` metadata noise and ``.DS_Store`` —
     the extractor strips those before we reach this point, so they would not
@@ -520,12 +518,6 @@ def _check_archive_layout(root: Path, issues: Issues) -> None:
             issues.warn(
                 f"hidden file or directory: {rel} — arXiv deletes paths starting with "
                 "'.' upon announcement; if your build depends on this, rename it"
-            )
-
-        if path.stat().st_size == 0:
-            issues.warn(
-                f"Empty file: {str(path)} — arXiv deletes empty files; "
-                "if your build depends on this, add a comment to make it non-empty."
             )
 
         # Shipped psfig.sty at any depth (case-insensitive — Mac/Windows
@@ -577,6 +569,14 @@ def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
                     )
 
         name = path.name
+
+        # arXiv's upload removes zero-length files ("Removed file 'x' [file is
+        # empty]"), so anything that inputs or loads one fails to build.
+        if path.stat().st_size == 0:
+            issues.warn(
+                f"empty file: {rel.as_posix()} — arXiv removes empty files at upload, so "
+                "anything that inputs or loads it will fail; add content or drop the reference"
+            )
 
         if path.suffix.lower() == ".tex" and is_ancillary(rel.as_posix()):
             issues.warn(f"{rel.as_posix()} is a .tex file in anc/ — arXiv says TeX files do not belong in anc/")

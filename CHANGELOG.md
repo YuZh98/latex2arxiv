@@ -13,12 +13,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - fontspec / unicode-math error recommends `00README.json` or selecting xelatex at submission
 
 ### Added
+- Warn on empty files in the output; arXiv removes them at upload
 - Warn when an `\input`, `\include`, `\subfile` or `\includegraphics` target is missing from the project
 - `[error]` when `00README` requests lualatex, which arXiv does not support
 - Warn on `00README.yaml`, on `\pdfoutput` with a xelatex or latex `00README`, on `\pdfoutput=0`, and on `.tex` files in `anc/`
 - Upload guide says which processor and TeX Live version to pick
 
 ### Fixed
+- A `.tex` file holding only comments is cleaned to a lone `%` instead of an empty file that arXiv would remove
 - A comment directly after text (`\newcommand{\x}{%`) leaves its `%` in place, so stripping it no longer adds a space where the line break was
 - Root `anc/` (ancillary files) is kept, minus hidden files and build junk, and `--resize` skips it; `_minted` caches are kept when minted is used
 - Quoted `\includegraphics{"name with spaces"}` resolves, so the image is kept
