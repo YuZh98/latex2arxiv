@@ -7,12 +7,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 ## [Unreleased]
 
 ### Changed
+- `\printindex` warning says arXiv expects a pre-built `.ind` rather than that it never runs makeindex
 - `\pdfoutput=1` is no longer injected and an existing `\pdfoutput=N` is left as written; the injection broke xelatex and latex+dvips builds, and arXiv selects the processor at submission
 - `00README.yaml` and a lualatex `00README` no longer count as a XeLaTeX opt-in
 - `\usepackage{minted}` with a shipped minted v3 `_minted` cache warns instead of erroring; arXiv documents this recipe for TeX Live 2025
 - fontspec / unicode-math error recommends `00README.json` or selecting xelatex at submission
 
 ### Added
+- Warn when a glossary, index or nomenclature file is only in a subdirectory such as latexmk's `aux/`; LaTeX reads it from the root
+- Warn when `\printacronyms`, `\printsymbols`, `\printnumbers`, `\printabbreviations`, `\printglossary[type=…]` or `\GlsXtrLoadResources` has no matching pre-built file
 - Warn on empty files in the output; arXiv removes them at upload
 - Warn when an `\input`, `\include`, `\subfile` or `\includegraphics` target is missing from the project
 - `[error]` when `00README` requests lualatex, which arXiv does not support
@@ -20,6 +23,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - Upload guide says which processor and TeX Live version to pick
 
 ### Fixed
+- Glossary files for acronyms (`.acr`), symbols (`.sls`), abbreviations (`.gls-abr`), bib2gls (`.glstex`) and custom glossary types are kept; they were pruned, so those glossaries vanished on arXiv
 - A `.tex` file holding only comments is cleaned to a lone `%` instead of an empty file that arXiv would remove
 - A comment directly after text (`\newcommand{\x}{%`) leaves its `%` in place, so stripping it no longer adds a space where the line break was
 - Root `anc/` (ancillary files) is kept, minus hidden files and build junk, and `--resize` skips it; `_minted` caches are kept when minted is used

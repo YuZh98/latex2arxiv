@@ -25,7 +25,8 @@ Before producing the output zip, latex2arxiv validates the project against [arXi
 | ⚠️ warn | `\pdfoutput=0` with no xelatex or latex `00README` | pdflatex then writes DVI, not PDF. |
 | ⚠️ warn | `00README.yaml` / `00README.yml` | Not a format arXiv documents and not read as a processor choice; use `00README.json` or the legacy `00README.XXX`. |
 | ⚠️ warn | `.tex` file inside `anc/` | arXiv says TeX files do not belong in the ancillary directory. |
-| ⚠️ warn | `\printindex` / `\printglossary` / `\printnomenclature` without matching `.ind` / `.gls` / `.nls` | arXiv doesn't run makeindex or glossary processors; the printed section silently disappears. |
+| ⚠️ warn | `\printindex`, `\printnomenclature`, `\printglossary[type=…]`, `\printglossaries`, `\printacronyms`, `\printsymbols`, `\printnumbers`, `\printabbreviations` or `\GlsXtrLoadResources` without the file it reads (`.ind`, `.nls`, `.gls`, `.acr`, `.sls`, `.gls-abr`, a custom glossary's extension, `.glstex`) | arXiv runs no glossary tool and expects a pre-built `.ind`; the printed section silently disappears. |
+| ⚠️ warn | Index or glossary file (`<main>.acr`, `<main>.glstex`, …) only in a subdirectory, e.g. latexmk's `aux/` | LaTeX reads it from the root, so arXiv won't find it; copy it to the root. latex2arxiv does not move files. |
 | ⚠️ warn | Remote `\addbibresource` URL with no `.bbl` | arXiv's build may have no network access. |
 | ⚠️ warn | Custom `.sty` / `.cls` kept | arXiv may say they look unused; keep them, they are needed to compile. |
 | ⚠️ warn | Undefined citations | `\cite{key}` with no entry in any kept `.bib` / `.bbl`. |
@@ -57,4 +58,5 @@ In addition to surfacing issues, the conversion silently fixes common pitfalls:
 - Keeps the root `anc/` directory (arXiv ancillary files) minus hidden files and build junk, without normalizing its `.bib` files; `--resize` skips it.
 - Keeps root `_minted*` caches, minus hidden files and build junk, when minted is loaded. Only a minted v3 `_minted/` cache downgrades the minted error; a v2 `_minted-<jobname>/` cache is shipped but still errors.
 - Writes a lone `%` into a `.tex` file that holds only comments, so cleaning does not leave an empty file that arXiv would remove.
+- Keeps the glossary files LaTeX reads back at the root, named after the main file: `.acr`, `.sls`, `.gls-abr`, bib2gls `.glstex` / `-N.glstex`, and the extension of every glossary declared with `\newglossary` (also `\newglossary*` / `\altnewglossary`) or recorded in the main `.aux`. Files LaTeX writes itself (`.glo`, `.acn`, …) and tool logs are removed.
 - Strips comments and standard draft annotations (`\todo`, `\hl`, ...) and packages (`todonotes`, `comment`, ...).
