@@ -299,6 +299,7 @@ def convert(
             used_bib_files=used_bib_files,
             kept_files=kept_files,
             glossary_types=glossary_types,
+            aux_sources=main_aux,
         )
         _check_files(root, kept_files, issues)
         _check_oversized_images(kept_files, issues)

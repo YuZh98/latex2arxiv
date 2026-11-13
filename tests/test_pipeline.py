@@ -4289,7 +4289,7 @@ class TestGlossaryFiles:
     def test_output_left_in_subdirectory_warns_and_is_not_moved(self, tmp_path):
         files = {"main.tex": self._doc("\\usepackage[acronym]{glossaries}", "\\printacronyms"), "aux/main.acr": "x"}
         issues = self._run(files, tmp_path, dry_run=True)
-        assert any(w.startswith("aux/main.acr is not at the submission root") for w in issues.warnings)
+        assert any(w.startswith("main.acr is only in aux/main.acr") for w in issues.warnings)
         assert not any("\\printacronyms used" in w for w in issues.warnings)
         assert "main.acr" not in issues.kept_files
 
@@ -4316,3 +4316,51 @@ class TestGlossaryFiles:
         assert any(w.startswith("\\GlsXtrLoadResources used but no main.glstex") for w in issues.warnings)
         issues = self._run({"main.tex": self._doc(pre), "main.glstex": "x"}, tmp_path / "x", dry_run=True)
         assert not any("GlsXtrLoadResources" in w for w in issues.warnings)
+
+    # Regressions found in review of #260.
+
+    def test_printglossary_acronymtype_resolves(self, tmp_path):
+        pre = "\\usepackage[acronym]{glossaries}\\makeglossaries"
+        issues = self._run({"main.tex": self._doc(pre, "\\printglossary[type=\\acronymtype]")}, tmp_path, dry_run=True)
+        assert any(w.startswith("\\printglossary used but no .acr file") for w in issues.warnings)
+
+    def test_unresolved_type_macro_falls_back_to_main(self, tmp_path):
+        issues = self._run({"main.tex": self._doc("", "\\printglossary[type=\\mytype]")}, tmp_path, dry_run=True)
+        assert any(w.startswith("\\printglossary used but no .gls file") for w in issues.warnings)
+
+    def test_acro_package_printacronyms_needs_no_file(self, tmp_path):
+        pre = "\\usepackage{acro}\\DeclareAcronym{x}{short=X,long=Ex}"
+        issues = self._run({"main.tex": self._doc(pre, "\\ac{x}\\printacronyms")}, tmp_path, dry_run=True)
+        assert not any(".acr" in w for w in issues.warnings)
+
+    def test_unused_file_in_subdirectory_does_not_warn(self, tmp_path):
+        issues = self._run({"main.tex": self._doc(), "build/main.ind": "x"}, tmp_path, dry_run=True)
+        assert not any("main.ind" in w for w in issues.warnings)
+
+    def test_misplaced_copies_warn_once(self, tmp_path):
+        files = {
+            "main.tex": self._doc("\\usepackage[acronym]{glossaries}", "\\printacronyms"),
+            "build/main.acr": "x",
+            "out/main.acr": "x",
+        }
+        issues = self._run(files, tmp_path, dry_run=True)
+        assert [w for w in issues.warnings if "main.acr" in w] == [
+            "main.acr is only in build/main.acr, out/main.acr — LaTeX reads it from the submission root, "
+            "so arXiv will not find it; copy it there and re-run latex2arxiv"
+        ]
+
+    def test_printglossary_options_with_brackets(self, tmp_path):
+        pre = "\\usepackage[symbols]{glossaries}"
+        body = "\\printglossary[title={A [b]},type=symbols]"
+        issues = self._run({"main.tex": self._doc(pre, body), "main.gls": "x"}, tmp_path, dry_run=True)
+        assert any(w.startswith("\\printglossary used but no .sls file") for w in issues.warnings)
+
+    def test_printglossaries_checks_every_defined_type(self, tmp_path):
+        pre = "\\usepackage[acronym]{glossaries}"
+        issues = self._run({"main.tex": self._doc(pre, "\\printglossaries"), "main.gls": "x"}, tmp_path, dry_run=True)
+        assert any(w.startswith("\\printglossaries used but no .acr file") for w in issues.warnings)
+
+    def test_printglossaries_with_nomain_skips_main(self, tmp_path):
+        pre = "\\usepackage[nomain,acronym]{glossaries}"
+        issues = self._run({"main.tex": self._doc(pre, "\\printglossaries"), "main.acr": "x"}, tmp_path, dry_run=True)
+        assert not any("printglossaries" in w for w in issues.warnings)

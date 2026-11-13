@@ -10,7 +10,13 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from pipeline.deps import DEFAULT_GLOSSARY_EXTS, find_bib_resources, is_ancillary, is_glstex, uses_biblatex
+from pipeline.deps import (
+    find_bib_resources,
+    find_defined_glossary_types,
+    find_glossary_types,
+    is_ancillary,
+    uses_biblatex,
+)
 from pipeline.tex import _VERBATIM_ENVS
 from pipeline.types import Issues
 
@@ -195,6 +201,7 @@ def _check_compliance(
     used_bib_files: set[str] | None = None,
     kept_files: set[Path] | None = None,
     glossary_types: dict[str, str] | None = None,
+    aux_sources: list[str] | None = None,
 ) -> None:
     """Compliance checks against arXiv requirements. Records [warn] and [error]."""
     combined = "\n".join(all_sources)
@@ -343,7 +350,7 @@ def _check_compliance(
     # arXiv runs no glossary processor and expects authors to ship a pre-built
     # .ind (its makeindex support is off by default). Without these files the
     # printed section silently disappears.
-    _check_index_files(combined_nc, root, main_stem, glossary_types or dict(DEFAULT_GLOSSARY_EXTS), issues)
+    _check_index_files(all_sources, combined_nc, root, main_stem, glossary_types, aux_sources, issues)
 
     # A shipped .bbl must match arXiv's bbl format or the build hard-errors
     # ("bbl version mismatch"). Without one, arXiv runs Biber on the .bib.
@@ -466,72 +473,85 @@ def _check_compliance(
         )
 
 
-# \print... command -> the glossary type whose file it reads.
+# \\print... command -> the glossary type whose file it reads (glossaries only;
+# acro has its own \\printacronyms that needs no file).
 _GLOSSARY_PRINT_CMDS = {
     "printacronyms": "acronym",
     "printsymbols": "symbols",
     "printnumbers": "numbers",
     "printabbreviations": "abbreviations",
 }
-_PRINTGLOSSARY_RE = re.compile(r"\\printglossary\b\s*(?:\[([^\]]*)\])?")
-_GLOSSARY_TYPE_OPT_RE = re.compile(r"\btype\s*=\s*\{?([^,}\]]+)")
+_PRINTGLOSSARY_RE = re.compile(r"\\printglossary\b\s*(?:\[((?:[^\]{}]|\{[^{}]*\})*)\])?")
+_GLOSSARY_TYPE_OPT_RE = re.compile(r"\btype\s*=\s*\{?\s*(\\?[^,}\]\s]+)")
 
 
 def _check_index_files(
-    combined_nc: str, root: Path, main_stem: str, glossary_types: dict[str, str], issues: Issues
+    all_sources: list[str],
+    combined_nc: str,
+    root: Path,
+    main_stem: str,
+    glossary_types: dict[str, str] | None,
+    aux_sources: list[str] | None,
+    issues: Issues,
 ) -> None:
-    """Warn when an index, glossary or nomenclature is printed but its pre-built file is not at the root."""
-    # Output files a local build left in a subdirectory (latexmk's aux dir):
-    # LaTeX reads them from the root, and latex2arxiv does not move files.
-    misplaced: set[str] = set()
-    wanted = {f"{main_stem}.{ext}" for ext in glossary_types.values()}
-    for path in sorted(root.rglob("*")):
-        if path.parent == root or not path.is_file():
-            continue
-        name = path.name
-        if (name in wanted or is_glstex(name, main_stem)) and not (root / name).exists():
-            misplaced.add(name.removeprefix(f"{main_stem}."))
-            issues.warn(
-                f"{path.relative_to(root).as_posix()} is not at the submission root — LaTeX reads "
-                f"{name} from the root, so arXiv will not find it; copy it there and re-run latex2arxiv"
-            )
+    """Warn when a printed index, glossary or nomenclature has no pre-built file at the root."""
+    if glossary_types is None:
+        glossary_types = find_glossary_types(all_sources, aux_sources)
+    defined = find_defined_glossary_types(all_sources, aux_sources)
 
-    def require(cmd: str, ext: str, tool: str) -> None:
-        if ext in misplaced or any(root.glob(f"*.{ext}")):
-            return
-        issues.warn(
-            f"\\{cmd} used but no .{ext} file at root — arXiv {tool}; build locally "
-            f"and re-run latex2arxiv (the .{ext} will be included automatically)"
-        )
-
+    # Extension of each file the document reads -> the command that reads it.
+    required: dict[str, str] = {}
     if re.search(r"\\printindex\b", combined_nc):
-        require("printindex", "ind", "expects a pre-built index")
+        required.setdefault("ind", "printindex")
     if re.search(r"\\printnomenclature\b", combined_nc):
-        require("printnomenclature", "nls", "does not run makeindex for nomencl")
-
-    # \printglossary[type=X] prints X; bare \printglossary and \printglossaries
-    # print the main glossary (the latter also every other defined type, but
-    # which defaults are in use cannot be told from the source).
+        required.setdefault("nls", "printnomenclature")
     printed: dict[str, str] = {}
     for m in _PRINTGLOSSARY_RE.finditer(combined_nc):
         t = _GLOSSARY_TYPE_OPT_RE.search(m.group(1) or "")
-        printed.setdefault(t.group(1).strip() if t else "main", "printglossary")
+        gtype = t.group(1) if t else "main"
+        if gtype.startswith("\\"):
+            # \\acronymtype is the acronym glossary only when the acronym option made one.
+            gtype = "acronym" if gtype == "\\acronymtype" and "acronym" in defined else "main"
+        printed.setdefault(gtype, "printglossary")
     if re.search(r"\\printglossaries\b", combined_nc):
-        printed.setdefault("main", "printglossaries")
-    for cmd, gtype in _GLOSSARY_PRINT_CMDS.items():
-        if re.search(rf"\\{cmd}\b", combined_nc):
-            printed.setdefault(gtype, cmd)
+        for gtype in sorted(defined or {"main"}):
+            printed.setdefault(gtype, "printglossaries")
+    if defined:
+        for cmd, gtype in _GLOSSARY_PRINT_CMDS.items():
+            if re.search(rf"\\{cmd}\b", combined_nc):
+                printed.setdefault(gtype, cmd)
     for gtype, cmd in printed.items():
-        ext = glossary_types.get(gtype)
-        if ext:
-            require(cmd, ext, "does not run the glossaries processor")
+        if gtype in glossary_types:
+            required.setdefault(glossary_types[gtype], cmd)
+    # bib2gls: \\GlsXtrLoadResources reads <stem>.glstex (then <stem>-1.glstex, ...).
+    if re.search(r"\\GlsXtrLoadResources\b", combined_nc):
+        required.setdefault("glstex", "GlsXtrLoadResources")
 
-    # bib2gls: \GlsXtrLoadResources reads <stem>.glstex (then <stem>-1.glstex, ...).
-    if re.search(r"\\GlsXtrLoadResources\b", combined_nc) and "glstex" not in misplaced:
-        if not (root / f"{main_stem}.glstex").exists():
+    for ext, cmd in required.items():
+        name = f"{main_stem}.{ext}"
+        if (root / name).exists() or (ext != "glstex" and any(root.glob(f"*.{ext}"))):
+            continue
+        # A local build may have left it in a subdirectory (latexmk's aux dir);
+        # LaTeX reads it from the root, and latex2arxiv does not move files.
+        copies = sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.name == name and p.is_file())
+        if copies:
             issues.warn(
-                f"\\GlsXtrLoadResources used but no {main_stem}.glstex at root — arXiv does not run "
-                "bib2gls; build locally and re-run latex2arxiv (the .glstex files will be included automatically)"
+                f"{name} is only in {', '.join(copies)} — LaTeX reads it from the submission root, "
+                "so arXiv will not find it; copy it there and re-run latex2arxiv"
+            )
+        elif ext == "glstex":
+            issues.warn(
+                f"\\GlsXtrLoadResources used but no {name} at root — arXiv does not run bib2gls; build "
+                "locally and re-run latex2arxiv (the .glstex files will be included automatically)"
+            )
+        else:
+            tool = {
+                "ind": "expects a pre-built index",
+                "nls": "does not run makeindex for nomencl",
+            }.get(ext, "does not run the glossaries processor")
+            issues.warn(
+                f"\\{cmd} used but no .{ext} file at root — arXiv {tool}; build locally "
+                f"and re-run latex2arxiv (the .{ext} will be included automatically)"
             )
 
 

@@ -302,14 +302,21 @@ _ALTNEWGLOSSARY_RE = re.compile(r"\\altnewglossary\s*\{([^}]*)\}\s*\{([^}]*)\}")
 _AUX_NEWGLOSSARY_RE = re.compile(r"\\@newglossary\{([^}]*)\}\{[^}]*\}\{([^}]*)\}")
 
 
-def find_glossary_types(tex_sources: list[str], aux_sources: list[str] | None = None) -> dict[str, str]:
-    """Map each glossary type to the extension of the file LaTeX reads for it.
+# \usepackage[...]{glossaries} / {glossaries-extra}; options that define a type.
+_GLOSSARIES_PKG_RE = re.compile(r"\\usepackage\s*(?:\[([^\]]*)\])?\s*\{[^}]*\bglossaries\b[^}]*\}")
+_GLOSSARY_OPTION_TYPES = {
+    "acronym": "acronym",
+    "acronyms": "acronym",
+    "symbols": "symbols",
+    "numbers": "numbers",
+    "index": "index",
+    "abbreviations": "abbreviations",
+}
 
-    Starts from the package defaults, then adds types declared in the sources
-    and types recorded in the main .aux. Names built from macros or macro
-    parameters cannot be resolved statically and are skipped.
-    """
-    types = dict(DEFAULT_GLOSSARY_EXTS)
+
+def _declared_glossary_types(tex_sources: list[str], aux_sources: list[str] | None) -> dict[str, str]:
+    """Types declared with \\newglossary / \\newglossary* / \\altnewglossary or recorded in the .aux."""
+    types: dict[str, str] = {}
     for src in tex_sources:
         src = _strip_comments(src)
         for m in _NEWGLOSSARY_RE.finditer(src):
@@ -322,6 +329,37 @@ def find_glossary_types(tex_sources: list[str], aux_sources: list[str] | None = 
         for m in _AUX_NEWGLOSSARY_RE.finditer(aux):
             types[m.group(1).strip()] = m.group(2).strip()
     return {name: ext for name, ext in types.items() if ext and not any(c in name + ext for c in "\\#")}
+
+
+def find_glossary_types(tex_sources: list[str], aux_sources: list[str] | None = None) -> dict[str, str]:
+    """Map each glossary type to the extension of the file LaTeX reads for it.
+
+    Starts from the package defaults, then adds types declared in the sources
+    and types recorded in the main .aux. Names built from macros or macro
+    parameters cannot be resolved statically and are skipped.
+    """
+    return {**DEFAULT_GLOSSARY_EXTS, **_declared_glossary_types(tex_sources, aux_sources)}
+
+
+def find_defined_glossary_types(tex_sources: list[str], aux_sources: list[str] | None = None) -> set[str]:
+    """Glossary types the document defines; empty when glossaries / glossaries-extra is not loaded.
+
+    The main glossary (unless ``nomain``), types from package options, declared
+    types and types recorded in the .aux.
+    """
+    options: set[str] = set()
+    loaded = False
+    for src in tex_sources:
+        for m in _GLOSSARIES_PKG_RE.finditer(_strip_comments(src)):
+            loaded = True
+            options |= {o.split("=")[0].strip() for o in (m.group(1) or "").split(",")}
+    declared = set(_declared_glossary_types(tex_sources, aux_sources))
+    if not loaded and not declared:
+        return set()
+    defined = {_GLOSSARY_OPTION_TYPES[o] for o in options if o in _GLOSSARY_OPTION_TYPES} | declared
+    if "nomain" not in options:
+        defined.add("main")
+    return defined
 
 
 def is_glstex(name: str, main_stem: str) -> bool:
