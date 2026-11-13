@@ -281,6 +281,95 @@ def find_used_bib_files(tex_sources: list[str], main_stem: str | None = None) ->
     return used
 
 
+# Glossary types that glossaries / glossaries-extra define themselves, mapped to
+# the extension of the file the indexing tool writes and LaTeX reads back as
+# \jobname.<ext>. arXiv runs none of these tools, so that file must ship.
+DEFAULT_GLOSSARY_EXTS = {
+    "main": "gls",
+    "acronym": "acr",
+    "symbols": "sls",
+    "numbers": "nls",
+    "index": "ind",
+    "abbreviations": "gls-abr",
+}
+# \newglossary[log]{name}{in}{out}{title}, \newglossary*{name}{title} and
+# \altnewglossary{name}{tag}{title}; the starred and alt forms read <name|tag>-gls.
+_NEWGLOSSARY_RE = re.compile(r"\\newglossary\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}\s*\{([^}]*)\}")
+_NEWGLOSSARY_STAR_RE = re.compile(r"\\newglossary\*\s*\{([^}]*)\}")
+_ALTNEWGLOSSARY_RE = re.compile(r"\\altnewglossary\s*\{([^}]*)\}\s*\{([^}]*)\}")
+# glossaries records every glossary it defines, however it was defined (package
+# option, class file, macro), in the .aux as \@newglossary{name}{log}{in}{out}.
+_AUX_NEWGLOSSARY_RE = re.compile(r"\\@newglossary\{([^}]*)\}\{[^}]*\}\{([^}]*)\}")
+
+
+# \usepackage[...]{glossaries} / {glossaries-extra}; options that define a type.
+_GLOSSARIES_PKG_RE = re.compile(r"\\usepackage\s*(?:\[([^\]]*)\])?\s*\{[^}]*\bglossaries\b[^}]*\}")
+_GLOSSARY_OPTION_TYPES = {
+    "acronym": "acronym",
+    "acronyms": "acronym",
+    "symbols": "symbols",
+    "numbers": "numbers",
+    "index": "index",
+    "abbreviations": "abbreviations",
+}
+
+
+def _declared_glossary_types(tex_sources: list[str], aux_sources: list[str] | None) -> dict[str, str]:
+    """Types declared with \\newglossary / \\newglossary* / \\altnewglossary or recorded in the .aux."""
+    types: dict[str, str] = {}
+    for src in tex_sources:
+        src = _strip_comments(src)
+        for m in _NEWGLOSSARY_RE.finditer(src):
+            types[m.group(1).strip()] = m.group(2).strip()
+        for m in _NEWGLOSSARY_STAR_RE.finditer(src):
+            types[m.group(1).strip()] = m.group(1).strip() + "-gls"
+        for m in _ALTNEWGLOSSARY_RE.finditer(src):
+            types[m.group(1).strip()] = m.group(2).strip() + "-gls"
+    for aux in aux_sources or []:
+        for m in _AUX_NEWGLOSSARY_RE.finditer(aux):
+            types[m.group(1).strip()] = m.group(2).strip()
+    return {name: ext for name, ext in types.items() if ext and not any(c in name + ext for c in "\\#")}
+
+
+def find_glossary_types(tex_sources: list[str], aux_sources: list[str] | None = None) -> dict[str, str]:
+    """Map each glossary type to the extension of the file LaTeX reads for it.
+
+    Starts from the package defaults, then adds types declared in the sources
+    and types recorded in the main .aux. Names built from macros or macro
+    parameters cannot be resolved statically and are skipped.
+    """
+    return {**DEFAULT_GLOSSARY_EXTS, **_declared_glossary_types(tex_sources, aux_sources)}
+
+
+def find_defined_glossary_types(tex_sources: list[str], aux_sources: list[str] | None = None) -> set[str]:
+    """Glossary types the document defines; empty when glossaries / glossaries-extra is not loaded.
+
+    The main glossary (unless ``nomain``), types from package options, declared
+    types and types recorded in the .aux.
+    """
+    options: set[str] = set()
+    loaded = False
+    for src in tex_sources:
+        for m in _GLOSSARIES_PKG_RE.finditer(_strip_comments(src)):
+            loaded = True
+            for opt in (m.group(1) or "").split(","):
+                key, _, value = opt.partition("=")
+                if value.strip().lower() != "false":
+                    options.add(key.strip())
+    declared = set(_declared_glossary_types(tex_sources, aux_sources))
+    if not loaded and not declared:
+        return set()
+    defined = {_GLOSSARY_OPTION_TYPES[o] for o in options if o in _GLOSSARY_OPTION_TYPES} | declared
+    if "nomain" not in options:
+        defined.add("main")
+    return defined
+
+
+def is_glstex(name: str, main_stem: str) -> bool:
+    """True for bib2gls output read by \\GlsXtrLoadResources: <stem>.glstex, <stem>-1.glstex, ..."""
+    return re.fullmatch(re.escape(main_stem) + r"(?:-\d+)?\.glstex", name) is not None
+
+
 def _top_dir(rel: str) -> str | None:
     head, sep, _ = rel.partition("/")
     return head if sep else None

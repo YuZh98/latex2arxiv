@@ -28,6 +28,8 @@ from pipeline.deps import (
     find_used_bib_files,
     find_used_style_files,
     find_cited_keys,
+    find_glossary_types,
+    is_glstex,
     uses_biblatex,
 )
 from pipeline.config import load_config
@@ -218,9 +220,19 @@ def convert(
             # Prefer the one closest to root (fewest path components).
             best = min(candidates, key=lambda p: len(p.relative_to(root).parts))
             whitelist.add(best.resolve())
-        # Add used support files (.cls, .sty) and always-keep types (.bst, .ind, .gls, .nls, .bbl)
+        # Add used support files (.cls, .sty), always-keep types (.bst, .ind, .gls, .nls, .bbl)
+        # and the glossary files an indexing tool built for this document
         main_stem = main_tex.stem
         uses_minted = "minted.sty" in used_style_files
+        # Glossary files are read back as \jobname.<ext>; the main .aux, wherever a
+        # local build left it, records every glossary type that was defined.
+        main_aux = [
+            p.read_text(encoding="utf-8", errors="replace")
+            for p in root.rglob("*.aux")
+            if p.name == f"{main_stem}.aux" and p.is_file()
+        ]
+        glossary_types = find_glossary_types(all_sources, main_aux)
+        glossary_files = {f"{main_stem}.{ext}" for ext in glossary_types.values()}
         for path in root.rglob("*"):
             if not path.is_file():
                 continue
@@ -236,6 +248,8 @@ def convert(
             elif ext == ".bbl" and path.stem == main_stem and at_root:
                 whitelist.add(path.resolve())
             elif ext in {".ind", ".gls", ".nls"} and at_root:
+                whitelist.add(path.resolve())
+            elif at_root and (path.name in glossary_files or is_glstex(path.name, main_stem)):
                 whitelist.add(path.resolve())
             elif is_ancillary(rel) or (uses_minted and is_minted_cache(rel)):
                 whitelist.add(path.resolve())
@@ -284,6 +298,8 @@ def convert(
             issues=issues,
             used_bib_files=used_bib_files,
             kept_files=kept_files,
+            glossary_types=glossary_types,
+            aux_sources=main_aux,
         )
         _check_files(root, kept_files, issues)
         _check_oversized_images(kept_files, issues)
