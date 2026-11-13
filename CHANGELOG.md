@@ -14,8 +14,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · SemVer.
 - fontspec / unicode-math error recommends `00README.json` or selecting xelatex at submission
 
 ### Added
-- Warn when a glossary, index or nomenclature file is only in a subdirectory such as latexmk's `aux/`; LaTeX reads it from the root
-- Warn when `\printacronyms`, `\printsymbols`, `\printnumbers`, `\printabbreviations`, `\printglossary[type=…]` or `\GlsXtrLoadResources` has no matching pre-built file
+- Warn when the file a printed glossary, index or nomenclature needs is only in a subdirectory such as latexmk's `aux/`; LaTeX reads it from the root
+- Warn when `\printacronyms`, `\printsymbols`, `\printnumbers`, `\printabbreviations` (with glossaries loaded), `\printglossary[type=…]` or `\GlsXtrLoadResources` has no matching pre-built file; `\printglossaries` checks every glossary the document defines
 - Warn on empty files in the output; arXiv removes them at upload
 - Warn when an `\input`, `\include`, `\subfile` or `\includegraphics` target is missing from the project
 - `[error]` when `00README` requests lualatex, which arXiv does not support

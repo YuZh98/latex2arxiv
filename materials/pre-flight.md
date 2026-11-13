@@ -26,7 +26,7 @@ Before producing the output zip, latex2arxiv validates the project against [arXi
 | ⚠️ warn | `00README.yaml` / `00README.yml` | Not a format arXiv documents and not read as a processor choice; use `00README.json` or the legacy `00README.XXX`. |
 | ⚠️ warn | `.tex` file inside `anc/` | arXiv says TeX files do not belong in the ancillary directory. |
 | ⚠️ warn | `\printindex`, `\printnomenclature`, `\printglossary[type=…]`, `\printglossaries`, `\printacronyms`, `\printsymbols`, `\printnumbers`, `\printabbreviations` or `\GlsXtrLoadResources` without the file it reads (`.ind`, `.nls`, `.gls`, `.acr`, `.sls`, `.gls-abr`, a custom glossary's extension, `.glstex`) | arXiv runs no glossary tool and expects a pre-built `.ind`; the printed section silently disappears. |
-| ⚠️ warn | Index or glossary file (`<main>.acr`, `<main>.glstex`, …) only in a subdirectory, e.g. latexmk's `aux/` | LaTeX reads it from the root, so arXiv won't find it; copy it to the root. latex2arxiv does not move files. |
+| ⚠️ warn | The file a printed index or glossary needs (`<main>.acr`, `<main>.glstex`, …) is only in a subdirectory, e.g. latexmk's `aux/` | LaTeX reads it from the root, so arXiv won't find it; copy it to the root. latex2arxiv does not move files. |
 | ⚠️ warn | Remote `\addbibresource` URL with no `.bbl` | arXiv's build may have no network access. |
 | ⚠️ warn | Custom `.sty` / `.cls` kept | arXiv may say they look unused; keep them, they are needed to compile. |
 | ⚠️ warn | Undefined citations | `\cite{key}` with no entry in any kept `.bib` / `.bbl`. |
