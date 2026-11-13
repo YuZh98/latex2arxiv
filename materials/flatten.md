@@ -42,7 +42,7 @@ manually — they're plainly visible in the output.
 
 | Trigger | Output |
 |---|---|
-| Referenced file missing on disk | `[warn]` — original `\input{...}` left in place. |
+| Referenced file missing on disk | `[warn]` — original `\input{...}` left in place; the pre-flight "target not found" warning also fires. |
 | Cycle (A inputs B inputs A) | `[warn]` — recursive reference left in place; no infinite loop. A file referenced from multiple non-recursive locations is re-inlined each time. |
 | `\input{x}` where `x` has its own `\documentclass` | `[error]` — refuses to inline (would corrupt the preamble); use `\subfile` instead or remove the inner preamble. |
 | Subfile missing `\begin{document}` / `\end{document}` | `[warn]` — raw content inlined as a fallback. |

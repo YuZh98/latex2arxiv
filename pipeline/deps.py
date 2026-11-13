@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 
@@ -7,12 +8,24 @@ def _strip_comments(source: str) -> str:
     return re.sub(r"(?<!\\)%[^\n]*", "", source)
 
 
-def find_included_tex(source: str, base: Path, root: Path, visited: set, compile_base: Path | None = None) -> set:
+def _is_static_ref(ref: str) -> bool:
+    return not any(ch in ref for ch in "\\#|")
+
+
+def find_included_tex(
+    source: str,
+    base: Path,
+    root: Path,
+    visited: set,
+    compile_base: Path | None = None,
+    missing: list[str] | None = None,
+) -> set:
     """Recursively find all files reachable via \\input, \\include, \\subfile.
     Comments are stripped first so commented-out includes are not followed.
 
-    Targets resolve against the compile root (`compile_base`, defaulting to
-    the top-level `base`) first, then the including file's own directory.
+    Targets resolve against the archive root (where arXiv compiles), then
+    `compile_base` (defaulting to the top-level `base`), then the including
+    file's own directory. Unresolvable static targets are appended to `missing`.
     Non-.tex targets (e.g. \\input{fig.pgf}) are collected but not recursed into.
     """
     if compile_base is None:
@@ -23,7 +36,7 @@ def find_included_tex(source: str, base: Path, root: Path, visited: set, compile
         names = [cmd] if cmd.endswith(".tex") else [cmd + ".tex", cmd]
         candidates: list[Path] = []
         for name in names:
-            for b in (compile_base, base):
+            for b in dict.fromkeys((root, compile_base, base)):
                 full = (b / name).resolve()
                 try:
                     full.relative_to(root_resolved)
@@ -34,17 +47,21 @@ def find_included_tex(source: str, base: Path, root: Path, visited: set, compile
         if not candidates:
             continue
         full = next((c for c in candidates if c.is_file()), candidates[0])
+        if not full.is_file() and missing is not None and _is_static_ref(cmd) and cmd not in missing:
+            missing.append(cmd)
         if full in visited:
             continue
         visited.add(full)
         found.add(full)
         if full.is_file() and full.suffix in ("", ".tex"):
             child_source = full.read_text(encoding="utf-8", errors="replace")
-            found |= find_included_tex(child_source, full.parent, root, visited, compile_base)
+            found |= find_included_tex(child_source, full.parent, root, visited, compile_base, missing)
     return found
 
 
-def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Path) -> tuple[set[Path], set[str]]:
+def find_used_images(
+    tex_sources: list[str], tex_dirs: list[Path], root_dir: Path, missing: set[str] | None = None
+) -> tuple[set[Path], set[str]]:
     """Return set of absolute paths for images referenced by \\includegraphics or \\begin{overpic}.
 
     LaTeX resolves image paths relative to the compilation root (main file's directory),
@@ -54,7 +71,7 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
     Also respects \\graphicspath{{dir1/}{dir2/}} declarations.
     """
     _IMAGE_RE = re.compile(
-        r"\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}"
+        r"\\includegraphics\*?(?:\[[^\]]*\])*\{([^}]+)\}"
         r"|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}"
     )
 
@@ -75,7 +92,7 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
     used_refs = set()
     for src, tex_dir in zip(tex_sources, tex_dirs):
         for m in _IMAGE_RE.finditer(_strip_comments(src)):
-            ref = (m.group(1) or m.group(2)).strip()
+            ref = (m.group(1) or m.group(2)).strip().strip('"')
             used_refs.add(ref)
             candidates = [Path(ref)] + [Path(ref + ext) for ext in (".pdf", ".png", ".jpg", ".jpeg", ".eps")]
             # Try root dir first, then graphicspath dirs, then tex_dir (for \subfile)
@@ -89,13 +106,62 @@ def find_used_images(tex_sources: list[str], tex_dirs: list[Path], root_dir: Pat
                         full.relative_to(root_dir.resolve())
                     except ValueError:
                         continue
-                    if full.exists():
+                    if _exists_exact_case(full, root_dir):
                         used_paths.add(full)
                         break
                 else:
                     continue
                 break
+            else:
+                case_match = _find_case_variant(ref, search_dirs, root_dir)
+                if case_match is not None:
+                    used_paths.add(case_match)
+                elif missing is not None and _is_static_ref(ref):
+                    missing.add(ref)
     return used_paths, used_refs
+
+
+_GRAPHICS_EXTS = (".pdf", ".png", ".jpg", ".jpeg", ".eps")
+_GRAPHICS_EXTS_UPPER = (".PDF", ".PNG", ".JPG", ".JPEG")
+
+
+def _find_case_variant(ref: str, search_dirs: list[Path], root_dir: Path) -> Path | None:
+    """Find `ref` with an all-uppercase extension (fig.PNG), which graphicx also tries."""
+    ref_path = Path(ref)
+    for base in search_dirs:
+        parent = (base / ref_path).parent
+        if not parent.is_dir():
+            continue
+        for f in parent.iterdir():
+            if not f.is_file():
+                continue
+            if f.stem == ref_path.name and f.suffix in _GRAPHICS_EXTS + _GRAPHICS_EXTS_UPPER:
+                full = f.resolve()
+                try:
+                    full.relative_to(root_dir.resolve())
+                except ValueError:
+                    continue
+                return full
+    return None
+
+
+def _exists_exact_case(path: Path, root: Path) -> bool:
+    """`path.exists()` that also matches letter case of every component below `root`, as on arXiv."""
+    if not path.exists():
+        return False
+    current = root.resolve()
+    try:
+        parts = path.relative_to(current).parts
+    except ValueError:
+        return True
+    for part in parts:
+        try:
+            if part not in os.listdir(current):
+                return False
+        except OSError:
+            return True
+        current = current / part
+    return True
 
 
 def find_used_style_files(tex_sources: list[str]) -> set:
@@ -213,3 +279,26 @@ def find_used_bib_files(tex_sources: list[str], main_stem: str | None = None) ->
         if "://" not in arg:
             used.add(Path(arg).name)
     return used
+
+
+def _top_dir(rel: str) -> str | None:
+    head, sep, _ = rel.partition("/")
+    return head if sep else None
+
+
+_BUILD_JUNK_SUFFIXES = (".aux", ".log", ".synctex.gz", ".synctex", ".fls", ".fdb_latexmk", ".bak", "~")
+
+
+def _is_shippable(rel: str) -> bool:
+    return not any(part.startswith(".") for part in rel.split("/")) and not rel.endswith(_BUILD_JUNK_SUFFIXES)
+
+
+def is_ancillary(rel: str) -> bool:
+    """True for shippable files under the root `anc/` directory, which arXiv publishes as ancillary files."""
+    return _top_dir(rel) == "anc" and _is_shippable(rel)
+
+
+def is_minted_cache(rel: str) -> bool:
+    """True for shippable files under a root `_minted` / `_minted-<jobname>` cache directory."""
+    top = _top_dir(rel)
+    return top is not None and (top == "_minted" or top.startswith("_minted-")) and _is_shippable(rel)

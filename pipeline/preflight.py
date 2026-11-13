@@ -5,12 +5,16 @@ converter.py and called inline from convert() at their original call sites
 (call-site order is part of the public behavior contract — do not consolidate)."""
 
 import re
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
-from pipeline.deps import find_bib_resources, uses_biblatex
+from pipeline.deps import find_bib_resources, is_ancillary, uses_biblatex
+from pipeline.tex import _VERBATIM_ENVS
 from pipeline.types import Issues
 
-# Packages that require shell-escape; arXiv compiles without it, so these fail.
+# Packages that require shell-escape, which arXiv compiles without.
 # Matched by exact name against comma-split \usepackage arguments, not as a regex
 # substring — otherwise 'pst-pdf' would falsely match inside 'auto-pst-pdf'.
 _SHELL_ESCAPE_PKGS = frozenset({"minted", "pythontex", "shellesc", "auto-pst-pdf", "pst-pdf"})
@@ -33,9 +37,14 @@ _BIBER_DATATYPES = {"bibtex", "biblatexml"}
 _NON_BIBTEX_SUFFIXES = {".ris", ".rdf", ".xml", ".bltxml", ".json", ".yaml", ".yml"}
 
 
+_README_NAMES = ("00README", "00README.XXX", "00README.json")
+_PDFOUTPUT_SET_RE = re.compile(r"\\pdfoutput\s*=\s*(\d)")
+_IFNUM_TAIL_RE = re.compile(r"\\ifnum\s*$")
+
+
 def _has_latex_dvips_mode(root: Path) -> bool:
     """Return True if a 00README file at root specifies latex (dvips) or tex compiler."""
-    for name in ("00README", "00README.XXX", "00README.json", "00README.yaml", "00README.yml"):
+    for name in _README_NAMES:
         readme = root / name
         if not readme.exists():
             continue
@@ -55,14 +64,11 @@ def _has_latex_dvips_mode(root: Path) -> bool:
 
 
 def _has_xelatex_mode(root: Path) -> bool:
-    """Return True if a 00README at root opts into XeLaTeX or LuaLaTeX.
+    """Return True if a 00README at root opts into XeLaTeX.
 
-    Mirrors :func:`_has_latex_dvips_mode`. Matches either the modern
-    ``compiler: xelatex`` / ``compiler: lualatex`` directive in 00README /
-    00README.json / 00README.yaml, or the legacy ``nohypertex,xelatex`` form
-    used in 00README.XXX.
+    Mirrors :func:`_has_latex_dvips_mode`.
     """
-    for name in ("00README", "00README.XXX", "00README.json", "00README.yaml", "00README.yml"):
+    for name in _README_NAMES:
         readme = root / name
         if not readme.exists():
             continue
@@ -70,13 +76,113 @@ def _has_xelatex_mode(root: Path) -> bool:
             content = readme.read_text(encoding="utf-8", errors="replace").lower()
         except OSError:
             continue
-        # Modern: "compiler": "xelatex" / compiler: lualatex.
-        if re.search(r'"?compiler"?\s*[:=]\s*"?(xelatex|lualatex)', content):
+        if re.search(r'"?compiler"?\s*[:=]\s*"?xelatex', content):
             return True
-        # Legacy XXX format: a nohypertex line that also mentions xelatex/lualatex.
-        if name == "00README.XXX" and re.search(r"(xelatex|lualatex)", content):
+        if name == "00README.XXX" and "xelatex" in content:
             return True
     return False
+
+
+def _readme_requests_lualatex(root: Path) -> bool:
+    for name in ("00README", "00README.json"):
+        readme = root / name
+        try:
+            content = readme.read_text(encoding="utf-8", errors="replace").lower()
+        except OSError:
+            continue
+        if re.search(r'"?compiler"?\s*[:=]\s*"?lualatex\b', content):
+            return True
+    return False
+
+
+def _has_minted_cache(root: Path) -> bool:
+    """True if root `_minted/` holds minted v3 cache files (`*.minted`), the format TeX Live 2025 reads."""
+    cache = root / "_minted"
+    return cache.is_dir() and any(cache.glob("*.minted"))
+
+
+_LIVE_REF_RE = re.compile(
+    r"\\(?:input|include|subfile|includegraphics\*?)(?:\[[^\]]*\])*\{([^}]+)\}"
+    r"|\\begin\{overpic\}(?:\[[^\]]*\])?\{([^}]+)\}"
+)
+
+
+def _norm_ref(ref: str) -> str:
+    return ref.strip().strip('"')
+
+
+_BUILD_OUTPUT_EXTS = {".aux", ".toc", ".lof", ".lot", ".bbl", ".ind", ".gls", ".nls", ".out"}
+_TEXLIVE_INPUTS = {"glyphtounicode", "epsf"}
+
+
+def _kpsewhich(*args: str, cwd: str) -> str:
+    kpsewhich = shutil.which("kpsewhich")
+    if kpsewhich is None:
+        return ""
+    try:
+        out = subprocess.run([kpsewhich, *args], capture_output=True, text=True, timeout=30, cwd=cwd)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout.strip()
+
+
+def _texlive_provided(refs: list[str]) -> set[str]:
+    """Subset of `refs` that TeX Live itself ships; the user's own texmf trees and cwd don't count.
+
+    One kpsewhich call for all refs: per-ref calls cost seconds on projects with many missing files.
+    """
+    provided = {r for r in refs if r in _TEXLIVE_INPUTS or r.startswith("example-image")}
+    pending = [r for r in refs if r not in provided]
+    if not pending:
+        return provided
+    with tempfile.TemporaryDirectory() as empty:
+        dist = _kpsewhich("-var-value", "TEXMFDIST", cwd=empty)
+        if not dist:
+            return provided
+        dist_root = Path(dist).resolve()
+        names = [n for r in pending for n in (r, r + ".tex")]
+        hits = {
+            Path(h).name
+            for h in _kpsewhich(*names, cwd=empty).splitlines()
+            if Path(h).resolve().is_relative_to(dist_root)
+        }
+    return provided | {r for r in pending if Path(r).name in hits or Path(r).name + ".tex" in hits}
+
+
+def _report_missing_targets(
+    missing_inputs: list[str], missing_images: set[str], all_sources: list[str], issues: Issues
+) -> None:
+    """Warn for \\input / \\includegraphics targets absent from the project, skipping generated and TeX Live files."""
+    if not missing_inputs and not missing_images:
+        return
+    combined = _VERBATIM_ENVS.sub("", re.sub(r"(?<!\\)%[^\n]*", "", "\n".join(all_sources)))
+    generated = set(_FILECONTENTS_RE.findall(combined))
+    externalized = "\\tikzexternalize" in combined
+    live_refs = {_norm_ref(m.group(1) or m.group(2)) for m in _LIVE_REF_RE.finditer(combined)}
+
+    def candidate(ref: str) -> bool:
+        return (
+            Path(ref).suffix.lower() not in _BUILD_OUTPUT_EXTS
+            and ref not in generated
+            and ref + ".tex" not in generated
+            and ref in live_refs
+        )
+
+    inputs = [r for r in dict.fromkeys(map(_norm_ref, missing_inputs)) if candidate(r)]
+    images = [] if externalized else [r for r in sorted({_norm_ref(r) for r in missing_images}) if candidate(r)]
+    provided = _texlive_provided(inputs + images)
+    for ref in inputs:
+        if ref not in provided:
+            issues.warn(
+                f"\\input/\\include/\\subfile target not found: {ref} — unless TeX Live provides it, "
+                "arXiv's build stops with 'File not found'"
+            )
+    for ref in images:
+        if ref not in provided:
+            issues.warn(
+                f"\\includegraphics target not found: {ref} — unless TeX Live provides it, "
+                "arXiv's build stops with 'File not found'"
+            )
 
 
 def _check_compliance(
@@ -138,7 +244,7 @@ def _check_compliance(
                             "to avoid duplicate bibliography commands"
                         )
 
-    # Shell-escape packages (arXiv compiles without --shell-escape, so these fail).
+    # Shell-escape packages; minted alone can build from a shipped v3 cache.
     # Iterate the comma-separated \usepackage argument so 'pst-pdf' isn't matched
     # as a substring of 'auto-pst-pdf'.
     flagged_shell: set[str] = set()
@@ -147,6 +253,13 @@ def _check_compliance(
             name = raw.strip()
             if name in _SHELL_ESCAPE_PKGS and name not in flagged_shell:
                 flagged_shell.add(name)
+                if name == "minted" and _has_minted_cache(root):
+                    issues.warn(
+                        "\\usepackage{minted} with a shipped _minted cache — arXiv compiles "
+                        "without shell-escape, so every listing must already be in the cache; "
+                        "build it with TeX Live 2025 (minted v3) and select TeX Live 2025 on arXiv"
+                    )
+                    continue
                 issues.error(
                     f"\\usepackage{{{name}}} requires shell-escape — arXiv "
                     "compiles without it; this submission will fail to build"
@@ -167,22 +280,45 @@ def _check_compliance(
             "convert figure inclusions to \\includegraphics from graphicx"
         )
 
-    # fontspec / unicode-math require XeLaTeX or LuaLaTeX; arXiv defaults to pdfLaTeX.
-    # XeLaTeX is available via a 00README directive (compiler: xelatex);
-    # without that directive the build will fail. With the directive present,
-    # the error is suppressed — the user has explicitly opted into XeLaTeX.
+    # The submission form may still default to pdfLaTeX; only a 00README opt-in is verifiable here.
     xelatex_opted_in = _has_xelatex_mode(root)
     for pkg in ("fontspec", "unicode-math"):
         if re.search(r"\\usepackage(?:\[[^\]]*\])?\{[^}]*\b" + pkg + r"\b[^}]*\}", combined_nc):
             if xelatex_opted_in:
                 continue
             issues.error(
-                f"\\usepackage{{{pkg}}} requires XeLaTeX or LuaLaTeX — "
-                "arXiv defaults to pdfLaTeX; ship a 00README with "
-                "'compiler: xelatex' (or legacy 00README.XXX with "
-                "'nohypertex,xelatex') to opt into XeLaTeX, otherwise "
-                "this submission will fail to build"
+                f"\\usepackage{{{pkg}}} requires XeLaTeX — pdfLaTeX will fail; add a 00README.json "
+                'containing {"process": {"compiler": "xelatex"}} or select xelatex when submitting '
+                "(arXiv does not support LuaLaTeX)"
             )
+
+    if _readme_requests_lualatex(root):
+        issues.error(
+            "00README requests lualatex — arXiv supports only tex, pdftex, latex, pdflatex and "
+            "xelatex, and fails any other compiler; switch to xelatex"
+        )
+    for yaml_name in ("00README.yaml", "00README.yml"):
+        if (root / yaml_name).is_file():
+            issues.warn(
+                f"{yaml_name} is not a format arXiv documents and is not read as a processor choice — "
+                'use 00README.json (e.g. {"process": {"compiler": "xelatex"}}) or the legacy 00README.XXX'
+            )
+    pdfoutput_values = {
+        m.group(1)
+        for m in _PDFOUTPUT_SET_RE.finditer(combined_nc)
+        if not _IFNUM_TAIL_RE.search(combined_nc[max(0, m.start() - 40) : m.start()])
+    }
+    latex_mode = _has_latex_dvips_mode(root)
+    if pdfoutput_values and (xelatex_opted_in or latex_mode):
+        issues.warn(
+            "\\pdfoutput is set but 00README selects xelatex or latex — xelatex has no \\pdfoutput "
+            "and latex+dvips needs DVI output; remove the \\pdfoutput line"
+        )
+    elif "0" in pdfoutput_values:
+        issues.warn(
+            "\\pdfoutput=0 makes pdflatex write DVI instead of PDF — remove it, or select latex "
+            'with a 00README.json ({"process": {"compiler": "latex"}}) if you need dvips'
+        )
 
     # xr / xr-hyper break because file paths/locations differ on arXiv's servers.
     # Longer alternative listed first so the captured group prefers xr-hyper over xr.
@@ -198,9 +334,9 @@ def _check_compliance(
     if main_tex.parent != root:
         rel = main_tex.relative_to(root)
         issues.warn(
-            f"main tex '{rel}' is not at the submission root — "
-            "arXiv compiles from root and will not find it; move it up "
-            "or repackage from inside the directory that contains it"
+            f"main tex '{rel}' is not at the submission root — arXiv compiles from the root, "
+            "so \\input, \\includegraphics and bibliography paths resolve from there, "
+            f"not from {rel.parent.as_posix()}/"
         )
 
     # arXiv does not run makeindex / glossary processors — pre-built files must ship.
@@ -433,6 +569,9 @@ def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
                     )
 
         name = path.name
+
+        if path.suffix.lower() == ".tex" and is_ancillary(rel.as_posix()):
+            issues.warn(f"{rel.as_posix()} is a .tex file in anc/ — arXiv says TeX files do not belong in anc/")
 
         # Spaces in filenames cause problems with \input{} resolution.
         if " " in name:

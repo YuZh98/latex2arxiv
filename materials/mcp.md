@@ -179,4 +179,4 @@ Both tools resolve the `path` argument relative to a sandboxed root. The root is
 > }
 > ```
 >
-> **Agent:** Your paper has 1 error blocking submission: `minted` requires `--shell-escape` which arXiv doesn't run. You'll need to replace `minted` with `listings` or `verbatim`. Also, `\today` in `\date` may change if arXiv rebuilds the PDF.
+> **Agent:** Your paper has 1 error blocking submission: `minted` requires `--shell-escape` which arXiv doesn't run. Ship the `_minted` cache from a TeX Live 2025 build, or replace `minted` with `listings`. Also, `\today` in `\date` may change if arXiv rebuilds the PDF.

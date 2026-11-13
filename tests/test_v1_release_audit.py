@@ -504,32 +504,29 @@ class TestZipBombProtection:
         assert isinstance(issues, Issues)
 
 
-# ── 13. pdfoutput injection ───────────────────────────────────────────────────
+# ── 13. pdfoutput left alone ──────────────────────────────────────────────────
 
 
-class TestPdfoutputInjection:
-    """`\\pdfoutput=1` is injected before \\documentclass when missing."""
+class TestPdfoutputNotInjected:
+    """arXiv picks the processor at submission; an injected \\pdfoutput breaks xelatex and latex+dvips."""
 
-    def test_pdfoutput_injected_when_missing(self, tmp_path):
+    def test_pdfoutput_not_injected(self, tmp_path):
         tex = r"\documentclass{article}\begin{document}Text.\end{document}"
         zp = _zip(tmp_path, {"main.tex": tex})
         out = tmp_path / "out.zip"
         convert(zp, out)
         with zipfile.ZipFile(out) as zf:
             src = zf.read("main.tex").decode()
-        assert r"\pdfoutput=1" in src, "\\pdfoutput=1 must be injected when missing"
-        assert src.index(r"\pdfoutput=1") < src.index(r"\documentclass"), (
-            "\\pdfoutput=1 must appear before \\documentclass"
-        )
+        assert r"\pdfoutput" not in src
 
-    def test_pdfoutput_not_duplicated_when_already_present(self, tmp_path):
+    def test_existing_pdfoutput_kept_once(self, tmp_path):
         tex = r"\pdfoutput=1" + "\n" + r"\documentclass{article}\begin{document}Text.\end{document}"
         zp = _zip(tmp_path, {"main.tex": tex})
         out = tmp_path / "out.zip"
         convert(zp, out)
         with zipfile.ZipFile(out) as zf:
             src = zf.read("main.tex").decode()
-        assert src.count(r"\pdfoutput=1") == 1, "\\pdfoutput=1 must not be duplicated"
+        assert src.count(r"\pdfoutput=1") == 1
 
 
 # ── 14. Comment stripping preserves verbatim ─────────────────────────────────

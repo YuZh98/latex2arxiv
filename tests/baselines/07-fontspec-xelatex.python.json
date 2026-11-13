@@ -1,7 +1,7 @@
 {
   "errors": [
-    "\\usepackage{fontspec} requires XeLaTeX or LuaLaTeX \u2014 arXiv defaults to pdfLaTeX; ship a 00README with 'compiler: xelatex' (or legacy 00README.XXX with 'nohypertex,xelatex') to opt into XeLaTeX, otherwise this submission will fail to build",
-    "\\usepackage{unicode-math} requires XeLaTeX or LuaLaTeX \u2014 arXiv defaults to pdfLaTeX; ship a 00README with 'compiler: xelatex' (or legacy 00README.XXX with 'nohypertex,xelatex') to opt into XeLaTeX, otherwise this submission will fail to build"
+    "\\usepackage{fontspec} requires XeLaTeX \u2014 pdfLaTeX will fail; add a 00README.json containing {\"process\": {\"compiler\": \"xelatex\"}} or select xelatex when submitting (arXiv does not support LuaLaTeX)",
+    "\\usepackage{unicode-math} requires XeLaTeX \u2014 pdfLaTeX will fail; add a 00README.json containing {\"process\": {\"compiler\": \"xelatex\"}} or select xelatex when submitting (arXiv does not support LuaLaTeX)"
   ],
   "warnings": []
 }

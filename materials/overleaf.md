@@ -35,7 +35,7 @@ When you run `latex2arxiv my_project.zip --compile`, it:
 
 1. **Auto-detects** your main `.tex` file via `\documentclass` (override with `--main main.tex` if needed).
 2. **Prunes** the project to only files reachable from the main `.tex` — drops cover letters, response letters, supplementary builds, editor backups, and unused figures.
-3. **Cleans** the source — strips comments, `\todo{}`, draft packages, normalizes BibTeX, injects `\pdfoutput=1`.
+3. **Cleans** the source — strips comments, `\todo{}`, draft packages, normalizes BibTeX.
 4. **Pre-flight checks** — flags shell-escape packages, biblatex/`.bbl` mismatches, `.eps` images, and other [arXiv submission gotchas](../README.md#pre-flight-checks). Errors exit non-zero.
 5. **Compiles** the cleaned project locally with `pdflatex` and opens the PDF for visual review.
 
@@ -47,10 +47,12 @@ If `latex2arxiv` reports `[error]` lines, fix them before uploading. Common ones
 
 | Error | What it means | Fix |
 |---|---|---|
-| `\usepackage{minted} requires shell-escape` | Works in Overleaf, fails on arXiv | Replace with `listings` or pre-render code blocks |
+| `\usepackage{minted} requires shell-escape` | Works in Overleaf, fails on arXiv | Compile on TeX Live 2025, download the `_minted` folder from Overleaf's output files into the project root, and select TeX Live 2025 on arXiv; or replace with `listings` |
+| `\usepackage{fontspec} requires XeLaTeX` | Your Overleaf compiler is XeLaTeX; arXiv's default is pdfLaTeX | Add a `00README.json` containing `{"process": {"compiler": "xelatex"}}`, or select xelatex when submitting |
 | `\usepackage{psfig}` | Legacy, no longer supported by arXiv | Switch to `graphicx`'s `\includegraphics` |
-| `.eps image found` | `pdflatex` can't process `.eps` | Convert to `.pdf` (use `epstopdf`) |
 | `\addbibresource references refs.bib but it is not in the output` | Neither the `.bib` nor a `.bbl` is in the project, so arXiv blocks the submission | Add the `.bib` file to your project |
+
+A `[warn]` about `.eps` images means pdflatex can't read them: convert to `.pdf` (`epstopdf`), or select latex with a `00README.json`.
 
 Always check the [arXiv submission preview](https://arxiv.org/submit) PDF before submitting — `--compile` is a local sanity check, but arXiv pins specific TeX Live versions and edge cases occasionally slip through.
 

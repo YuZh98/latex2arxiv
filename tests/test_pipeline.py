@@ -21,7 +21,6 @@ from pipeline.tex import (
     strip_comments,
     remove_draft_annotations,
     remove_comment_environments,
-    ensure_pdfoutput,
     remove_draft_packages,
 )
 from pipeline.deps import find_used_images, find_used_style_files, find_used_bib_files
@@ -170,44 +169,6 @@ class TestRemoveCommentEnvironments:
         result = remove_comment_environments(src)
         assert "hidden" not in result
         assert "before" in result and "after" in result
-
-
-class TestEnsurePdfoutput:
-    def test_injects_when_missing(self):
-        src = "\\documentclass{article}"
-        result = ensure_pdfoutput(src)
-        assert result.startswith("\\pdfoutput=1")
-
-    def test_no_duplicate_when_present(self):
-        src = "\\pdfoutput=1\n\\documentclass{article}"
-        result = ensure_pdfoutput(src)
-        assert result.count("\\pdfoutput=1") == 1
-
-    def test_normalizes_pdfoutput_zero(self):
-        src = "\\pdfoutput=0\n\\documentclass{article}"
-        result = ensure_pdfoutput(src)
-        assert "\\pdfoutput=0" not in result
-        assert result.count("\\pdfoutput=1") == 1
-        assert result.startswith("\\pdfoutput=1")
-
-    def test_normalizes_pdfoutput_with_spaces(self):
-        src = "\\pdfoutput = 0\n\\documentclass{article}"
-        result = ensure_pdfoutput(src)
-        assert "\\pdfoutput = 0" not in result
-        assert result.count("\\pdfoutput=1") == 1
-
-    def test_strips_late_pdfoutput_override(self):
-        # User had \pdfoutput=0 mid-file; result should not contain any =0 declaration.
-        src = "\\documentclass{article}\n\\pdfoutput=0\n\\begin{document}hi\\end{document}"
-        result = ensure_pdfoutput(src)
-        assert "\\pdfoutput=0" not in result
-        assert result.startswith("\\pdfoutput=1")
-
-    def test_normalizes_pdfoutput_two(self):
-        src = "\\pdfoutput=2\n\\documentclass{article}"
-        result = ensure_pdfoutput(src)
-        assert "\\pdfoutput=2" not in result
-        assert result.startswith("\\pdfoutput=1")
 
 
 class TestRemoveDraftPackages:
@@ -799,8 +760,7 @@ class TestFullPipeline:
         names = self._run(files)
         assert "sub/00README" not in names
 
-    def test_pdfoutput_zero_normalized_in_output(self):
-        # End-to-end: a user-supplied \pdfoutput=0 must become =1 in the converted main.tex.
+    def test_pdfoutput_left_as_written(self):
         import tempfile
         from converter import convert
 
@@ -816,8 +776,8 @@ class TestFullPipeline:
             converted = zf.read("main.tex").decode("utf-8")
         inp.unlink()
         out.unlink()
-        assert "\\pdfoutput=0" not in converted
-        assert "\\pdfoutput=1" in converted
+        assert converted.count("\\pdfoutput") == 1
+        assert "\\pdfoutput=0" in converted
 
 
 class TestPreflightChecks:
@@ -3828,3 +3788,380 @@ class TestUsesBiblatexComments:
         from pipeline.deps import uses_biblatex
 
         assert not uses_biblatex(["% \\addbibresource{refs.bib}"])
+
+
+_DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+_XE_README = '{"process": {"compiler": "xelatex"}}'
+
+
+def _convert_files(files: dict, tmp_path, dry_run=False, **kwargs):
+    from converter import convert
+
+    zp = tmp_path / "in.zip"
+    with zipfile.ZipFile(zp, "w") as zf:
+        for name, content in files.items():
+            zf.writestr(name, content)
+    out = tmp_path / "out.zip"
+    issues = convert(zp, out, dry_run=dry_run, **kwargs)
+    names = set() if dry_run else set(zipfile.ZipFile(out).namelist())
+    return issues, names
+
+
+class TestAncillaryAndMintedCache:
+    def test_anc_files_kept(self, tmp_path):
+        issues, names = _convert_files({"main.tex": _DOC, "anc/data.csv": "1,2", "anc/sub/code.py": "x=1"}, tmp_path)
+        assert {"anc/data.csv", "anc/sub/code.py"} <= names
+        assert not issues.errors
+
+    def test_nested_anc_not_ancillary(self, tmp_path):
+        _, names = _convert_files({"main.tex": _DOC, "extra/anc/data.csv": "1,2"}, tmp_path)
+        assert "extra/anc/data.csv" not in names
+
+    def test_tex_in_anc_warns(self, tmp_path):
+        issues, names = _convert_files({"main.tex": _DOC, "anc/notes.tex": "hi"}, tmp_path)
+        assert "anc/notes.tex" in names
+        assert any("anc/notes.tex is a .tex file in anc/" in w for w in issues.warnings)
+
+    def test_anc_images_not_resized(self, tmp_path):
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (400, 300)).save(buf, format="PNG")
+        _, names = _convert_files({"main.tex": _DOC, "anc/big.png": buf.getvalue()}, tmp_path, resize=100)
+        with zipfile.ZipFile(tmp_path / "out.zip") as zf:
+            assert Image.open(io.BytesIO(zf.read("anc/big.png"))).size == (400, 300)
+
+    def test_minted_without_cache_errors(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{minted}\n\\begin{document}x\\end{document}\n"
+        issues, _ = _convert_files({"main.tex": src}, tmp_path, dry_run=True)
+        assert any("minted} requires shell-escape" in e for e in issues.errors)
+
+    def test_minted_with_cache_warns_and_keeps_cache(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{minted}\n\\begin{document}x\\end{document}\n"
+        issues, names = _convert_files({"main.tex": src, "_minted/abc.highlight.minted": "c"}, tmp_path)
+        assert not any("minted" in e for e in issues.errors)
+        assert any("shipped _minted cache" in w for w in issues.warnings)
+        assert "_minted/abc.highlight.minted" in names
+
+    def test_minted_v2_cache_still_errors(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{minted}\n\\begin{document}x\\end{document}\n"
+        issues, names = _convert_files({"main.tex": src, "_minted-main/x.pygtex": "c"}, tmp_path)
+        assert any("requires shell-escape" in e for e in issues.errors)
+        assert "_minted-main/x.pygtex" in names
+
+    def test_minted_cache_dropped_without_minted(self, tmp_path):
+        _, names = _convert_files({"main.tex": _DOC, "_minted/abc.highlight.minted": "c"}, tmp_path)
+        assert not any(n.startswith("_minted") for n in names)
+
+    def test_hidden_and_build_junk_in_anc_dropped(self, tmp_path):
+        files = {
+            "main.tex": _DOC,
+            "anc/.env": "SECRET=1",
+            "anc/run.aux": "a",
+            "anc/run.log": "l",
+            "anc/x.tex~": "b",
+            "anc/n.synctex.gz": "s",
+            "anc/keep.csv": "1",
+        }
+        _, names = _convert_files(files, tmp_path)
+        assert {n for n in names if n.startswith("anc/")} == {"anc/keep.csv"}
+
+    def test_anc_bib_not_normalized(self, tmp_path):
+        files = {
+            "main.tex": "\\documentclass{article}\n\\begin{document}\\cite{a}\n\\bibliography{refs}\n\\end{document}\n",
+            "refs.bib": "@article{a, title={A}}\n",
+            "anc/refs.bib": "@article{zzz_uncited,   title={Z}}\n",
+        }
+        _convert_files(files, tmp_path)
+        with zipfile.ZipFile(tmp_path / "out.zip") as zf:
+            assert zf.read("anc/refs.bib").decode() == "@article{zzz_uncited,   title={Z}}\n"
+
+    def test_empty_minted_dir_still_errors(self, tmp_path):
+        from converter import convert
+
+        src_dir = tmp_path / "src"
+        (src_dir / "_minted").mkdir(parents=True)
+        (src_dir / "main.tex").write_text(
+            "\\documentclass{article}\n\\usepackage{minted}\n\\begin{document}x\\end{document}\n"
+        )
+        zp = tmp_path / "in.zip"
+        with zipfile.ZipFile(zp, "w") as zf:
+            zf.write(src_dir / "main.tex", "main.tex")
+            zf.write(src_dir / "_minted", "_minted/")
+        issues = convert(zp, tmp_path / "out.zip", dry_run=True)
+        assert any("requires shell-escape" in e for e in issues.errors)
+
+
+class TestProcessorDirectives:
+    _FONTSPEC = "\\documentclass{article}\n\\usepackage{fontspec}\n\\begin{document}x\\end{document}\n"
+
+    def test_fontspec_error_cites_00readme_json(self, tmp_path):
+        issues, _ = _convert_files({"main.tex": self._FONTSPEC}, tmp_path, dry_run=True)
+        (msg,) = [e for e in issues.errors if "fontspec" in e]
+        assert '{"process": {"compiler": "xelatex"}}' in msg
+        assert "nohypertex" not in msg
+
+    def test_fontspec_with_json_readme_ok(self, tmp_path):
+        issues, _ = _convert_files({"main.tex": self._FONTSPEC, "00README.json": _XE_README}, tmp_path, dry_run=True)
+        assert not issues.errors
+
+    def test_lualatex_readme_errors(self, tmp_path):
+        files = {"main.tex": self._FONTSPEC, "00README.json": '{"process": {"compiler": "lualatex"}}'}
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        assert any("00README requests lualatex" in e for e in issues.errors)
+        assert any("fontspec" in e for e in issues.errors)
+
+    def test_yaml_readme_warns(self, tmp_path):
+        issues, _ = _convert_files({"main.tex": _DOC, "00README.yml": "compiler: pdflatex\n"}, tmp_path, dry_run=True)
+        assert any(w.startswith("00README.yml is not a format arXiv documents") for w in issues.warnings)
+
+    def test_yaml_readme_is_not_a_xelatex_opt_in(self, tmp_path):
+        files = {"main.tex": self._FONTSPEC, "00README.yaml": "compiler: xelatex\n"}
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        assert any("fontspec" in e for e in issues.errors)
+
+    def test_lualatex_mentioned_outside_compiler_not_an_error(self, tmp_path):
+        files = {"main.tex": _DOC, "00README.json": '{"process": {"compiler": "pdflatex"}, "note": "was lualatex"}'}
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        assert not issues.errors
+
+    def test_lualatex_in_legacy_readme_not_an_error(self, tmp_path):
+        files = {"main.tex": _DOC, "00README.XXX": "main-lualatex-notes.pdf ignore\n"}
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        assert not issues.errors
+
+    def test_pdfoutput_conditional_not_flagged(self, tmp_path):
+        src = "\\ifnum\\pdfoutput=1 \\relax\\fi\n" + _DOC
+        files = {"main.tex": src, "00README.json": '{"process": {"compiler": "latex"}}'}
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        assert not any("pdfoutput" in w for w in issues.warnings)
+
+    def test_pdfoutput_zero_without_readme_warns(self, tmp_path):
+        issues, _ = _convert_files({"main.tex": "\\pdfoutput=0\n" + _DOC}, tmp_path, dry_run=True)
+        assert any("\\pdfoutput=0 makes pdflatex write DVI" in w for w in issues.warnings)
+
+    def test_pdfoutput_with_xelatex_warns(self, tmp_path):
+        src = "\\pdfoutput=1\n" + self._FONTSPEC
+        issues, _ = _convert_files({"main.tex": src, "00README.json": _XE_README}, tmp_path, dry_run=True)
+        assert any("\\pdfoutput is set but 00README selects" in w for w in issues.warnings)
+
+    def test_pdfoutput_with_latex_mode_warns(self, tmp_path):
+        files = {"main.tex": "\\pdfoutput=1\n" + _DOC, "00README.json": '{"process": {"compiler": "latex"}}'}
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        assert any("\\pdfoutput is set" in w for w in issues.warnings)
+
+    def test_pdfoutput_with_pdflatex_silent(self, tmp_path):
+        issues, _ = _convert_files({"main.tex": "\\pdfoutput=1\n" + _DOC}, tmp_path, dry_run=True)
+        assert not any("pdfoutput" in w for w in issues.warnings)
+
+
+class TestMissingTargets:
+    def test_missing_input_warns(self, tmp_path):
+        src = "\\documentclass{article}\n\\begin{document}\n\\input{nothere}\n\\end{document}\n"
+        issues, _ = _convert_files({"main.tex": src}, tmp_path, dry_run=True)
+        assert any("\\input/\\include/\\subfile target not found: nothere" in w for w in issues.warnings)
+
+    def test_missing_nested_input_warns(self, tmp_path):
+        files = {
+            "main.tex": "\\documentclass{article}\n\\begin{document}\n\\input{a}\n\\end{document}\n",
+            "a.tex": "\\input{b}",
+        }
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        assert any("target not found: b" in w for w in issues.warnings)
+
+    def test_macro_input_not_reported(self, tmp_path):
+        src = "\\documentclass{article}\n\\begin{document}\n\\input{\\sectiondir/a}\n\\end{document}\n"
+        issues, _ = _convert_files({"main.tex": src}, tmp_path, dry_run=True)
+        assert not any("target not found" in w for w in issues.warnings)
+
+    def test_missing_image_warns(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{nofig}\n\\end{document}\n"
+        issues, _ = _convert_files({"main.tex": src}, tmp_path, dry_run=True)
+        assert any("\\includegraphics target not found: nofig" in w for w in issues.warnings)
+
+    def test_mwe_example_image_not_reported(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{example-image-a}\n\\end{document}\n"
+        issues, _ = _convert_files({"main.tex": src}, tmp_path, dry_run=True)
+        assert not any("target not found" in w for w in issues.warnings)
+
+    def test_uppercase_extension_image_not_reported(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{fig}\n\\end{document}\n"
+        issues, names = _convert_files({"main.tex": src, "fig.PNG": b"\x89PNG"}, tmp_path)
+        assert not any("target not found" in w for w in issues.warnings)
+        assert "fig.PNG" in names
+
+    def test_present_targets_silent(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\input{a}\n\\includegraphics{f.png}\n\\end{document}\n"
+        issues, _ = _convert_files({"main.tex": src, "a.tex": "A", "f.png": b"\x89PNG"}, tmp_path, dry_run=True)
+        assert not any("target not found" in w for w in issues.warnings)
+
+
+class TestSubdirMainResolution:
+    def test_root_relative_input_kept_for_subdir_main(self, tmp_path):
+        files = {
+            "paper/main.tex": "\\documentclass{article}\n\\begin{document}\n\\input{paper/sec}\n\\end{document}\n",
+            "paper/sec.tex": "S",
+            "figs/f.png": b"\x89PNG",
+        }
+        issues, names = _convert_files(files, tmp_path)
+        assert "paper/sec.tex" in names
+        assert not any("target not found" in w for w in issues.warnings)
+
+    def test_main_dir_relative_input_still_kept(self, tmp_path):
+        files = {
+            "paper/main.tex": "\\documentclass{article}\n\\begin{document}\n\\input{sec}\n\\end{document}\n",
+            "paper/sec.tex": "S",
+            "other.txt": "x",
+        }
+        _, names = _convert_files(files, tmp_path)
+        assert "paper/sec.tex" in names
+
+    def test_root_copy_preferred_over_main_dir_copy(self, tmp_path):
+        files = {
+            "paper/main.tex": "\\documentclass{article}\n\\begin{document}\n\\input{sec}\n\\end{document}\n",
+            "paper/sec.tex": "local",
+            "sec.tex": "root",
+        }
+        _, names = _convert_files(files, tmp_path)
+        assert "sec.tex" in names
+
+    def test_subdir_warning_says_paths_resolve_from_root(self, tmp_path):
+        files = {"paper/main.tex": _DOC, "other.txt": "x"}
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        (msg,) = [w for w in issues.warnings if "not at the submission root" in w]
+        assert "resolve from there" in msg and "will not find" not in msg
+
+    def test_wrapper_refs_through_folder_reported(self, tmp_path):
+        files = {
+            "paper/main.tex": "\\documentclass{article}\n\\begin{document}\n\\input{paper/sec}\n\\end{document}\n",
+            "paper/sec.tex": "S",
+        }
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        assert any("target not found: paper/sec" in w for w in issues.warnings)
+
+    def test_wrapper_still_unwrapped_normally(self, tmp_path):
+        files = {
+            "proj/main.tex": "\\documentclass{article}\n\\begin{document}\n\\input{sec}\n\\end{document}\n",
+            "proj/sec.tex": "S",
+        }
+        issues, names = _convert_files(files, tmp_path)
+        assert names == {"main.tex", "sec.tex"}
+
+
+class TestMissingTargetFalsePositives:
+    def _warns(self, files, tmp_path):
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        return [w for w in issues.warnings if "target not found" in w]
+
+    def test_texlive_inputs_skipped(self, tmp_path):
+        src = "\\input{glyphtounicode}\n\\documentclass{article}\n\\begin{document}\n\\input{epsf}\n\\end{document}\n"
+        assert not self._warns({"main.tex": src}, tmp_path)
+
+    def test_filecontents_generated_input_skipped(self, tmp_path):
+        src = (
+            "\\begin{filecontents*}{gen.tex}\nX\n\\end{filecontents*}\n"
+            "\\documentclass{article}\n\\begin{document}\n\\input{gen}\n\\end{document}\n"
+        )
+        assert not self._warns({"main.tex": src}, tmp_path)
+
+    def test_build_outputs_skipped(self, tmp_path):
+        src = "\\documentclass{article}\n\\begin{document}\n\\input{main.toc}\n\\end{document}\n"
+        assert not self._warns({"main.tex": src}, tmp_path)
+
+    def test_refs_inside_verbatim_skipped(self, tmp_path):
+        src = (
+            "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n"
+            "\\begin{verbatim}\n\\input{inverb}\n\\includegraphics{verbimg}\n\\end{verbatim}\n\\end{document}\n"
+        )
+        assert not self._warns({"main.tex": src}, tmp_path)
+
+    def test_quoted_image_ref_resolved_and_kept(self, tmp_path):
+        src = '\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{"figs/space name"}\n\\end{document}\n'
+        issues, names = _convert_files({"main.tex": src, "figs/space name.png": b"\x89PNG"}, tmp_path)
+        assert not [w for w in issues.warnings if "target not found" in w]
+        assert "figs/space name.png" in names
+
+    def test_same_name_elsewhere_still_reported(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{y}\n\\end{document}\n"
+        assert self._warns({"main.tex": src, "figs/y.png": b"\x89PNG"}, tmp_path)
+
+    def test_externalized_tikz_figures_skipped(self, tmp_path):
+        src = (
+            "\\documentclass{article}\n\\usepackage{tikz}\n\\usetikzlibrary{external}\n\\tikzexternalize\n"
+            "\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{main-figure0}\n\\end{document}\n"
+        )
+        assert not self._warns({"main.tex": src}, tmp_path)
+
+    def test_directory_named_tex_does_not_crash(self, tmp_path):
+        issues, _ = _convert_files({"paper/main.tex": _DOC, "paper/figs.tex/a.png": b"\x89PNG"}, tmp_path)
+        assert not issues.errors
+
+
+class TestMissingTargetRound2:
+    def _warns(self, files, tmp_path):
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        return [w for w in issues.warnings if "target not found" in w]
+
+    def test_padded_and_quoted_missing_refs_reported(self, tmp_path):
+        src = (
+            "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n"
+            '\\includegraphics{"missingq"}\n\\includegraphics{ missings }\n\\input{ missingi }\n\\end{document}\n'
+        )
+        warns = self._warns({"main.tex": src}, tmp_path)
+        assert any(w.startswith("\\includegraphics target not found: missingq ") for w in warns)
+        assert any(w.startswith("\\includegraphics target not found: missings ") for w in warns)
+        assert any(w.startswith("\\input/\\include/\\subfile target not found: missingi ") for w in warns)
+
+    def test_mixed_case_extension_not_accepted(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{mixed}\n\\end{document}\n"
+        assert self._warns({"main.tex": src, "mixed.Png": b"\x89PNG"}, tmp_path)
+
+    def test_file_in_cwd_does_not_hide_missing_input(self, tmp_path, monkeypatch):
+        (tmp_path / "cwd").mkdir()
+        (tmp_path / "cwd" / "sectionx.tex").write_text("x")
+        monkeypatch.chdir(tmp_path / "cwd")
+        src = "\\documentclass{article}\n\\begin{document}\n\\input{sectionx}\n\\end{document}\n"
+        assert self._warns({"main.tex": src}, tmp_path)
+
+    def test_ifnum_with_spaces_not_flagged(self, tmp_path):
+        src = "\\ifnum  \\pdfoutput = 1 \\relax\\fi\n" + _DOC
+        files = {"main.tex": src, "00README.json": '{"process": {"compiler": "latex"}}'}
+        issues, _ = _convert_files(files, tmp_path, dry_run=True)
+        assert not any("pdfoutput" in w for w in issues.warnings)
+
+    def test_directory_case_mismatch_reported(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{figs/a.png}\n\\end{document}\n"
+        assert self._warns({"main.tex": src, "Figs/a.png": b"\x89PNG"}, tmp_path)
+
+    def test_starred_and_overpic_missing_refs_reported(self, tmp_path):
+        src = (
+            "\\documentclass{article}\n\\usepackage{graphicx,overpic}\n\\begin{document}\n"
+            "\\includegraphics*[width=1cm]{missing_star}\n\\begin{overpic}[scale=.5]{missing_overpic}\\end{overpic}\n"
+            "\\end{document}\n"
+        )
+        warns = self._warns({"main.tex": src}, tmp_path)
+        assert any("target not found: missing_star " in w for w in warns)
+        assert any("target not found: missing_overpic " in w for w in warns)
+
+    def test_kpsewhich_called_once_for_many_missing_refs(self, tmp_path, monkeypatch):
+        import pipeline.preflight as pf
+
+        calls = []
+        monkeypatch.setattr(pf.shutil, "which", lambda name: "/usr/bin/kpsewhich")
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            out = "/dist" if "-var-value" in cmd else ""
+            return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+        monkeypatch.setattr(pf.subprocess, "run", fake_run)
+        figs = "".join(f"\\includegraphics{{figs/f{i}}}\n" for i in range(40))
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n" + figs + "\\end{document}\n"
+        warns = self._warns({"main.tex": src}, tmp_path)
+        assert len(warns) == 40
+        assert len(calls) == 2
+
+    def test_starred_includegraphics_image_kept(self, tmp_path):
+        src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics*[width=1cm]{fig}\n\\end{document}\n"
+        issues, names = _convert_files({"main.tex": src, "fig.png": b"\x89PNG"}, tmp_path)
+        assert "fig.png" in names
