@@ -570,6 +570,14 @@ def _check_files(root: Path, kept_files: set[Path], issues: Issues) -> None:
 
         name = path.name
 
+        # arXiv's upload removes zero-length files ("Removed file 'x' [file is
+        # empty]"), so anything that inputs or loads one fails to build.
+        if path.stat().st_size == 0:
+            issues.warn(
+                f"empty file: {rel.as_posix()} — arXiv removes empty files at upload, so "
+                "anything that inputs or loads it will fail; add content or drop the reference"
+            )
+
         if path.suffix.lower() == ".tex" and is_ancillary(rel.as_posix()):
             issues.warn(f"{rel.as_posix()} is a .tex file in anc/ — arXiv says TeX files do not belong in anc/")
 

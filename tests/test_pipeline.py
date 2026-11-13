@@ -4165,3 +4165,48 @@ class TestMissingTargetRound2:
         src = "\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics*[width=1cm]{fig}\n\\end{document}\n"
         issues, names = _convert_files({"main.tex": src, "fig.png": b"\x89PNG"}, tmp_path)
         assert "fig.png" in names
+
+
+class TestEmptyFiles:
+    """arXiv's upload removes zero-length files, breaking anything that loads them."""
+
+    _MAIN = "\\documentclass{article}\\begin{document}\\input{sec}\\end{document}"
+
+    def _run(self, files: dict, tmp_path: Path, **kwargs):
+        from converter import convert
+
+        inp = tmp_path / "in.zip"
+        with zipfile.ZipFile(inp, "w") as zf:
+            for name, content in files.items():
+                zf.writestr(name, content)
+        out = tmp_path / "out.zip"
+        captured = io.StringIO()
+        sys.stdout = captured
+        try:
+            issues = convert(inp, out, **kwargs)
+        finally:
+            sys.stdout = sys.__stdout__
+        return issues, out
+
+    def test_kept_empty_file_warns_with_relative_path(self, tmp_path):
+        issues, _ = self._run({"main.tex": self._MAIN, "sub/sec.tex": "", "sec.tex": ""}, tmp_path)
+        empty = [w for w in issues.warnings if w.startswith("empty file:")]
+        assert empty == [
+            "empty file: sec.tex — arXiv removes empty files at upload, so "
+            "anything that inputs or loads it will fail; add content or drop the reference"
+        ]
+
+    def test_removed_empty_file_does_not_warn(self, tmp_path):
+        files = {"main.tex": self._MAIN, "sec.tex": "text", "aux/main.out": ""}
+        issues, _ = self._run(files, tmp_path)
+        assert not [w for w in issues.warnings if w.startswith("empty file:")]
+
+    def test_empty_file_warns_in_dry_run(self, tmp_path):
+        issues, _ = self._run({"main.tex": self._MAIN, "sec.tex": ""}, tmp_path, dry_run=True)
+        assert any(w.startswith("empty file: sec.tex") for w in issues.warnings)
+
+    def test_comment_only_tex_is_not_emptied(self, tmp_path):
+        issues, out = self._run({"main.tex": self._MAIN, "sec.tex": "% TODO: write this\n"}, tmp_path)
+        with zipfile.ZipFile(out) as zf:
+            assert zf.read("sec.tex") == b"%\n"
+        assert not [w for w in issues.warnings if w.startswith("empty file:")]

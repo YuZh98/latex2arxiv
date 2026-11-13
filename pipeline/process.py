@@ -96,6 +96,10 @@ def _process_files(
                 src = remove_draft_packages(src)
                 if ctx.user_config:
                     src = apply_config(src, ctx.user_config, warn_fn=issues.warn)
+                # arXiv removes empty files, which would break the \input of a
+                # comment-only file; a lone % keeps it non-empty and is a no-op.
+                if not src and path.stat().st_size > 0:
+                    src = "%\n"
                 path.write_text(src, encoding="utf-8")
 
         # Process .bib files
