@@ -4210,3 +4210,109 @@ class TestEmptyFiles:
         with zipfile.ZipFile(out) as zf:
             assert zf.read("sec.tex") == b"%\n"
         assert not [w for w in issues.warnings if w.startswith("empty file:")]
+
+
+class TestGlossaryFiles:
+    """arXiv runs no glossary tool, so the files LaTeX reads back must ship (#258)."""
+
+    def _run(self, files: dict, tmp_path: Path, **kwargs):
+        from converter import convert
+
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        inp = tmp_path / "in.zip"
+        with zipfile.ZipFile(inp, "w") as zf:
+            for name, content in files.items():
+                zf.writestr(name, content)
+        out = tmp_path / "out.zip"
+        sys.stdout = io.StringIO()
+        try:
+            issues = convert(inp, out, **kwargs)
+        finally:
+            sys.stdout = sys.__stdout__
+        return issues
+
+    @staticmethod
+    def _doc(preamble: str = "", body: str = "hi") -> str:
+        return f"\\documentclass{{article}}{preamble}\\begin{{document}}{body}\\end{{document}}"
+
+    def test_find_glossary_types(self):
+        from pipeline.deps import find_glossary_types
+
+        src = (
+            "\\newglossary[nlg]{notation}{not}{ntn}{Notation}\n"
+            "\\newglossary*{rules}{Rules}\n"
+            "\\altnewglossary{lists}{lst}{Lists}\n"
+            "% \\newglossary{commented}{cmt}{cmo}{C}\n"
+            "\\newcommand{\\mk}[1]{\\newglossary{#1}{x}{y}{T}}\n"
+        )
+        aux = "\\@newglossary{fromaux}{alg2}{in2}{out2}\n"
+        types = find_glossary_types([src], [aux])
+        assert types["notation"] == "not"
+        assert types["rules"] == "rules-gls"
+        assert types["lists"] == "lst-gls"
+        assert types["fromaux"] == "in2"
+        assert types["acronym"] == "acr" and types["abbreviations"] == "gls-abr"
+        assert "commented" not in types and "#1" not in types
+
+    def test_is_glstex(self):
+        from pipeline.deps import is_glstex
+
+        assert is_glstex("main.glstex", "main") and is_glstex("main-2.glstex", "main")
+        assert not is_glstex("other.glstex", "main") and not is_glstex("main-x.glstex", "main")
+
+    def test_default_outputs_kept_inputs_and_logs_removed(self, tmp_path):
+        ship = ["main.acr", "main.sls", "main.gls-abr", "main.glstex", "main-1.glstex"]
+        drop = ["main.glo", "main.acn", "main.slo", "main.glg", "main.alg", "main.glsdefs", "other.acr"]
+        files = {"main.tex": self._doc(), **{n: "x" for n in ship + drop}}
+        issues = self._run(files, tmp_path, dry_run=True)
+        assert set(ship) <= set(issues.kept_files)
+        assert set(drop) <= set(issues.removed_files)
+
+    def test_declared_glossary_types_kept(self, tmp_path):
+        pre = "\\newglossary[nlg]{notation}{not}{ntn}{Notation}\\newglossary*{rules}{Rules}\\altnewglossary{lists}{lst}{L}"
+        ship = ["main.not", "main.rules-gls", "main.lst-gls"]
+        files = {"main.tex": self._doc(pre), **{n: "x" for n in ship}, "main.ntn": "x"}
+        issues = self._run(files, tmp_path, dry_run=True)
+        assert set(ship) <= set(issues.kept_files)
+        assert "main.ntn" in issues.removed_files
+
+    def test_type_recorded_only_in_aux_is_kept(self, tmp_path):
+        files = {
+            "main.tex": self._doc(),
+            "aux/main.aux": "\\@newglossary{custom}{clg}{cgs}{cgo}\n",
+            "main.cgs": "x",
+        }
+        issues = self._run(files, tmp_path, dry_run=True)
+        assert "main.cgs" in issues.kept_files
+        assert "aux/main.aux" in issues.removed_files
+
+    def test_output_left_in_subdirectory_warns_and_is_not_moved(self, tmp_path):
+        files = {"main.tex": self._doc("\\usepackage[acronym]{glossaries}", "\\printacronyms"), "aux/main.acr": "x"}
+        issues = self._run(files, tmp_path, dry_run=True)
+        assert any(w.startswith("aux/main.acr is not at the submission root") for w in issues.warnings)
+        assert not any("\\printacronyms used" in w for w in issues.warnings)
+        assert "main.acr" not in issues.kept_files
+
+    def test_printacronyms_without_acr_warns(self, tmp_path):
+        files = {"main.tex": self._doc("\\usepackage[acronym]{glossaries}", "\\printacronyms")}
+        issues = self._run(files, tmp_path, dry_run=True)
+        assert any(w.startswith("\\printacronyms used but no .acr file at root") for w in issues.warnings)
+
+    def test_printacronyms_with_acr_silent(self, tmp_path):
+        files = {"main.tex": self._doc("\\usepackage[acronym]{glossaries}", "\\printacronyms"), "main.acr": "x"}
+        issues = self._run(files, tmp_path, dry_run=True)
+        assert not any("\\printacronyms used" in w for w in issues.warnings)
+
+    def test_printglossary_custom_type_needs_its_own_file(self, tmp_path):
+        pre = "\\newglossary[nlg]{notation}{not}{ntn}{Notation}"
+        body = "\\printglossary\\printglossary[type=notation]"
+        issues = self._run({"main.tex": self._doc(pre, body), "main.gls": "x"}, tmp_path, dry_run=True)
+        assert any(w.startswith("\\printglossary used but no .not file at root") for w in issues.warnings)
+        assert not any("no .gls file" in w for w in issues.warnings)
+
+    def test_bib2gls_resources_without_glstex_warn(self, tmp_path):
+        pre = "\\usepackage[record]{glossaries-extra}\\GlsXtrLoadResources[src=terms]"
+        issues = self._run({"main.tex": self._doc(pre, "\\printunsrtglossaries")}, tmp_path, dry_run=True)
+        assert any(w.startswith("\\GlsXtrLoadResources used but no main.glstex") for w in issues.warnings)
+        issues = self._run({"main.tex": self._doc(pre), "main.glstex": "x"}, tmp_path / "x", dry_run=True)
+        assert not any("GlsXtrLoadResources" in w for w in issues.warnings)
