@@ -352,7 +352,10 @@ def find_defined_glossary_types(tex_sources: list[str], aux_sources: list[str] |
     for src in tex_sources:
         for m in _GLOSSARIES_PKG_RE.finditer(_strip_comments(src)):
             loaded = True
-            options |= {o.split("=")[0].strip() for o in (m.group(1) or "").split(",")}
+            for opt in (m.group(1) or "").split(","):
+                key, _, value = opt.partition("=")
+                if value.strip().lower() != "false":
+                    options.add(key.strip())
     declared = set(_declared_glossary_types(tex_sources, aux_sources))
     if not loaded and not declared:
         return set()

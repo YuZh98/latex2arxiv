@@ -4364,3 +4364,21 @@ class TestGlossaryFiles:
         pre = "\\usepackage[nomain,acronym]{glossaries}"
         issues = self._run({"main.tex": self._doc(pre, "\\printglossaries"), "main.acr": "x"}, tmp_path, dry_run=True)
         assert not any("printglossaries" in w for w in issues.warnings)
+
+    def test_abbreviation_type_macros_resolve(self, tmp_path):
+        pre = "\\usepackage[abbreviations]{glossaries-extra}"
+        for macro in ("\\acronymtype", "\\glsxtrabbrvtype"):
+            files = {"main.tex": self._doc(pre, f"\\printglossary[type={macro}]"), "main.gls-abr": "x"}
+            issues = self._run(files, tmp_path / macro.strip("\\"), dry_run=True)
+            assert not any("printglossary used" in w for w in issues.warnings), macro
+
+    def test_option_set_to_false_defines_no_type(self, tmp_path):
+        pre = "\\usepackage[acronym=false]{glossaries}"
+        issues = self._run({"main.tex": self._doc(pre, "\\printglossaries"), "main.gls": "x"}, tmp_path, dry_run=True)
+        assert not any(".acr" in w for w in issues.warnings)
+
+    def test_printglossary_options_with_nested_braces(self, tmp_path):
+        pre = "\\usepackage[symbols]{glossaries}"
+        body = "\\printglossary[title={\\textbf{S}},type=symbols]"
+        issues = self._run({"main.tex": self._doc(pre, body), "main.gls": "x"}, tmp_path, dry_run=True)
+        assert any(w.startswith("\\printglossary used but no .sls file") for w in issues.warnings)

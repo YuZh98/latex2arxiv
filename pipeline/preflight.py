@@ -481,8 +481,24 @@ _GLOSSARY_PRINT_CMDS = {
     "printnumbers": "numbers",
     "printabbreviations": "abbreviations",
 }
-_PRINTGLOSSARY_RE = re.compile(r"\\printglossary\b\s*(?:\[((?:[^\]{}]|\{[^{}]*\})*)\])?")
+_PRINTGLOSSARY_RE = re.compile(r"\\printglossary\b\s*")
 _GLOSSARY_TYPE_OPT_RE = re.compile(r"\btype\s*=\s*\{?\s*(\\?[^,}\]\s]+)")
+
+
+def _optional_arg(s: str, start: int) -> str:
+    """The [...] argument starting at s[start], brace-aware; '' if there is none."""
+    if not s.startswith("[", start):
+        return ""
+    depth = 0
+    for i in range(start + 1, len(s)):
+        c = s[i]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        elif c == "]" and depth == 0:
+            return s[start + 1 : i]
+    return ""
 
 
 def _check_index_files(
@@ -507,11 +523,18 @@ def _check_index_files(
         required.setdefault("nls", "printnomenclature")
     printed: dict[str, str] = {}
     for m in _PRINTGLOSSARY_RE.finditer(combined_nc):
-        t = _GLOSSARY_TYPE_OPT_RE.search(m.group(1) or "")
+        t = _GLOSSARY_TYPE_OPT_RE.search(_optional_arg(combined_nc, m.end()))
         gtype = t.group(1) if t else "main"
         if gtype.startswith("\\"):
-            # \\acronymtype is the acronym glossary only when the acronym option made one.
-            gtype = "acronym" if gtype == "\\acronymtype" and "acronym" in defined else "main"
+            # \acronymtype names the acronym list when the acronym option made one;
+            # with glossaries-extra's abbreviations option it (and \glsxtrabbrvtype)
+            # names the abbreviations list. Anything else falls back to main.
+            if gtype == "\\acronymtype" and "acronym" in defined:
+                gtype = "acronym"
+            elif gtype in ("\\acronymtype", "\\glsxtrabbrvtype") and "abbreviations" in defined:
+                gtype = "abbreviations"
+            else:
+                gtype = "main"
         printed.setdefault(gtype, "printglossary")
     if re.search(r"\\printglossaries\b", combined_nc):
         for gtype in sorted(defined or {"main"}):
