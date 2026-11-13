@@ -921,7 +921,7 @@ class TestPreflightChecks:
             r"\begin{document}hi\printglossaries\end{document}",
         }
         issues, _ = self._run(files)
-        assert any("\\printglossary" in w and ".gls" in w for w in issues.warnings)
+        assert any("\\printglossaries used" in w and ".gls" in w for w in issues.warnings)
 
     def test_printnomenclature_without_nls_warns(self):
         files = {
