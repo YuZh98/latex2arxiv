@@ -93,6 +93,28 @@ class TestStripComments:
         result = strip_comments("a\n% c1\n% c2\nb")
         assert "\n\n" not in result
 
+    def test_keeps_trailing_percent_that_suppresses_line_break(self):
+        src = "\\newcommand{\\x}{%\n  a%\n}\n"
+        assert strip_comments(src) == src
+
+    def test_comment_after_text_keeps_bare_percent(self):
+        assert strip_comments("\\newcommand{\\x}{% body follows\n  a\n}") == "\\newcommand{\\x}{%\n  a\n}"
+
+    def test_comment_after_space_keeps_line_break(self):
+        assert strip_comments("a % c\nb") == "a \nb"
+
+    def test_comment_before_blank_line_keeps_paragraph_break(self):
+        assert strip_comments("First. % note\n\nSecond.\n") == "First. \n\nSecond.\n"
+
+    def test_trailing_percent_after_verb(self):
+        assert strip_comments("\\verb|x|% c\ny") == "\\verb|x|%\ny"
+
+    def test_trailing_percent_keeps_crlf(self):
+        assert strip_comments("a% c\r\nb") == "a%\r\nb"
+
+    def test_comment_on_last_line_without_newline(self):
+        assert strip_comments("a% c") == "a%"
+
 
 class TestRemoveDraftAnnotations:
     def test_removes_todo(self):
