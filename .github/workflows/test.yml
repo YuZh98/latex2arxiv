@@ -99,6 +99,9 @@ jobs:
             texlive-latex-recommended \
             texlive-latex-extra \
             texlive-bibtex-extra \
+            texlive-xetex \
+            fonts-lmodern \
+            ghostscript \
             biber
       - name: Install package
         run: pip install .
@@ -143,6 +146,20 @@ jobs:
           latex2arxiv /tmp/biber.zip /tmp/biber_arxiv.zip --compile
           test -f /tmp/biber_arxiv.pdf
           test "$(stat -c%s /tmp/biber_arxiv.pdf)" -gt 5000
+      - name: Processor paths — xelatex and latex+dvips build the cleaned output
+        run: |
+          latex2arxiv tests/fixtures/14-xelatex-00readme /tmp/xe_arxiv.zip
+          mkdir -p /tmp/xe && unzip -q /tmp/xe_arxiv.zip -d /tmp/xe
+          (cd /tmp/xe && xelatex -interaction=nonstopmode -halt-on-error main.tex)
+          test -f /tmp/xe/main.pdf
+          mkdir -p /tmp/dvi-fixture
+          printf '%s\n' '\documentclass{article}' '\usepackage{graphicx}' '\begin{document}' '\includegraphics{fig}' '\end{document}' > /tmp/dvi-fixture/main.tex
+          printf '%s\n' '%!PS-Adobe-3.0 EPSF-3.0' '%%BoundingBox: 0 0 100 100' 'newpath 10 10 moveto 90 90 lineto stroke' 'showpage' > /tmp/dvi-fixture/fig.eps
+          echo '{"process": {"compiler": "latex"}}' > /tmp/dvi-fixture/00README.json
+          latex2arxiv /tmp/dvi-fixture /tmp/dvi_arxiv.zip
+          mkdir -p /tmp/dvi && unzip -q /tmp/dvi_arxiv.zip -d /tmp/dvi
+          (cd /tmp/dvi && latex -interaction=nonstopmode -halt-on-error main.tex && dvips -q main.dvi -o main.ps && ps2pdf main.ps main.pdf)
+          test -f /tmp/dvi/main.pdf
 
   deprecation-strict:
     runs-on: ubuntu-latest

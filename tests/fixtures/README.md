@@ -20,14 +20,14 @@ logic.
 | 04 | `04-multi-documentclass/` | Four files with `\documentclass` (`main.tex`, `main_backup.tex`, `response.tex`, `Supplementary_Materials.tex`). Tests the main-tex auto-detect heuristic ranking. |
 | 05 | `05-pre-flight-warnings/` | Deliberately triggers most pre-flight checks at once: `minted` + `psfig` (errors), `xr` + `referee` + `\today`-in-`\date` + `.eps` + `\printindex` without `.ind` + `\printglossary` without `.gls` (warns). |
 | 06 | `06-inline-verbatim/` | `\verb`, `\verb*`, `\lstinline`, `\mintinline` with `%` and `\todo{}` inside. Tests inline-code protection during comment stripping and draft removal. |
-| 07 | `07-fontspec-xelatex/` | `\usepackage{fontspec}` + `\usepackage{unicode-math}`. Tests the XeLaTeX/LuaLaTeX pre-flight `[error]` check. |
+| 07 | `07-fontspec-xelatex/` | `\usepackage{fontspec}` + `\usepackage{unicode-math}`. Tests the XeLaTeX pre-flight `[error]` check. |
 | 08 | `08-flatten-basic/` | `main.tex` with `\input{intro}` and `\include{conclusion}`. Run with `--flatten` to exercise inlining + the `\clearpage` wrap around `\include` bodies. |
 | 09 | `09-flatten-subfile/` | `main.tex` with `\subfile{chapters/ch1}` (subdirectory) and `\subfile{ch2}` (peer). Run with `--flatten` to exercise subfile preamble-stripping and the including-file-relative path resolution for `\subfile`. |
 | 10 | `10-multifile-graphicspath/` | `main.tex` with `\input{sections/intro}`, `\graphicspath{{figures/}}`, and an extension-less `\includegraphics{fig1}`. Tests subdirectory image resolution plus pruning of an unused figure and an unreferenced `.tex`. |
 | 11 | `11-biblatex-bbl/` | biblatex with a shipped `.bbl` at bbl format 3.2. Tests the bbl-version pre-flight warn, `\addbibresource[location=local]` parsing, and `\autocite`/`\textcite` key detection. |
 | 12 | `12-plain-bibtex-natbib/` | Classic BibTeX workflow: natbib `\citep`/`\citet`, `\bibliographystyle{plainnat}`, `\bibliography{refs}`. Exercises the `bibtex` (not biber) dispatch in `--compile` and private-field stripping (`abstract`, `file`) in `.bib` normalization. |
 | 13 | `13-subdir-styles/` | Path-qualified `\usepackage{styles/custom}` with the `.sty` in a subdirectory. Tests the style-file whitelist keeping non-root styles and the "custom style file kept" advisory warn. |
-| 14 | `14-xelatex-00readme/` | `fontspec` + `unicode-math` with a `00README.yaml` declaring `compiler: xelatex`. Tests that the XeLaTeX opt-in suppresses the engine `[error]`s (contrast with 07). `--compile` fails by design — `_compile()` is pdflatex-only (exit code stays 0; compile failures are reported, not fatal). |
+| 14 | `14-xelatex-00readme/` | `fontspec` + `unicode-math` with a `00README.json` declaring `"compiler": "xelatex"`. Tests that the XeLaTeX opt-in suppresses the engine `[error]`s (contrast with 07). `--compile` fails by design — `_compile()` is pdflatex-only (exit code stays 0; compile failures are reported, not fatal). |
 | 15 | `15-archive-layout-warns/` | Hidden `.arxivignore` file and `.notes/` dot-directory. Tests the archive-layout warns (arXiv deletes dot-paths on announcement) and their pruning from the output. |
 
 ## How to run
@@ -63,8 +63,7 @@ here, treat it as a regression and investigate.
 - **Kept:** `main.tex` (1 file).
 - **Removed:** none.
 - **Errors / warnings:** 0 / 0.
-- **Cleaned-source notes:** `\pdfoutput=1` prepended; `% ...` line comments
-  stripped.
+- **Cleaned-source notes:** `% ...` line comments stripped.
 
 ### 02-biblatex-biber
 
@@ -179,11 +178,11 @@ brief note in the "Why" section.
 - **Kept:** `main.tex` (1 file).
 - **Removed:** none.
 - **Errors:** 2.
-  - `\usepackage{fontspec} requires XeLaTeX or LuaLaTeX — arXiv defaults to pdfLaTeX and this submission will fail to build`
-  - `\usepackage{unicode-math} requires XeLaTeX or LuaLaTeX — arXiv defaults to pdfLaTeX and this submission will fail to build`
+  - `\usepackage{fontspec} requires XeLaTeX — pdfLaTeX will fail; add a 00README.json ...`
+  - `\usepackage{unicode-math} requires XeLaTeX — pdfLaTeX will fail; add a 00README.json ...`
 - **Warnings:** 0.
 - **Regression anchor:** if either `[error]` line goes missing, the
-  fontspec/unicode-math check in `converter.py:_check_compliance` has
+  fontspec/unicode-math check in `pipeline/preflight.py:_check_compliance` has
   regressed.
 
 ### 08-flatten-basic
@@ -275,11 +274,11 @@ brief note in the "Why" section.
 
 ### 14-xelatex-00readme
 
-- **Kept:** `main.tex`, `00README.yaml` (2 files).
+- **Kept:** `main.tex`, `00README.json` (2 files).
 - **Removed:** none.
 - **Errors / warnings:** 0 / 0.
 - **Regression anchor:** if the `fontspec` / `unicode-math` `[error]` lines
-  from fixture 07 appear here, the `00README` `compiler: xelatex` opt-in
+  from fixture 07 appear here, the `00README.json` xelatex opt-in
   (`_has_xelatex_mode` in `pipeline/preflight.py`) has regressed — this
   fixture is the suppression counterpart to 07's error case.
 - **`--compile` mode:** fails by design — `_compile()` runs pdflatex only,

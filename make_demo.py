@@ -119,10 +119,9 @@ requirements. The terminal output uses two severities:
 \subsection*{Auto-fixes (silent)}
 
 \begin{itemize}
-  \item \texttt{\textbackslash pdfoutput=1} is injected before
-        \texttt{\textbackslash documentclass} if missing (arXiv requires it for
-        PDF mode). The cleaned \texttt{main.tex} starts with it even though the
-        source does not.
+  \item The root \texttt{anc/} directory (arXiv ancillary files) is kept,
+        minus hidden and build files, and so is a root \texttt{\_minted}
+        cache when minted is used.
   \item Unused draft-only packages (\texttt{todonotes}, \texttt{changes}, etc.)
         are removed.
 \end{itemize}
@@ -132,11 +131,16 @@ requirements. The terminal output uses two severities:
 \begin{itemize}
   \item \texttt{\textbackslash usepackage\{minted\}} /
         \texttt{pythontex} / \texttt{shellesc} —
-        require \texttt{-{}-shell-escape}; arXiv compiles without it, so these
-        always fail to build on arXiv.
+        require \texttt{-{}-shell-escape}; arXiv compiles without it. A root
+        \texttt{\_minted} folder of minted v3 cache files (built on TeX Live
+        2025) downgrades \texttt{minted} to a warning.
   \item A \texttt{\textbackslash bibliography} or
         \texttt{\textbackslash addbibresource} file that is missing, with no
         \texttt{.bbl} shipped — arXiv will block your submission.
+  \item \texttt{fontspec} / \texttt{unicode-math} without a XeLaTeX opt-in —
+        they abort under pdfLaTeX. A \texttt{00README.json} with
+        \texttt{"compiler": "xelatex"} declares the engine and silences them;
+        arXiv does not support LuaLaTeX.
 \end{itemize}
 
 \subsection*{Pre-flight warnings (review before submitting)}
@@ -161,10 +165,9 @@ requirements. The terminal output uses two severities:
   \item Custom \texttt{.cls} / \texttt{.sty} included — arXiv may suggest
         removing these; ignore that warning, they are required for compilation.
   \item \texttt{.eps} images — \texttt{pdflatex} cannot render them.
-  \item \texttt{fontspec} / \texttt{unicode-math} without a XeLaTeX opt-in —
-        these packages abort under arXiv's default pdfLaTeX. Shipping a
-        \texttt{00README} with \texttt{compiler: xelatex} declares the
-        engine and silences the error.
+  \item \texttt{\textbackslash input} or \texttt{\textbackslash includegraphics}
+        targets missing from the project — arXiv's build stops with
+        ``File not found''.
   \item Undefined citations — \texttt{\textbackslash cite\{key\}} where
         \texttt{key} is not in any kept \texttt{.bib} or \texttt{.bbl} file.
         This demo triggers it intentionally (see \S6).

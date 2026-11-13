@@ -57,33 +57,28 @@ def _restore_verbatim(source: str, placeholders: dict) -> str:
 
 
 def strip_comments(source: str) -> str:
-    """Remove LaTeX comments while preserving whitespace-suppression %,
-    escaped \\%, and verbatim blocks.
+    """Remove LaTeX comments (% ...) while preserving \\% and verbatim blocks.
+
+    A comment also swallows its line break, so when it directly follows text
+    (``\\newcommand{\\x}{%``) a bare ``%`` is kept; dropping it would turn the
+    line break into a space.
     """
     protected, placeholders = _protect_verbatim(source)
 
     result_lines = []
     for line in protected.splitlines(keepends=True):
         # Find first unescaped %
-        match = re.search(r"(?<!\\)%", line)
-
-        if match:
-            # Preserve % if it is the last non-whitespace character
-            # on the line, since it suppresses the following newline.
-            if line[match.start():].rstrip() == "%":
-                stripped = line[:match.start()] + "%"
-                # Preserve the original line ending.
-                stripped += "\n" if line.endswith("\n") else ""
-            else:
-                stripped = line[:match.start()]
-
-            # Drop lines that were entirely comments.
-            if stripped.strip() == "" and not stripped.endswith("%"):
-                continue
-        else:
-            stripped = line
-
-        result_lines.append(stripped)
+        m = re.search(r"(?<!\\)%", line)
+        if m is None:
+            result_lines.append(line)
+            continue
+        before = line[: m.start()]
+        # If the line was entirely a comment, drop it to avoid introducing
+        # spurious paragraph breaks
+        if before.strip() == "":
+            continue
+        keep = "" if before[-1].isspace() else "%"
+        result_lines.append(before + keep + line[len(line.rstrip("\r\n")) :])
 
     stripped = "".join(result_lines)
     return _restore_verbatim(stripped, placeholders)
@@ -242,14 +237,3 @@ def remove_comment_environments(source: str) -> str:
     source = re.sub(r"\\begin\{comment\}.*?\\end\{comment\}", "", source, flags=re.DOTALL)
     source = re.sub(r"\\iffalse\b.*?\\fi\b", "", source, flags=re.DOTALL)
     return source
-
-
-def ensure_pdfoutput(source: str) -> str:
-    """Ensure \\pdfoutput=1 is the only \\pdfoutput declaration.
-
-    arXiv requires PDF output. A user-set \\pdfoutput=0 (or any non-1 value)
-    forces DVI mode and contradicts the PDFLaTeX submission path, so we
-    strip any existing \\pdfoutput=N and prepend \\pdfoutput=1.
-    """
-    stripped = re.sub(r"\\pdfoutput\s*=\s*\d+\s*\n?", "", source)
-    return r"\pdfoutput=1" + "\n" + stripped

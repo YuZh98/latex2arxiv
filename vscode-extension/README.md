@@ -36,7 +36,7 @@ Stop discovering submission errors only after arXiv rejects your zip. This exten
 Every check the underlying [`latex2arxiv` CLI](https://github.com/YuZh98/latex2arxiv) performs, including:
 
 - **arXiv submission rules** — file-size limits, `.eps` vs `.pdf`, hidden files, `__MACOSX/` cruft, BOM markers, suspicious filename characters
-- **Engine quirks** — `\usepackage{minted}` (not available on arXiv), biblatex + biber flow, `\subfile` resolution, `\graphicspath`
+- **Engine quirks** — `\usepackage{minted}` (needs a shipped `_minted` cache on arXiv), biblatex + biber flow, `\subfile` resolution, `\graphicspath`
 - **Date traps** — `\today` inside `\date{}` (renders to upload date, not submission date)
 - **Bibliography** — missing `.bib`, mismatched `\bibliographystyle`, biber-only commands
 - **Project hygiene** — unused `\input`s, missing referenced files, encoding mismatches

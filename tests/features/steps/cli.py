@@ -630,10 +630,10 @@ def _cp_no_pdfoutput(project_dir, tex_content):
     common.build_paper_zip(project_dir, body, zip_name="project.zip")
 
 
-@then('the cleaned "main.tex" includes `\\pdfoutput=1` so arXiv selects pdfLaTeX')
-def _cp_pdfoutput_injected(project_dir, result):
+@then('the cleaned "main.tex" does not contain `\\pdfoutput`')
+def _cp_pdfoutput_not_injected(project_dir, result):
     body = _cp_read_main(project_dir, result)
-    assert "\\pdfoutput=1" in body, f"pdfoutput not injected: {body!r}"
+    assert "\\pdfoutput" not in body, f"pdfoutput injected: {body!r}"
 
 
 @given('the input "main.tex" contains `\\pdfoutput=0`')
@@ -643,11 +643,10 @@ def _cp_pdfoutput_zero(project_dir, tex_content):
     common.build_paper_zip(project_dir, body, zip_name="project.zip")
 
 
-@then('the cleaned "main.tex" contains `\\pdfoutput=1`')
-def _cp_pdfoutput_one(project_dir, result):
+@then('the cleaned "main.tex" still contains `\\pdfoutput=0`')
+def _cp_pdfoutput_kept(project_dir, result):
     body = _cp_read_main(project_dir, result)
-    assert "\\pdfoutput=1" in body, body
-    assert "\\pdfoutput=0" not in body, f"pdfoutput=0 not normalized: {body!r}"
+    assert body.count("\\pdfoutput") == 1 and "\\pdfoutput=0" in body, body
 
 
 @given('the input contains a "00README" file at the project root')
@@ -1638,7 +1637,7 @@ def _pf_psfig_error(result):
     _pf_assert_severity(result, "error", "psfig.sty", "forbids")
 
 
-@then('an "[error]" mentions that XeLaTeX or LuaLaTeX is required')
+@then('an "[error]" mentions that XeLaTeX is required')
 def _pf_xelatex_required(result):
     _pf_assert_severity(result, "error", "XeLaTeX")
 

@@ -15,9 +15,9 @@ from typing import Callable
 
 from pipeline.bibtex import normalize_bibtex
 from pipeline.config import apply_config
+from pipeline.deps import is_ancillary
 from pipeline.images import resize_image
 from pipeline.tex import (
-    ensure_pdfoutput,
     remove_comment_environments,
     remove_draft_annotations,
     remove_draft_packages,
@@ -78,7 +78,7 @@ def _process_files(
         kept_files.add(path)
 
         # Resize images if requested
-        if resize and path.suffix.lower() in IMAGE_EXTS:
+        if resize and path.suffix.lower() in IMAGE_EXTS and not is_ancillary(rel.as_posix()):
             if dry_run:
                 log(f"  would resize: {rel}")
             elif resize_image(path, max_px=resize):
@@ -96,12 +96,10 @@ def _process_files(
                 src = remove_draft_packages(src)
                 if ctx.user_config:
                     src = apply_config(src, ctx.user_config, warn_fn=issues.warn)
-                if path == ctx.main_tex:
-                    src = ensure_pdfoutput(src)
                 path.write_text(src, encoding="utf-8")
 
         # Process .bib files
-        if path.suffix == ".bib" and path.name in used_bib_files:
+        if path.suffix == ".bib" and path.name in used_bib_files and not is_ancillary(rel.as_posix()):
             if dry_run:
                 log(f"  would process (bib): {rel}")
             else:
